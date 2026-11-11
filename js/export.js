@@ -243,7 +243,9 @@
       zip.file("havainnot.json", JSON.stringify(j, null, 2));
       zip.file("havainnot.md", buildMd(j));
       zip.file("LUE_MINUT.txt", LUE_MINUT);
-      zip.file("varmuuskopio/data.json", JSON.stringify({ muoto: FORMAT, kohde: k, havainnot: S.havainnot, tiedostot: backupFiles }));
+      const kaytetyt = new Set(S.havainnot.map((h) => h.menetelma).concat(k.suunnitelma.map((p) => p.menetelma)));
+      zip.file("varmuuskopio/data.json", JSON.stringify({ muoto: FORMAT, kohde: k, havainnot: S.havainnot, tiedostot: backupFiles,
+        menetelmat: M.MENETELMAT.filter((m) => kaytetyt.has(m.id)) }));
 
       const blob = await zip.generateAsync({ type: "blob", compression: "STORE" });
       const name = safe(k.nimi) + "_" + (k.pvm || new Date().toISOString().slice(0, 10)) + ".zip";
@@ -288,6 +290,8 @@
       await DB.put("tiedostot", { id: fid, kohdeId: k.id, blob: new Blob([buf], { type: mime(p) }), type: mime(p), created: Date.now() });
     }
     for (const h of data.havainnot || []) await DB.put("havainnot", h);
+    // Paketin menetelmät, joita tällä laitteella ei ole, lisätään (olemassa olevia ei korvata).
+    if (Array.isArray(data.menetelmat)) await M.yhdista(data.menetelmat, false);
     await DB.put("kohteet", k);
     S.kohde = null;
     return k.id;

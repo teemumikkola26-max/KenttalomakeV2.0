@@ -41,6 +41,7 @@
       const puuttuu = [];
       if (!h.kuvat.length && !h.sanelu && !(h.aanitteet || []).length) puuttuu.push("kuva tai sanelu");
       if (!h.sijainti || !h.sijainti.tilaId) puuttuu.push("tila");
+      if (!h.menetelma) puuttuu.push("menetelmä");
       if (!h.tulos) puuttuu.push("tulos (poikkeama / ei huomautettavaa)");
       m.kentat.forEach((f) => { if (f.req && tyhja(h.kentat[f.k])) puuttuu.push(f.l.toLowerCase()); });
       if (m.id === "avaus" && !h.kuvat.length) puuttuu.push("kuva avauksesta");

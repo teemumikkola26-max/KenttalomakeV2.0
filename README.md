@@ -15,8 +15,9 @@ Sovellus on osa RTA-opinnäytetyön kehitystyötä ja erillinen PBM Kenttälomak
 | Näkymä | Tarkoitus |
 |---|---|
 | Kohde | Tutkimussuunnitelman eteneminen, viimeisimmät havainnot ja Kuva + sanelu -painike |
-| Kuva + sanelu | Kamera ja sanelu päällä yhtä aikaa. Kuvat ja sanelu tallentuvat samaan havaintoon heti. Sijainti muistetaan edellisestä havainnosta. |
-| Havaintokortti | Havainto (sanelu), sijainti, tulos, menetelmä, suunnitelman kohta, menetelmän kentät, mittausarvojen vahvistus ja tutkijan alustava tulkinta erikseen |
+| Kuva + sanelu | Kamera, menetelmän valinta ja havaintoteksti samassa näkymässä. Havainnon voi kirjoittaa, tai sanelu käynnistetään Sanele-painikkeesta. Kuvat ja teksti tallentuvat samaan havaintoon heti. Sijainti muistetaan edellisestä havainnosta. |
+| Havaintokortti | Havainto, sijainti, tulos (pakollinen), menetelmä (pakollinen), suunnitelman kohta, menetelmän kentät, mittausarvojen vahvistus ja tutkijan alustava tulkinta erikseen |
+| Menetelmät | Menetelmien lisäys, muokkaus, järjestys, piilotus ja jakaminen tiedostona (etusivu → Menetelmät tai havaintokortti → Muokkaa menetelmiä) |
 | Pohjapiirros | Kerrokset, pohjakuva (kuva tai PDF), tilat ja niiden tutkimustilanne, havaintomerkit |
 | Lähtötarkistus | Puutteet suunnitelmaa, tiloja ja pakollisia tietoja vasten. Vienti avautuu, kun puutteet on tehty tai perusteltu. |
 
@@ -72,7 +73,8 @@ index.html             sovelluksen runko
 css/app.css            PBM-väriteema
 js/ui.js               kuvakkeet, ikkunat, ilmoitukset
 js/db.js               IndexedDB-tallennus
-js/methods.js          menetelmät, kentät, pakolliset tiedot, rakenneosat  ← muokkaa tätä
+js/methods.js          oletusmenetelmät, rakenneosat, menetelmien tallennus
+js/editor.js           menetelmien muokkaus
 js/dictation.js        sanelu (puheentunnistus tai äänite)
 js/camera.js           kamera ja kuvien pienennys
 js/app.js              tila, reititys, kohteet, tutkimussuunnitelma
@@ -88,16 +90,21 @@ Ulkoiset kirjastot ladataan cdnjs:stä ja tallennetaan välimuistiin: JSZip 3.10
 
 ### Menetelmien muokkaus
 
-Menetelmät ja niiden kentät ovat tiedostossa `js/methods.js`. Kentän asetukset:
+Menetelmiä muokataan sovelluksessa: **etusivu → Menetelmät**. Jokaiselle menetelmälle voi lisätä kenttiä (teksti lyhyt/pitkä, numero, päivämäärä, valintalista) ja valita kentälle:
 
-- `req: true` – pakollinen. Lähtötarkistus näyttää puuttuvan arvon.
-- `mittaus: true` – mittaustulos. Vaatii vahvistuksen, ja paketissa se on erillään muista tiedoista.
-- `muista: true` – arvo, esim. mittalaite, muistetaan seuraavaan saman menetelmän havaintoon.
-- `u` – yksikkö. Sanelusta tunnistetut luvut ehdotetaan kenttiin yksikön perusteella.
+- **Pakollinen** – lähtötarkistus näyttää tyhjän kentän puutteena.
+- **Mittaustulos** (vain numero) – tutkija vahvistaa arvon, ja ZIP-paketissa se on erillään muista tiedoista.
+- **Muista edellinen arvo** – esim. mittalaite täyttyy valmiiksi seuraavaan saman menetelmän havaintoon.
+- **Yksikkö** – sanelusta tai tekstistä tunnistetut luvut ehdotetaan kenttiin yksikön perusteella.
+
+Menetelmät tallentuvat laitteelle. Ne jaetaan kollegoille **Vie menetelmät** / **Tuo menetelmät** -toiminnoilla (JSON-tiedosto). Kohteen ZIP-paketti sisältää kohteessa käytetyt menetelmät, ja ne lisätään palautettaessa. Havainnoissa käytettyä menetelmää ei voi poistaa, mutta sen voi piilottaa valinnoista.
+
+Oletusmenetelmät ovat tiedostossa `js/methods.js` (`OLETUKSET`). Niitä muutetaan koodissa vain, jos halutaan muuttaa uusien asennusten lähtötilannetta.
 
 ## Tunnetut rajoitukset
 
 - Ei synkronointia laitteiden välillä. Siirto tehdään ZIP-paketilla.
 - Pohjakuvasta käytetään yhtä PDF-sivua kerrosta kohden.
 - Tiloja ei piirretä alueina: tila merkitään pohjapiirrokseen tunnuksella, ja sen väri kertoo tutkimustilanteen.
+- Menetelmäeditorissa ei ole taulukkokenttää (toistuvat rivit). Useampi mittauspiste kirjataan omina havaintoinaan.
 - Sanelusta tunnistetut luvut ovat ehdotuksia. Tutkija valitsee ne ja vahvistaa arvot itse.

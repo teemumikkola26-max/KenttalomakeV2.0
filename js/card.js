@@ -14,6 +14,12 @@
       return '<label class="field">' + lbl + '<select data-fk="' + f.k + '"><option value="">Valitse</option>' +
         f.o.map((o) => '<option' + (o === val ? " selected" : "") + ">" + esc(o) + "</option>").join("") + "</select></label>";
     }
+    if (f.t === "textarea") {
+      return '<label class="field" style="grid-column:1/-1">' + lbl + '<textarea data-fk="' + f.k + '" style="min-height:72px">' + esc(val || "") + "</textarea></label>";
+    }
+    if (f.t === "date") {
+      return '<label class="field">' + lbl + '<input type="date" data-fk="' + f.k + '" value="' + esc(val || "") + '"></label>';
+    }
     const num = f.t === "num";
     return '<label class="field">' + lbl + '<input type="text" ' + (num ? 'inputmode="decimal" ' : "") + 'data-fk="' + f.k + '" value="' + esc(val || "") + '"></label>';
   }
@@ -80,20 +86,22 @@
         '<div class="thumbs" style="margin-bottom:12px">' + thumbs +
         '<a class="thumb-add" href="#/k/' + k.id + "/kuvaus/" + h.id + '" aria-label="Lisää kuvia ja sanelua">' + icon("cam") + "</a></div>" +
 
-        '<section class="card"><div class="card-h"><h2>Havainto · sanelu</h2>' +
+        '<section class="card"><div class="card-h"><h2>Havainto</h2>' +
         '<button class="icon-btn" data-a="dict" data-t="sanelu" aria-label="Sanele havaintoon">' + icon(dictTarget === "sanelu" ? "stop" : "mic") + "</button></div>" +
         '<div class="card-b"><textarea data-t="sanelu" aria-label="Havainto">' + esc(h.sanelu) + "</textarea>" + audio +
-        '<p class="hint">Kuvaa se, mitä näet ja mittaat. Tulkinta kirjataan erikseen alempana.</p></div></section>' +
+        '<p class="hint">Kirjoita tai sanele, mitä näet ja mittaat. Tulkinta kirjataan erikseen alempana.</p></div></section>' +
 
         '<section class="card"><div class="card-b" style="padding-top:12px">' +
         '<span class="label">Sijainti</span>' +
         '<button class="btn btn-block" data-a="loc" style="justify-content:flex-start;margin-bottom:14px">' + icon("pin") + esc(Model.sijaintiTeksti(h.sijainti) || "Valitse sijainti") +
         (h.sijainti.piste ? " · merkitty pohjaan" : "") + "</button>" +
-        '<span class="label">Tulos</span><div class="chips" style="margin-bottom:14px">' +
+        '<span class="label' + (h.tulos ? "" : " missing") + '">Tulos <span class="req">*</span>' + (h.tulos ? "" : " · valitse") + '</span><div class="chips" style="margin-bottom:14px">' +
         '<button class="chip c-note" data-a="tulos" data-v="poikkeama" aria-pressed="' + (h.tulos === "poikkeama") + '">Poikkeama</button>' +
         '<button class="chip c-ok" data-a="tulos" data-v="ok" aria-pressed="' + (h.tulos === "ok") + '">Ei huomautettavaa</button></div>' +
-        '<span class="label">Menetelmä</span><div class="chips scroll" style="margin-bottom:14px">' +
-        M.MENETELMAT.map((x) => '<button class="chip" data-a="men" data-v="' + x.id + '" aria-pressed="' + (x.id === h.menetelma) + '">' + esc(x.nimi) + "</button>").join("") + "</div>" +
+        '<div style="display:flex;justify-content:space-between;align-items:baseline"><span class="label' + (h.menetelma ? "" : " missing") + '">Menetelmä <span class="req">*</span>' + (h.menetelma ? "" : " · valitse") + '</span>' +
+        '<a class="link" href="#/menetelmat" style="font-size:13px;padding:0 0 6px">Muokkaa menetelmiä</a></div>' +
+        '<div class="chips scroll" data-menlist style="margin-bottom:14px">' +
+        M.MENETELMAT.filter((x) => !x.piilotettu || x.id === h.menetelma).map((x) => '<button class="chip" data-a="men" data-v="' + x.id + '" aria-pressed="' + (x.id === h.menetelma) + '">' + esc(x.nimi) + "</button>").join("") + "</div>" +
         (k.suunnitelma.length ? '<label class="field" style="margin:0"><span>Tutkimussuunnitelman kohta</span><select data-a="kohta">' + kohtaOptions() + "</select></label>" : "") +
         "</div></section>" +
 
@@ -107,6 +115,7 @@
         "</main>" +
         '<div class="actionbar"><a class="btn" href="#/k/' + k.id + '">Tallenna</a>' +
         '<button class="btn btn-primary wide" data-a="next">' + icon("cam") + "Tallenna ja uusi kuva</button></div>";
+      UI.showSelected(root.querySelector("[data-menlist]"));
     }
 
     function stopDict() {
@@ -168,7 +177,7 @@
     root.oninput = (e) => {
       const t = e.target;
       if (t.matches("textarea[data-t]")) { h[t.dataset.t] = t.value; save(); }
-      else if (t.matches("[data-fk]")) {
+      else if (t.matches("[data-fk]") && t.type !== "date") {
         const f = M.menetelma(h.menetelma).kentat.find((x) => x.k === t.dataset.fk);
         h.kentat[t.dataset.fk] = t.value;
         if (f && f.mittaus && h.vahvistettu) { h.vahvistettu = false; const cb = root.querySelector('[data-a="vahv"]'); if (cb) cb.checked = false; }
@@ -183,7 +192,12 @@
         if (t.checked && !hasMittaus(h)) { t.checked = false; toast("Kirjaa ensin mittausarvot"); return; }
         h.vahvistettu = t.checked; save();
       }
-      else if (t.matches("[data-fk]") && t.tagName === "SELECT") { h.kentat[t.dataset.fk] = t.value; save(); }
+      else if (t.matches("[data-fk]") && (t.tagName === "SELECT" || t.type === "date")) {
+        h.kentat[t.dataset.fk] = t.value;
+        const f = M.menetelma(h.menetelma).kentat.find((x) => x.k === t.dataset.fk);
+        if (f && f.muista) { S.kohde.muisti[h.menetelma + "." + f.k] = t.value; Model.saveKohde(); }
+        save();
+      }
     };
     root.onclick = async (e) => {
       const b = e.target.closest("[data-a]");

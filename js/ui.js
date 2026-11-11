@@ -147,7 +147,14 @@
     return d.getDate() + "." + (d.getMonth() + 1) + "." + d.getFullYear();
   }
 
+  /* Vierittää vaakasuuntaisen sirulistan niin, että valittu siru näkyy (ei vieritä sivua). */
+  function showSelected(container) {
+    if (!container) return;
+    const sel = container.querySelector('[aria-pressed="true"]');
+    if (sel) container.scrollLeft = Math.max(0, sel.offsetLeft - container.offsetLeft - 16);
+  }
+
   function nro(n) { return "H" + String(n).padStart(2, "0"); }
 
-  window.UI = { icon, esc, toast, sheet, confirmSheet, promptSheet, pickFile, loadScript, debounce, pvm, nro };
+  window.UI = { icon, esc, toast, sheet, confirmSheet, promptSheet, pickFile, loadScript, debounce, pvm, nro, showSelected };
 })();

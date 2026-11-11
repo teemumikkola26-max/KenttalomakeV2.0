@@ -9,7 +9,7 @@
   "use strict";
 
   const DB_NAME = "kuva-sanelu";
-  const DB_VERSION = 1;
+  const DB_VERSION = 2;
   let dbPromise = null;
 
   function open() {
@@ -27,6 +27,7 @@
           const s = db.createObjectStore("tiedostot", { keyPath: "id" });
           s.createIndex("kohdeId", "kohdeId", { unique: false });
         }
+        if (!db.objectStoreNames.contains("asetukset")) db.createObjectStore("asetukset", { keyPath: "id" });
       };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);

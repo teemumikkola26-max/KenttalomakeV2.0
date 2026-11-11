@@ -34,7 +34,7 @@
       return {
         id: DB.uid("h_"), kohdeId: kohde.id, nro: null, created: Date.now(), updated: Date.now(),
         kuvat: [], aanitteet: [], sanelu: "", tulkinta: "",
-        tulos: null, menetelma: preset.menetelma || "aisti", kentat: {}, vahvistettu: false,
+        tulos: null, menetelma: preset.menetelma || null, kentat: {}, vahvistettu: false,
         sijainti: {
           kerrosId: preset.kerrosId || last.kerrosId || null,
           tilaId: preset.tilaId || last.tilaId || null,
@@ -176,6 +176,7 @@
       (rows || '<div class="empty">Ei vielä kohteita. Aloita lisäämällä kohde.</div>') + "</section>" +
       '<button class="btn btn-primary btn-block" data-act="newKohde">' + icon("plus") + "Uusi kohde</button>" +
       '<div style="height:10px"></div><button class="btn btn-block" data-act="restore">' + icon("upload") + "Palauta varmuuskopio (ZIP)</button>" +
+      '<div style="height:10px"></div><a class="btn btn-block" href="#/menetelmat">' + icon("list") + "Menetelmät</a>" +
       '<p class="hint">Tiedot tallentuvat vain tälle laitteelle. Vie kohde ZIP-pakettina raportointia ja varmuuskopiota varten.' +
       (est && est.usage ? " Käytössä " + (est.usage / 1048576).toFixed(0) + " Mt." : "") + "</p>" +
       "</main>";
@@ -279,7 +280,7 @@
   function kohtaSheet(p) {
     const isNew = !p;
     p = p || { id: DB.uid("p_"), menetelma: "aisti", kuvaus: "", maara: 1, tilaId: null, pois: null };
-    const opts = M.MENETELMAT.map((m) => '<option value="' + m.id + '"' + (m.id === p.menetelma ? " selected" : "") + ">" + esc(m.nimi) + "</option>").join("");
+    const opts = M.MENETELMAT.filter((m) => !m.piilotettu || m.id === p.menetelma).map((m) => '<option value="' + m.id + '"' + (m.id === p.menetelma ? " selected" : "") + ">" + esc(m.nimi) + "</option>").join("");
     sheet(
       "<h3>" + (isNew ? "Uusi suunnitelman kohta" : "Muokkaa kohtaa") + "</h3>" +
       '<label class="field"><span>Menetelmä</span><select data-f="menetelma">' + opts + "</select></label>" +
@@ -417,6 +418,10 @@
     if (S.cleanup) { try { S.cleanup(); } catch (e) { /* ohita */ } S.cleanup = null; }
     const { parts, q } = parseHash();
     try {
+      if (parts[0] === "menetelmat") {
+        if (parts[1]) await Editor.viewMethod(decodeURIComponent(parts[1])); else await Editor.viewList();
+        return;
+      }
       if (parts[0] !== "k" || !parts[1]) { await viewHome(); return; }
       const ok = await loadKohde(parts[1]);
       if (seq !== renderSeq) return;
@@ -438,11 +443,20 @@
     }
   }
 
-  const App = { S, Model, render, topbar, bottomnav, fab, pinClass, kohtaActions, actions: {} };
+  /* Paluuosoite menetelmäeditorista: näkymä, josta editoriin tultiin. */
+  let paluuHash = null;
+  function paluu(oletus) { return paluuHash || oletus; }
+
+  const App = { S, Model, render, topbar, bottomnav, fab, pinClass, kohtaActions, paluu, actions: {} };
   window.App = App;
 
-  window.addEventListener("hashchange", render);
-  window.addEventListener("DOMContentLoaded", () => {
+  window.addEventListener("hashchange", (e) => {
+    const from = (e.oldURL || "").split("#")[1] || "/";
+    if (location.hash.indexOf("#/menetelmat") === 0 && from.indexOf("/menetelmat") !== 0) paluuHash = "#" + from;
+    render();
+  });
+  window.addEventListener("DOMContentLoaded", async () => {
+    await M.load();
     render();
     if ("serviceWorker" in navigator && location.protocol !== "file:") {
       navigator.serviceWorker.register("sw.js").catch(() => {});

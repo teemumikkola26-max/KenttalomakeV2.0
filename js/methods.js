@@ -1,14 +1,21 @@
 /* =========================================================================
    methods.js – menetelmät, niiden kentät ja vakiolistat
-   Kenttä: { k: avain, l: otsikko, t: "text"|"num"|"select", u: yksikkö,
-             o: vaihtoehdot, req: pakollinen ennen vientiä,
-             mittaus: true = mittaustulos, vaatii vahvistuksen }
-   Muokkaa tätä tiedostoa, kun menetelmiä tai pakollisia kenttiä muutetaan.
+   Menetelmät tallennetaan laitteelle (IndexedDB, asetukset/menetelmat).
+   Alla olevat OLETUKSET otetaan käyttöön ensimmäisellä käynnistyskerralla
+   ja kun käyttäjä palauttaa oletukset.
+
+   Kenttä: { k: avain (pysyvä), l: otsikko,
+             t: "text"|"textarea"|"num"|"date"|"select",
+             u: yksikkö, o: vaihtoehdot (select),
+             req: pakollinen ennen vientiä,
+             mittaus: mittaustulos, vaatii vahvistuksen,
+             muista: edellinen arvo ehdotetaan seuraavaan havaintoon }
+   Menetelmä: { id, nimi, lyhyt, kentat: [...], piilotettu: bool }
    ========================================================================= */
 (function () {
   "use strict";
 
-  const MENETELMAT = [
+  const OLETUKSET = [
     { id: "aisti", nimi: "Aistinvarainen tarkastelu", lyhyt: "Aistinv.", kentat: [] },
     {
       id: "pintakosteus", nimi: "Pintakosteuskartoitus", lyhyt: "Pintakost.", kentat: [
@@ -33,7 +40,7 @@
     {
       id: "avaus", nimi: "Rakenneavaus", lyhyt: "RA", kentat: [
         { k: "tunnus", l: "Avauksen tunnus", t: "text", req: true },
-        { k: "kerrokset", l: "Rakennekerrokset (sisältä ulos)", t: "text", req: true }
+        { k: "kerrokset", l: "Rakennekerrokset (sisältä ulos)", t: "textarea", req: true }
       ]
     },
     {
@@ -73,15 +80,20 @@
     ] }
   ];
 
+  const KENTTATYYPIT = [
+    { v: "text", l: "Teksti (lyhyt)" },
+    { v: "textarea", l: "Teksti (pitkä)" },
+    { v: "num", l: "Numero" },
+    { v: "date", l: "Päivämäärä" },
+    { v: "select", l: "Valintalista" }
+  ];
+
   const RAKENNEOSAT = [
     "Ulkoseinä", "Väliseinä", "Alapohja / lattia", "Yläpohja / katto", "Välipohja",
     "Ikkuna / ovi", "Märkätila", "Liittymä", "IV / tekniikka", "Muu"
   ];
 
-  const TULOKSET = {
-    poikkeama: "Poikkeama",
-    ok: "Ei huomautettavaa"
-  };
+  const TULOKSET = { poikkeama: "Poikkeama", ok: "Ei huomautettavaa" };
 
   const TILASTATUS = {
     tarkastettu: { l: "Tarkastettu", cls: "st-ok" },
@@ -90,28 +102,65 @@
     ei_tutkittu: { l: "Ei tutkittu", cls: "st-none" }
   };
 
-  function menetelma(id) {
-    return MENETELMAT.find((m) => m.id === id) || MENETELMAT[0];
-  }
+  const VALITSEMATTA = { id: null, nimi: "Menetelmä valitsematta", lyhyt: "Ei menetelmää", kentat: [] };
 
-  /* Sanelusta tunnistetut lukuarvot. Vain ehdotuksia: käyttäjä vahvistaa. */
-  function lukuehdotukset(teksti) {
-    if (!teksti) return [];
-    const out = [];
-    const re = /(-?\d+(?:[,.]\d+)?)\s*(%|prosenttia|prosentti|°\s?c|astetta|aste|pascalia|pa\b|mm\b|millimetriä|milliä|tuntia|tunti|h\b)/gi;
-    let m;
-    while ((m = re.exec(teksti))) {
-      const raw = m[2].toLowerCase().replace(/\s/g, "");
-      let u = null;
-      if (raw === "%" || raw.startsWith("prosent")) u = "%";
-      else if (raw === "°c" || raw.startsWith("aste")) u = "°C";
-      else if (raw.startsWith("pa")) u = "Pa";
-      else if (raw === "mm" || raw.startsWith("millim") || raw === "milliä") u = "mm";
-      else if (raw === "h" || raw.startsWith("tunti")) u = "h";
-      if (u) out.push({ arvo: m[1].replace(",", "."), u, teksti: m[0] });
+  const clone = (o) => JSON.parse(JSON.stringify(o));
+  const M = {
+    MENETELMAT: clone(OLETUKSET),
+    KENTTATYYPIT, RAKENNEOSAT, TULOKSET, TILASTATUS,
+
+    async load() {
+      try {
+        const rec = await DB.get("asetukset", "menetelmat");
+        if (rec && Array.isArray(rec.lista) && rec.lista.length) M.MENETELMAT = rec.lista;
+      } catch (e) { console.warn("Menetelmien lataus epäonnistui", e); }
+    },
+    async save() {
+      await DB.put("asetukset", { id: "menetelmat", lista: M.MENETELMAT, muokattu: Date.now() });
+    },
+    async palautaOletukset() {
+      // Oletukset palautetaan, mutta omat menetelmät säilyvät (havainnot voivat viitata niihin).
+      const omat = M.MENETELMAT.filter((m) => !OLETUKSET.some((o) => o.id === m.id));
+      M.MENETELMAT = clone(OLETUKSET).concat(omat);
+      await M.save();
+    },
+    /* Yhdistää tuodut menetelmät: tuntemattomat lisätään, samannimiset id:t korvataan. */
+    async yhdista(lista, korvaa) {
+      (lista || []).forEach((m) => {
+        if (!m || !m.id || !m.nimi || !Array.isArray(m.kentat)) return;
+        const i = M.MENETELMAT.findIndex((x) => x.id === m.id);
+        if (i < 0) M.MENETELMAT.push(m);
+        else if (korvaa) M.MENETELMAT[i] = m;
+      });
+      await M.save();
+    },
+
+    aktiiviset() { return M.MENETELMAT.filter((m) => !m.piilotettu); },
+    menetelma(id) {
+      if (!id) return VALITSEMATTA;
+      return M.MENETELMAT.find((m) => m.id === id) || { id, nimi: "Tuntematon menetelmä", lyhyt: "?", kentat: [] };
+    },
+    tyyppiNimi(t) { const x = KENTTATYYPIT.find((k) => k.v === t); return x ? x.l : t; },
+
+    /* Sanelusta tunnistetut lukuarvot. Vain ehdotuksia: käyttäjä vahvistaa. */
+    lukuehdotukset(teksti) {
+      if (!teksti) return [];
+      const out = [];
+      const re = /(-?\d+(?:[,.]\d+)?)\s*(%|prosenttia|prosentti|°\s?c|astetta|aste|pascalia|pa\b|mm\b|millimetriä|milliä|tuntia|tunti|h\b)/gi;
+      let m;
+      while ((m = re.exec(teksti))) {
+        const raw = m[2].toLowerCase().replace(/\s/g, "");
+        let u = null;
+        if (raw === "%" || raw.startsWith("prosent")) u = "%";
+        else if (raw === "°c" || raw.startsWith("aste")) u = "°C";
+        else if (raw.startsWith("pa")) u = "Pa";
+        else if (raw === "mm" || raw.startsWith("millim") || raw === "milliä") u = "mm";
+        else if (raw === "h" || raw.startsWith("tunti")) u = "h";
+        if (u) out.push({ arvo: m[1].replace(",", "."), u, teksti: m[0] });
+      }
+      return out;
     }
-    return out;
-  }
+  };
 
-  window.M = { MENETELMAT, RAKENNEOSAT, TULOKSET, TILASTATUS, menetelma, lukuehdotukset };
+  window.M = M;
 })();
