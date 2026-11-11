@@ -1,7 +1,7 @@
 /* =========================================================================
    HUOM: kopio PBM Kenttälomakkeet -sovelluksen (Aloitussivu) tiedostosta
-   lukulaite-ocr.js. Ainoa muutos: tunnistusydin viedään window.LukulaiteOcr.core
-   -olioon. Pidä tiedostot synkronissa, kun tunnistusta parannetaan.
+   lukulaite-ocr.js. Muutokset: tunnistusydin viedään window.LukulaiteOcr.core
+   -olioon, ja lisätty recognizeQuick (kevyt luenta reaaliaikaiseen esikatseluun). Pidä tiedostot synkronissa, kun tunnistusta parannetaan.
    =========================================================================
    LUKULAITE-OCR — mittalaitteen näytön luku kameralla taulukkokenttään
    -------------------------------------------------------------------------
@@ -210,6 +210,46 @@ function recognize(canvas){
     }
     return next();
   }).then(function(){var c=combine(parses);c.raw=raws.join("\n----\n");return c;});
+}
+
+/* Kevyt luenta reaaliaikaiseen esikatseluun (Kuva + sanelu): 1–n esikäsittelyvarianttia,
+   lopetetaan heti, kun T, RH ja a on luettu ja RH on fysikaalisesti johdonmukainen. */
+function recognizeQuick(canvas,n){
+  n=n||2;
+  var w=canvas.width,h=canvas.height,g=gray(canvas),parses=[],raws=[];
+  // Varma: johdonmukainen ja kaikki arvot luettu. Vaihtoehtoinen luenta (esim. 8/9-sekaannus)
+  // ohitetaan vain, jos vähintään kaksi eri esikäsittelyllä tehtyä luentaa antaa täsmälleen samat arvot.
+  function unanimous(c){
+    if(parses.length<2)return false;
+    return parses.every(function(p){return KEYS.every(function(k){return p[k]!==undefined&&c.values[k]!==null&&Math.abs(p[k]-c.values[k])<1e-9;});});
+  }
+  function allOk(c){return c.consistent&&KEYS.every(function(k){return c.status[k]==="ok";})&&(!c.alternative||unanimous(c));}
+  // Kastepisteen miinusmerkki katoaa usein luennassa (-1.4 -> 1.4), jolloin ristiintarkistus
+  // "korjaisi" oikeat arvot vääriksi. Jos tulos ei ole johdonmukainen, arvioidaan ilman Td:tä
+  // (ristiintarkistus absoluuttisella kosteudella).
+  function best(){
+    var c=combine(parses);
+    if(allOk(c)){if(unanimous(c))c.alternative=null;return c;}
+    var c2=combine(parses.map(function(p){var q={};for(var k in p)if(k!=="Td")q[k]=p[k];return q;}));
+    if(allOk(c2)){c2.values.Td=null;c2.noTd=true;if(unanimous(c2))c2.alternative=null;return c2;}
+    // Kumpikaan ei ole varma: jos Td:n kanssa T tai RH jouduttiin "korjaamaan" mutta ilman Td:tä
+    // ne luettiin sellaisenaan, käytetään luettuja arvoja (rivi merkitään silti tarkistettavaksi).
+    if((c.status.T!=="ok"||c.status.RH!=="ok")&&c2.status.T==="ok"&&c2.status.RH==="ok"){c2.values.Td=null;c2.noTd=true;return c2;}
+    return c;
+  }
+  return getWorker().then(function(wk){
+    var i=0;
+    function next(){
+      if(i>=Math.min(n,VARIANTS.length))return Promise.resolve();
+      var v=VARIANTS[i++];
+      return wk.recognize(binarize(box(box(box(g,w,h,v.r),w,h,v.r),w,h,v.r),w,h,v.o)).then(function(r){
+        parses.push(parseText(r.data.text));raws.push(r.data.text);
+        if(allOk(best()))return;
+        return next();
+      });
+    }
+    return next();
+  }).then(function(){var c=best();c.raw=raws.join("\n----\n");c.passes=parses.length;return c;});
 }
 
 /* ---------- Jono ---------- */
@@ -854,5 +894,5 @@ function reviewRow(item){
 window.LukulaiteOcr={attach:attach,checkBeforeSave:checkBeforeSave,reviewRow:reviewRow,preload:function(){getWorker().catch(function(){});},
   _test:{parseText:parseText,combine:combine,rhFromA:rhFromA,rowState:rowState},
   /* Kuva + sanelu -sovellus käyttää vain tunnistusydintä omalla käyttöliittymällään. */
-  core:{recognize:recognize,cropCanvas:cropCanvas,sharpness:sharpness,SHARP_MIN:SHARP_MIN,DEC:DEC}};
+  core:{recognize:recognize,recognizeQuick:recognizeQuick,cropCanvas:cropCanvas,sharpness:sharpness,SHARP_MIN:SHARP_MIN,DEC:DEC}};
 })();

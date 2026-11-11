@@ -279,3 +279,19 @@ svg.i{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;stroke
 input.flag{border:2px solid #c9771d !important;background:#fff4e5}
 .meter-frame{position:absolute;left:14%;top:16%;width:72%;height:54%;border:3px solid #fff;border-radius:10px;box-shadow:0 0 0 100vmax rgba(0,0,0,.45);pointer-events:none}
 .meter .viewfinder{flex:1 1 auto}
+
+/* ---- Mittarin näytön paikannus ja reaaliaikainen luenta ---- */
+.viewfinder.found .meter-frame{opacity:0}
+.meter-frame{transition:opacity .2s}
+.det-box{position:absolute;border:3px solid #f0b37a;border-radius:8px;box-shadow:0 0 0 100vmax rgba(0,0,0,.35);pointer-events:none;transition:left .12s,top .12s,width .12s,height .12s}
+.det-box.ok{border-color:#5fd18a}
+.live{position:absolute;left:10px;right:10px;bottom:10px;background:rgba(18,22,28,.86);border:1px solid #3a4250;border-radius:12px;padding:10px 12px;display:flex;flex-wrap:wrap;gap:6px 14px;align-items:baseline;color:#f2efe6}
+.live.ok{border-color:#5fd18a}
+.live .lv{font-size:14px;color:#c9cfd8}
+.live .lv b{font-size:22px;color:#fff;font-variant-numeric:tabular-nums}
+.live .lst{flex-basis:100%;font-size:13px;color:#f0b37a;display:flex;align-items:center;gap:6px}
+.live.ok .lst{color:#5fd18a}
+.live .lst svg.i{width:16px;height:16px}
+.live .lmsg{font-size:14px;color:#dfe3e8}
+.shutter.ready{border-color:#5fd18a}
+.shutter.ready span{background:#5fd18a}

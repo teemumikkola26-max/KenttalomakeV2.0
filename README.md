@@ -28,8 +28,13 @@ Kentällä:
 
 1. Kuva + sanelu → valitse menetelmäksi *Rakenteen RH-mittaus* → Valmis.
 2. Havaintokortilla: mittauspisteen tunnus, mittalaite ja tasaantumisaika (laite ja aika muistetaan seuraavaan pisteeseen).
-3. **Lue mittarista**: valitse syvyys yläreunasta (*+ Uusi*, esim. 28), rajaa mittarin näyttö kehykseen ja paina laukaisinta. Jokaisesta kuvasta syntyy rivi heti, ja tunnistus tehdään taustalla. Kuvaa rinnakkaiset mittaukset samalla syvyydellä, vaihda syvyys (esim. 70) ja jatka.
-4. Rajaa näyttö kehykseen. Sovellus etsii nestekidenäytön rajauksen sisältä automaattisesti, joten mittarin kehys tai runko ei haittaa. Oranssilla merkityt arvot ovat epävarmoja: napauta riviä, vertaa arvoja näytön kuvaan ja kuittaa. Epäselvät kuvat hylätään heti ja pyydetään kuvaamaan uudelleen.
+3. **Lue mittarista**: valitse syvyys yläreunasta (*+ Uusi*, esim. 28) ja osoita kameralla mittarin näyttöä. Rajausta ei tarvitse tehdä itse:
+   - Sovellus paikantaa näytön kamerakuvasta (kehys näytön ympärillä).
+   - Kun puhelin pysyy paikallaan, arvot luetaan ja näytetään kameranäkymän alareunassa reaaliajassa.
+   - Kun luenta on varma (RH täsmää absoluuttiseen kosteuteen tai kastepisteeseen ja kaksi luentaa antaa samat arvot), kehys ja laukaisin muuttuvat vihreiksi. Laukaisin tallentaa juuri luetun kuvan ja arvot riviksi heti.
+   - Jos laukaisinta painetaan ennen varmaa luentaa, kuva tallennetaan ja arvot luetaan taustalla perusteellisemmin. Epävarmat rivit merkitään oranssilla.
+   - Kuvaa rinnakkaiset mittaukset samalla syvyydellä, vaihda syvyys (esim. 70) ja jatka.
+4. Oranssilla merkityt arvot ovat epävarmoja: napauta riviä, vertaa arvoja näytön kuvaan ja kuittaa. Epäselvät kuvat hylätään heti ja pyydetään kuvaamaan uudelleen.
 5. Lukupäivä täyttyy automaattisesti kuvauspäivällä ja on muokattavissa (esim. jos lukemat kirjataan jälkikäteen).
 6. Kortin yhteenveto näyttää syvyyksittäin lukemien määrän ja keskiarvot.
 7. **Ympäröivät olosuhteet**: *Lue mittarista* toimii samoin (RH, T, a, lukupäivä).
@@ -37,7 +42,13 @@ Kentällä:
 
 Rivin voi lisätä myös käsin (*Rivi käsin*), esimerkiksi jos mittarin näyttöä ei voi kuvata.
 
-**Tunnistus** on sama kuin PBM Kenttälomakkeissa (`js/lukulaite-ocr.js`, Vaisala HM40 -sarjan näkymä T, RH, Td, Tw, a). Ydin vertaa RH:ta kastepisteestä ja absoluuttisesta kosteudesta laskettuun arvoon ja merkitsee ristiriitaiset lukemat epävarmoiksi. Tiedosto on kopio: kun tunnistusta parannetaan, päivitä se molempiin sovelluksiin. Tähän kopioon on lisätty vain `window.LukulaiteOcr.core`-vienti. Näytön automaattinen rajaus (`lcdCrop` tiedostossa `js/meter.js`) tehdään ennen tunnistusta; jos rajaus ei tuota RH- ja T-arvoja, tunnistus yritetään vielä koko rajauksesta.
+**Tunnistus** on sama kuin PBM Kenttälomakkeissa (`js/lukulaite-ocr.js`, Vaisala HM40 -sarjan näkymä T, RH, Td, Tw, a). Ydin vertaa RH:ta kastepisteestä ja absoluuttisesta kosteudesta laskettuun arvoon ja merkitsee ristiriitaiset lukemat epävarmoiksi. Tiedosto on kopio: kun tunnistusta parannetaan, päivitä se molempiin sovelluksiin. Tähän kopioon on lisätty vain `window.LukulaiteOcr.core`-vienti. Kuva + sanelu lisää ytimen ympärille:
+
+- **Näytön paikannus** (`findDisplay`, `js/meter.js`): kirkas, harmaa ja suorakulmainen alue, joka ei jatku kuvan reunoille. Ajetaan pienennetystä kamerakuvasta noin 6 kertaa sekunnissa (~20 ms/kerta).
+- **Tarkennettu rajaus** (`lcdCrop`): rajaus kiristetään pelkkään nestekidenäyttöön, koska mittarin kehys ja runko sotkevat tunnistuksen kynnysarvon.
+- **Kevyt luenta** (`recognizeQuick`, lisätty tunnistusytimen kopioon): enintään 2 esikäsittelyvarianttia reaaliaikaisessa luennassa, 6 taustatunnistuksessa. Jos kastepisteen miinusmerkki katoaa luennassa (−1,4 → 1,4), johdonmukaisuus arvioidaan absoluuttisella kosteudella eikä oikeita RH- ja T-arvoja "korjata" vääriksi. **Tämä korjaus kannattaa viedä myös PBM Kenttälomakkeiden tunnistukseen.**
+
+Testattu: hämärä, kaukana oleva mittari ja heijastus näytössä luetaan oikein. Selvästi vinossa (n. 6°) kuvassa osa arvoista voi mennä väärin, mutta luentaa ei silloin hyväksytä varmaksi, vaan rivi merkitään tarkistettavaksi.
 
 **Ilman verkkoa:** tekstintunnistuksen moottori (Tesseract.js 5.1.1) ja kielidata ladataan ensimmäisellä kameraluvulla ja tallennetaan laitteelle. Tee ensimmäinen luku verkkoyhteydessä, jolloin kameraluku toimii jatkossa myös kellarissa.
 
