@@ -15,13 +15,42 @@ Sovellus on osa RTA-opinnäytetyön kehitystyötä ja erillinen PBM Kenttälomak
 | Näkymä | Tarkoitus |
 |---|---|
 | Kohde | Tutkimussuunnitelman eteneminen, viimeisimmät havainnot ja Kuva + sanelu -painike |
-| Kuva + sanelu | Kamera, menetelmän valinta ja havaintoteksti samassa näkymässä. Havainnon voi kirjoittaa, tai sanelu käynnistetään Sanele-painikkeesta. Kuvat ja teksti tallentuvat samaan havaintoon heti. Sijainti muistetaan edellisestä havainnosta. |
+| Kuva + sanelu | Tavallinen havainto kirjataan loppuun tässä näkymässä: kuvat, sanelu (pidä mikrofonia pohjassa) tai kirjoitus, menetelmä ja tulos. **Seuraava** tallentaa ja aloittaa uuden havainnon samaan paikkaan samalla menetelmällä. **Kortti** avaa havaintokortin, jos menetelmällä on täytettäviä kenttiä; merkki kertoo puuttuvien tietojen määrän. |
 | Havaintokortti | Havainto, sijainti, tulos (pakollinen), menetelmä (pakollinen), suunnitelman kohta, menetelmän kentät, mittausarvojen vahvistus ja tutkijan alustava tulkinta erikseen |
 | Mittauspiste (RH) | Yhteen havaintoon kirjataan mittauspisteen kaikki lukemat taulukkona: syvyys, RH, T, absoluuttinen kosteus ja lukupäivä. Ympäröivät olosuhteet kirjataan samalla tavalla omaan taulukkoonsa. Syvyys valitaan siruista (esim. 28 mm, 70 mm), ja rinnakkaiset mittaukset kuvataan samalla syvyydellä. **Lue mittarista** lukee arvot mittarin näytöltä kameralla. |
 | Menetelmän valinta | Ehdotuksina edellinen menetelmä ja tutkimussuunnitelman tekemättömät menetelmät (esim. *Merkkiainekoe 0/1*). Hakukenttä löytää menetelmän nimen tai lyhenteen alusta, eikä välitä isoista kirjaimista tai ääkkösistä (*lampo* → Lämpökuvaus). Jos osumaa ei ole, hausta voi lisätä uuden menetelmän, jolle voi myöhemmin lisätä kenttiä Menetelmät-sivulla. |
 | Menetelmät | Menetelmien lisäys, muokkaus, järjestys, piilotus ja jakaminen tiedostona (etusivu → Menetelmät tai havaintokortti → Muokkaa menetelmiä) |
 | Pohjapiirros | Kerrokset, pohjakuva (kuva tai PDF), tilat ja niiden tutkimustilanne, havaintomerkit |
 | Lähtötarkistus | Puutteet suunnitelmaa, tiloja ja pakollisia tietoja vasten. Vienti avautuu, kun puutteet on tehty tai perusteltu. |
+
+## Kenttäkäytön periaatteet
+
+Tavoite: havainnon kirjaaminen vie saman ajan kuin pelkkä kuvaaminen. Tutkija kuvaa ja puhuu, sovellus täyttää loput.
+
+**Tiedot täyttyvät itse (`js/autofill.js`)**
+
+| Tieto | Mistä |
+|---|---|
+| Tila | Sanelusta: olemassa olevan tilan nimi tai tunnus ("keittiössä", "K03"), tai yleinen tilan nimi, jolloin tila luodaan ("kylpyhuoneessa" → uusi tila Kylpyhuone). Muuten edellisestä havainnosta. |
+| Rakenneosa | Sanelusta ("lattian rajassa" → Alapohja / lattia, "ulkoseinän" → Ulkoseinä). Ensimmäinen maininta ratkaisee. |
+| Tulos | Sanelusta: vauriota kuvaavat sanat → Poikkeama ("hilseilee", "kosteusvaurio", "irtoaa"); "ei huomautettavaa", "kunnossa", "ehjä" ja kieltomuodot ("ei homeen merkkejä") → Ei huomautettavaa. |
+| Menetelmä | Sanelusta ("RH-mittaus", "rakenneavaus", "näyte", "merkkiainekoe"…). Muuten aistinvarainen tarkastelu; Seuraava jatkaa samalla menetelmällä. |
+| Suunnitelman kohta | Menetelmän ja tilan perusteella; menetelmä, jota ei ole suunnitelmassa, merkitään "ei suunnitelmassa". |
+| Mittauspisteen tunnus | Juokseva: M1 → M2, RA1 → RA2 (edellisen tunnuksen muoto säilyy). |
+| Mittalaite, tasaantumisaika | Edellinen arvo tältä laitteelta, myös uusissa kohteissa. |
+| Syvyys (RH) | Syvyyssarja opitaan edellisestä pisteestä (esim. 2 × 28 mm, 2 × 70 mm) ja vaihtuu itse. |
+| Lukupäivä | Kuvauspäivä. |
+| Mittausten vahvistus | Varmat kameraluvut ja itse kirjoitetut arvot ovat vahvistettuja. Vain epävarmat lukemat tarkistetaan. |
+
+Automaattinen arvo näkyy merkinnällä *sanelusta* eikä koskaan korvaa tutkijan itse valitsemaa arvoa. Yksi napautus muuttaa sen. ZIP-paketti kertoo, mitkä tiedot on tunnistettu sanelusta. Tunnistus on tarkoituksella varovainen: epäselvässä tapauksessa arvo jää tyhjäksi ja lähtötarkistus muistuttaa siitä. Sanalistoja voi täydentää tiedostossa `js/autofill.js`.
+
+**Muut periaatteet**
+
+- **Yksi näkymä tavalliselle havainnolle.** Kuva, sanelu, menetelmä ja tulos kameranäkymässä. Havaintokortille vain, kun menetelmällä on täytettäviä kenttiä.
+- **Sanelu pitämällä pohjassa.** Vapautus lopettaa ja lisää tekstin. Lyhyt napautus lukitsee sanelun päälle; toinen napautus lopettaa. Ilman verkkoa sanelu tallentuu äänitteenä.
+- **Puutteet näkyvät heti** (Kortti-painikkeen luku, kortin yläosa, kohdenäkymän merkit), ja **lähtötarkistuksessa** puuttuvan tuloksen voi valita kuvan vierestä yhdellä napautuksella.
+- **Mitään ei menetetä.** Kaikki tallentuu heti, myös kesken olevat kuvat ennen siirtymää.
+- **Näyttö pysyy päällä** kuvatessa, ja puhelin värähtää kuvan otossa, sanelun alussa ja lopussa, kun kameraluku on varma ja kun syvyys vaihtuu.
 
 ## RH-mittauspiste ja kameraluku
 
@@ -118,6 +147,7 @@ js/db.js               IndexedDB-tallennus
 js/methods.js          oletusmenetelmät, rakenneosat, menetelmien tallennus
 js/editor.js           menetelmien muokkaus
 js/methodpicker.js     menetelmän valinta: ehdotukset, haku ja uusi menetelmä
+js/autofill.js         tietojen tunnistus sanelusta ja automaattinen täyttö
 js/meter.js            mittarin näytön kameraluku ja lukemien tarkistus
 js/lukulaite-ocr.js    tunnistusydin (kopio PBM Kenttälomakkeista)
 js/dictation.js        sanelu (puheentunnistus tai äänite)
