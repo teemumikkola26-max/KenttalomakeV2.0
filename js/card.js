@@ -145,28 +145,35 @@
       Model.saveKohde();
     }
 
-    function cols(f) { return f.sarakkeet || []; }
-    function gridStyle(f) { return "grid-template-columns:52px repeat(" + cols(f).length + ",minmax(0,1fr)) 44px"; }
+    function allCols(f) { return f.sarakkeet || []; }
+    function cols(f) { return allCols(f).filter((c) => c.t !== "date"); }       // ruudukon sarakkeet
+    function dateCols(f) { return allCols(f).filter((c) => c.t === "date"); }  // lukupäivä rivin alle
+    function gridStyle(f) { return "grid-template-columns:44px repeat(" + cols(f).length + ",minmax(0,1fr)) 44px"; }
 
     function rowHtml(f, row) {
       const o = row._ocr;
       const st = Meter.rowState(row);
       const map = f.ocr || {};
-      const flagCol = (c) => o && st === "flagged" && o.flags && ((map.RH === c.k && o.flags.RH) || (map.T === c.k && o.flags.T));
+      const flagCol = (c) => o && st === "flagged" && o.flags && ((map.RH === c.k && o.flags.RH) || (map.T === c.k && o.flags.T) || (map.a === c.k && o.flags.a));
+      const att = 'data-r="' + row.id + '" data-f="' + f.k + '"';
       let action;
       if (st === "reading") action = '<span class="tstate reading" aria-label="Luetaan">…</span>';
-      else if (st === "flagged") action = '<button class="icon-btn tstate flagged" data-a="trev" data-r="' + row.id + '" data-f="' + f.k + '" aria-label="Tarkista lukema">' + icon("alert") + "</button>";
-      else if (st === "error" || st === "interrupted") action = '<button class="icon-btn tstate err" data-a="trev" data-r="' + row.id + '" data-f="' + f.k + '" aria-label="Tunnistus epäonnistui">' + icon("alert") + "</button>";
-      else if (st === "ok") action = '<button class="icon-btn tstate ok" data-a="trev" data-r="' + row.id + '" data-f="' + f.k + '" aria-label="Näytä lukema">' + icon("ok") + "</button>";
-      else action = '<button class="icon-btn" data-a="tdel" data-r="' + row.id + '" data-f="' + f.k + '" aria-label="Poista rivi">' + icon("trash") + "</button>";
+      else if (st === "flagged") action = '<button class="icon-btn tstate flagged" data-a="trev" ' + att + ' aria-label="Tarkista lukema">' + icon("alert") + "</button>";
+      else if (st === "error" || st === "interrupted") action = '<button class="icon-btn tstate err" data-a="trev" ' + att + ' aria-label="Tunnistus epäonnistui">' + icon("alert") + "</button>";
+      else if (st === "ok") action = '<button class="icon-btn tstate ok" data-a="trev" ' + att + ' aria-label="Näytä lukema">' + icon("ok") + "</button>";
+      else action = '<button class="icon-btn" data-a="tdel" ' + att + ' aria-label="Poista rivi">' + icon("trash") + "</button>";
       const thumb = o && o.rajaus
-        ? '<button class="rthumb" data-a="trev" data-r="' + row.id + '" data-f="' + f.k + '" aria-label="Näytä kuva"><img src="' + Model.url(o.rajaus) + '" alt=""></button>'
+        ? '<button class="rthumb" data-a="trev" ' + att + ' aria-label="Näytä kuva"><img src="' + Model.url(o.rajaus) + '" alt=""></button>'
         : '<span class="rthumb empty"></span>';
-      return '<div class="trow" data-row="' + row.id + '" style="' + gridStyle(f) + '">' + thumb +
+      const ocrCol = (c) => map.RH === c.k || map.T === c.k || map.a === c.k;
+      const dates = dateCols(f).map((c) =>
+        '<label class="tdate">' + esc(c.l) + ' <input type="date" data-tf="' + f.k + '" data-tr="' + row.id + '" data-tc="' + esc(c.k) + '" value="' + esc(row[c.k] || "") + '"></label>').join("");
+      return '<div class="trow-w" data-row="' + row.id + '"><div class="trow" style="' + gridStyle(f) + '">' + thumb +
         cols(f).map((c) => '<input type="text" class="tin' + (flagCol(c) ? " flag" : "") + '"' + (c.t === "num" ? ' inputmode="decimal"' : "") +
           ' data-tf="' + f.k + '" data-tr="' + row.id + '" data-tc="' + esc(c.k) + '" value="' + esc(row[c.k] == null ? "" : row[c.k]) + '"' +
-          (st === "reading" && (map.RH === c.k || map.T === c.k) && !row[c.k] ? ' placeholder="luetaan"' : "") +
-          ' aria-label="' + esc(c.l) + '">').join("") + action + "</div>";
+          (st === "reading" && ocrCol(c) && !row[c.k] ? ' placeholder="…"' : "") +
+          ' aria-label="' + esc(c.l) + '">').join("") + action + "</div>" +
+        (dates ? '<div class="tdates">' + dates + "</div>" : "") + "</div>";
     }
 
     function summaryHtml(f) {
@@ -180,7 +187,8 @@
         const rs = groups[key];
         const avg = mcols.map((c) => {
           const v = rs.map((r) => num(r[c.k])).filter((x) => x != null);
-          return v.length ? c.l + " ka. " + fiNum(v.reduce((a, b) => a + b, 0) / v.length, 1) + (c.u ? " " + c.u : "") : "";
+          const dec = Math.min(2, Math.max(1, ...rs.map((r) => ((String(r[c.k] || "").split(/[.,]/)[1]) || "").length)));
+          return v.length ? c.l + " ka. " + fiNum(Math.round((v.reduce((a, b) => a + b, 0) / v.length) * Math.pow(10, dec)) / Math.pow(10, dec), dec) + (c.u ? " " + c.u : "") : "";
         }).filter(Boolean).join(", ");
         return "<div>" + (g ? "<b>" + esc(key) + (g.u ? " " + esc(g.u) : "") + "</b>: " : "") + rs.length + (rs.length === 1 ? " lukema" : " lukemaa") + (avg ? " · " + avg : "") + "</div>";
       }).join("");
@@ -318,6 +326,7 @@
           if (row._ocr.flags) {
             if (map.RH === t.dataset.tc) row._ocr.flags.RH = false;
             if (map.T === t.dataset.tc) row._ocr.flags.T = false;
+            if (map.a === t.dataset.tc) row._ocr.flags.a = false;
           }
           t.classList.remove("flag");
         }
@@ -374,6 +383,7 @@
         const f = tableField(b.dataset.f), g = M.ryhmaSarake(f);
         const row = { id: DB.uid("r_") };
         if (g) row[g.k] = valittuRyhma[f.k] || "";
+        Meter.setDate(f, row);
         if (!Array.isArray(h.kentat[f.k])) h.kentat[f.k] = [];
         h.kentat[f.k].push(row);
         unconfirm(); save(); repaintTable(f);

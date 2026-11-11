@@ -2,7 +2,7 @@
    - Omat tiedostot: verkko ensin (3,5 s), muuten välimuisti.
    - CDN-kirjastot (jszip, pdf.js): välimuisti ensin, ladataan valmiiksi.
    Nosta CACHE-versiota aina, kun julkaiset muutoksia. */
-const CACHE = "kuva-sanelu-v3";
+const CACHE = "kuva-sanelu-v4";
 const SHELL = [
   "./", "index.html", "css/app.css",
   "js/ui.js", "js/db.js", "js/methods.js", "js/dictation.js", "js/camera.js",

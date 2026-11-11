@@ -11,9 +11,11 @@
              mittaus: mittaustulos, vaatii vahvistuksen,
              muista: edellinen arvo ehdotetaan seuraavaan havaintoon }
    Taulukko (t: "table"): rivit tallentuvat havainnon kenttään taulukkona.
-     sarakkeet: [{ k, l, t: "num"|"text", u, mittaus, ryhma }]
+     sarakkeet: [{ k, l, t: "num"|"text"|"date", u, mittaus, ryhma, req }]
+       date: lukupäivä, täyttyy automaattisesti kuvaus- tai lisäyspäivällä
        ryhma: sarake, jolla rivit ryhmitellään (esim. mittaussyvyys)
-     ocr: { laite: "vaisala", RH: sarake, T: sarake } kameraluku mittarin näytöltä
+     ocr: { laite: "vaisala", RH: sarake, T: sarake, a: sarake } kameraluku mittarin näytöltä
+   versio: oletusmenetelmän versio; suurempi versio korvaa laitteelle tallennetun
    Menetelmä: { id, nimi, lyhyt, kentat: [...], piilotettu: bool }
    ========================================================================= */
 (function () {
@@ -30,21 +32,31 @@
       ]
     },
     {
-      id: "rh", nimi: "Rakenteen RH-mittaus", lyhyt: "RH", kentat: [
+      id: "rh", nimi: "Rakenteen RH-mittaus", lyhyt: "RH", versio: 3, kentat: [
         { k: "tunnus", l: "Mittauspisteen tunnus", t: "text", req: true },
         { k: "laite", l: "Mittalaite", t: "text", req: true, muista: true },
         { k: "tasaantuminen", l: "Tasaantumisaika", u: "h", t: "num", req: true, muista: true },
         {
           k: "mittaukset", l: "Mittaukset", t: "table", req: true,
           sarakkeet: [
-            { k: "syvyys", l: "Syvyys", u: "mm", t: "num", ryhma: true },
-            { k: "rh", l: "RH", u: "%", t: "num", mittaus: true },
-            { k: "t", l: "T", u: "°C", t: "num", mittaus: true }
+            { k: "syvyys", l: "Syvyys", u: "mm", t: "num", ryhma: true, req: true },
+            { k: "rh", l: "RH", u: "%", t: "num", mittaus: true, req: true },
+            { k: "t", l: "T", u: "°C", t: "num", mittaus: true, req: true },
+            { k: "a", l: "a", u: "g/m³", t: "num", mittaus: true },
+            { k: "pvm", l: "Lukupäivä", t: "date", req: true }
           ],
-          ocr: { laite: "vaisala", RH: "rh", T: "t" }
+          ocr: { laite: "vaisala", RH: "rh", T: "t", a: "a" }
         },
-        { k: "rh_ilma", l: "Sisäilman RH", u: "%", t: "num", mittaus: true },
-        { k: "t_ilma", l: "Sisäilman lämpötila", u: "°C", t: "num", mittaus: true }
+        {
+          k: "olosuhteet", l: "Ympäröivät olosuhteet", t: "table",
+          sarakkeet: [
+            { k: "rh", l: "RH", u: "%", t: "num", mittaus: true, req: true },
+            { k: "t", l: "T", u: "°C", t: "num", mittaus: true, req: true },
+            { k: "a", l: "a", u: "g/m³", t: "num", mittaus: true },
+            { k: "pvm", l: "Lukupäivä", t: "date", req: true }
+          ],
+          ocr: { laite: "vaisala", RH: "rh", T: "t", a: "a" }
+        }
       ]
     },
     {
@@ -125,13 +137,14 @@
         const rec = await DB.get("asetukset", "menetelmat");
         if (rec && Array.isArray(rec.lista) && rec.lista.length) {
           M.MENETELMAT = rec.lista;
-          // Päivitys: vanha RH-mittaus (yksi lukema per havainto) korvataan mittauspistetaulukolla.
-          const i = M.MENETELMAT.findIndex((m) => m.id === "rh");
-          const old = M.MENETELMAT[i];
-          if (old && !old.kentat.some((f) => f.t === "table") && old.kentat.some((f) => f.k === "syvyys")) {
-            M.MENETELMAT[i] = clone(OLETUKSET.find((m) => m.id === "rh"));
-            await M.save();
-          }
+          // Päivitys: oletusmenetelmä, jonka versio on vanhempi kuin koodissa, korvataan uudella
+          // (esim. RH-mittaus: absoluuttinen kosteus, lukupäivä ja ympäröivät olosuhteet).
+          let muuttui = false;
+          OLETUKSET.filter((o) => o.versio).forEach((o) => {
+            const i = M.MENETELMAT.findIndex((m) => m.id === o.id);
+            if (i >= 0 && (M.MENETELMAT[i].versio || 0) < o.versio) { M.MENETELMAT[i] = clone(o); muuttui = true; }
+          });
+          if (muuttui) await M.save();
         }
       } catch (e) { console.warn("Menetelmien lataus epäonnistui", e); }
     },

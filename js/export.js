@@ -30,7 +30,7 @@
     if (/ogg/.test(type)) return "ogg";
     return "bin";
   }
-  function fmtNum(v) { return String(v).replace(".", ","); }
+  function fmtNum(v) { const s = String(v); return /^-?\d+(\.\d+)?$/.test(s) ? s.replace(".", ",") : s; }
 
   /* Pohjapiirros merkintöineen kuvaksi */
   async function planWithPins(kerros, blob) {
@@ -84,7 +84,7 @@
       const rows = M.rivit(h, f);
       const rivit = rows.map((r) => {
         const o = {};
-        cols.forEach((c) => { o[c.l + (c.u ? " (" + c.u + ")" : "")] = r[c.k] == null ? "" : String(r[c.k]); });
+        cols.forEach((c) => { o[c.l + (c.u ? " (" + c.u + ")" : "")] = r[c.k] == null ? "" : (c.t === "date" && r[c.k] ? UI.pvm(r[c.k]) : String(r[c.k])); });
         o.lahde = r._ocr ? "kameraluku" + (r._ocr.edited && Object.keys(r._ocr.edited).length ? ", korjattu käsin" : "") : "käsin";
         if (r._ocr) o.tarkistettu = Meter.rowState(r) === "ok";
         if (paths.lukemat[r.id]) o.kuva = paths.lukemat[r.id];
@@ -95,10 +95,17 @@
       const yhteenveto = Object.keys(groups).map((key) => {
         const y = { lukemia: groups[key].length };
         if (g) y[g.l + (g.u ? " (" + g.u + ")" : "")] = key;
+        const pv = cols.filter((c) => c.t === "date");
+        pv.forEach((c) => {
+          const d = Array.from(new Set(groups[key].map((r) => r[c.k]).filter(Boolean))).sort();
+          if (d.length) y[c.l] = d.map((x) => UI.pvm(x)).join(", ");
+        });
         cols.filter((c) => c.mittaus).forEach((c) => {
           const v = groups[key].map((r) => num(r[c.k])).filter((x) => x != null);
           if (v.length) {
-            y[c.l + " keskiarvo" + (c.u ? " (" + c.u + ")" : "")] = Math.round((v.reduce((a, b) => a + b, 0) / v.length) * 10) / 10;
+            const dec = Math.min(2, Math.max(1, ...groups[key].map((r) => ((String(r[c.k] || "").split(/[.,]/)[1]) || "").length)));
+            const p10 = Math.pow(10, dec);
+            y[c.l + " keskiarvo" + (c.u ? " (" + c.u + ")" : "")] = Math.round((v.reduce((a, b) => a + b, 0) / v.length) * p10) / p10;
             y[c.l + " vaihteluväli" + (c.u ? " (" + c.u + ")" : "")] = [Math.min.apply(null, v), Math.max.apply(null, v)];
           }
         });

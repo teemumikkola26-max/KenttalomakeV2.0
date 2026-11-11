@@ -47,8 +47,8 @@
         if (f.t === "table") {
           const rows = M.rivit(h, f);
           if (f.req && !rows.length) { puuttuu.push(f.l.toLowerCase()); return; }
-          const mcols = (f.sarakkeet || []).filter((c) => c.mittaus);
-          const vajaat = rows.filter((r) => mcols.some((c) => tyhja(r[c.k])) && Meter.rowState(r) !== "reading").length;
+          const pcols = (f.sarakkeet || []).filter((c) => c.req && !c.ryhma);
+          const vajaat = rows.filter((r) => pcols.some((c) => tyhja(r[c.k])) && Meter.rowState(r) !== "reading").length;
           if (vajaat) puuttuu.push("puuttuvia lukemia (" + vajaat + " riviä)");
           const g = M.ryhmaSarake(f);
           if (g && rows.some((r) => tyhja(r[g.k]))) puuttuu.push(g.l.toLowerCase() + " puuttuu riviltä");

@@ -17,7 +17,7 @@ Sovellus on osa RTA-opinnäytetyön kehitystyötä ja erillinen PBM Kenttälomak
 | Kohde | Tutkimussuunnitelman eteneminen, viimeisimmät havainnot ja Kuva + sanelu -painike |
 | Kuva + sanelu | Kamera, menetelmän valinta ja havaintoteksti samassa näkymässä. Havainnon voi kirjoittaa, tai sanelu käynnistetään Sanele-painikkeesta. Kuvat ja teksti tallentuvat samaan havaintoon heti. Sijainti muistetaan edellisestä havainnosta. |
 | Havaintokortti | Havainto, sijainti, tulos (pakollinen), menetelmä (pakollinen), suunnitelman kohta, menetelmän kentät, mittausarvojen vahvistus ja tutkijan alustava tulkinta erikseen |
-| Mittauspiste (RH) | Yhteen havaintoon kirjataan mittauspisteen kaikki lukemat taulukkona: syvyys, RH ja T. Syvyys valitaan siruista (esim. 28 mm, 70 mm), ja rinnakkaiset mittaukset kuvataan samalla syvyydellä. **Lue mittarista** lukee arvot mittarin näytöltä kameralla. |
+| Mittauspiste (RH) | Yhteen havaintoon kirjataan mittauspisteen kaikki lukemat taulukkona: syvyys, RH, T, absoluuttinen kosteus ja lukupäivä. Ympäröivät olosuhteet kirjataan samalla tavalla omaan taulukkoonsa. Syvyys valitaan siruista (esim. 28 mm, 70 mm), ja rinnakkaiset mittaukset kuvataan samalla syvyydellä. **Lue mittarista** lukee arvot mittarin näytöltä kameralla. |
 | Menetelmät | Menetelmien lisäys, muokkaus, järjestys, piilotus ja jakaminen tiedostona (etusivu → Menetelmät tai havaintokortti → Muokkaa menetelmiä) |
 | Pohjapiirros | Kerrokset, pohjakuva (kuva tai PDF), tilat ja niiden tutkimustilanne, havaintomerkit |
 | Lähtötarkistus | Puutteet suunnitelmaa, tiloja ja pakollisia tietoja vasten. Vienti avautuu, kun puutteet on tehty tai perusteltu. |
@@ -29,19 +29,23 @@ Kentällä:
 1. Kuva + sanelu → valitse menetelmäksi *Rakenteen RH-mittaus* → Valmis.
 2. Havaintokortilla: mittauspisteen tunnus, mittalaite ja tasaantumisaika (laite ja aika muistetaan seuraavaan pisteeseen).
 3. **Lue mittarista**: valitse syvyys yläreunasta (*+ Uusi*, esim. 28), rajaa mittarin näyttö kehykseen ja paina laukaisinta. Jokaisesta kuvasta syntyy rivi heti, ja tunnistus tehdään taustalla. Kuvaa rinnakkaiset mittaukset samalla syvyydellä, vaihda syvyys (esim. 70) ja jatka.
-4. Oranssilla merkityt arvot ovat epävarmoja: napauta riviä, vertaa arvoja näytön kuvaan ja kuittaa. Epäselvät kuvat hylätään heti ja pyydetään kuvaamaan uudelleen.
-5. Kortin yhteenveto näyttää syvyyksittäin lukemien määrän ja keskiarvot.
-6. Kun lukemat on tarkistettu, valitse *Olen tarkistanut mittausarvot*. Vahvistus ei onnistu, jos rivejä on kesken tai tarkistamatta.
+4. Rajaa näyttö kehykseen. Sovellus etsii nestekidenäytön rajauksen sisältä automaattisesti, joten mittarin kehys tai runko ei haittaa. Oranssilla merkityt arvot ovat epävarmoja: napauta riviä, vertaa arvoja näytön kuvaan ja kuittaa. Epäselvät kuvat hylätään heti ja pyydetään kuvaamaan uudelleen.
+5. Lukupäivä täyttyy automaattisesti kuvauspäivällä ja on muokattavissa (esim. jos lukemat kirjataan jälkikäteen).
+6. Kortin yhteenveto näyttää syvyyksittäin lukemien määrän ja keskiarvot.
+7. **Ympäröivät olosuhteet**: *Lue mittarista* toimii samoin (RH, T, a, lukupäivä).
+8. Kun lukemat on tarkistettu, valitse *Olen tarkistanut mittausarvot*. Vahvistus ei onnistu, jos rivejä on kesken tai tarkistamatta.
 
 Rivin voi lisätä myös käsin (*Rivi käsin*), esimerkiksi jos mittarin näyttöä ei voi kuvata.
 
-**Tunnistus** on sama kuin PBM Kenttälomakkeissa (`js/lukulaite-ocr.js`, Vaisala HM40 -sarjan näkymä T, RH, Td, Tw, a). Ydin vertaa RH:ta kastepisteestä ja absoluuttisesta kosteudesta laskettuun arvoon ja merkitsee ristiriitaiset lukemat epävarmoiksi. Tiedosto on kopio: kun tunnistusta parannetaan, päivitä se molempiin sovelluksiin. Tähän kopioon on lisätty vain `window.LukulaiteOcr.core`-vienti.
+**Tunnistus** on sama kuin PBM Kenttälomakkeissa (`js/lukulaite-ocr.js`, Vaisala HM40 -sarjan näkymä T, RH, Td, Tw, a). Ydin vertaa RH:ta kastepisteestä ja absoluuttisesta kosteudesta laskettuun arvoon ja merkitsee ristiriitaiset lukemat epävarmoiksi. Tiedosto on kopio: kun tunnistusta parannetaan, päivitä se molempiin sovelluksiin. Tähän kopioon on lisätty vain `window.LukulaiteOcr.core`-vienti. Näytön automaattinen rajaus (`lcdCrop` tiedostossa `js/meter.js`) tehdään ennen tunnistusta; jos rajaus ei tuota RH- ja T-arvoja, tunnistus yritetään vielä koko rajauksesta.
 
 **Ilman verkkoa:** tekstintunnistuksen moottori (Tesseract.js 5.1.1) ja kielidata ladataan ensimmäisellä kameraluvulla ja tallennetaan laitteelle. Tee ensimmäinen luku verkkoyhteydessä, jolloin kameraluku toimii jatkossa myös kellarissa.
 
 **ZIP-paketissa** lukemat ovat taulukkona (havainnot.md ja havainnot.json), jokaisella rivillä on lähde (kameraluku / käsin / korjattu käsin) ja näytön kuva (`kuvat/H01_lukema_1.jpg`). Laskettu yhteenveto (keskiarvo, vaihteluväli) on merkitty sovelluksen laskemaksi, ei mittaustulokseksi.
 
-Taulukkokentän voi lisätä mihin tahansa menetelmään menetelmäeditorissa (tyyppi *Taulukko*): sarakkeet, ryhmittelysarake ja kameraluvun RH- ja lämpötilasarakkeet.
+Taulukkokentän voi lisätä mihin tahansa menetelmään menetelmäeditorissa (tyyppi *Taulukko*): sarakkeet (numero, teksti, päivämäärä), pakolliset sarakkeet, ryhmittelysarake sekä kameraluvun RH-, lämpötila- ja absoluuttisen kosteuden sarakkeet.
+
+**Menetelmien päivitys:** oletusmenetelmällä on versionumero (`versio` tiedostossa `js/methods.js`). Kun versio nousee, laitteelle tallennettu vanhempi versio korvataan uudella käynnistyksen yhteydessä. Itse lisätyt menetelmät eivät muutu.
 
 ## Tallennus ja tietosuoja
 
