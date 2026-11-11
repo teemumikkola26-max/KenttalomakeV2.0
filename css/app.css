@@ -318,3 +318,40 @@ input.flag{border:2px solid #c9771d !important;background:#fff4e5}
 .mpick.dark .mp-row[aria-selected=true]{background:#2a3039}
 .mpick.dark .mp-new{color:#9fc3ff}
 .mpick.dark .mp-sub{color:#aab3bf}
+
+/* ---- Kuvausnäkymä v2: paneeli, tulos, kortti-linkki, sanelun esikatselu ---- */
+.cam-panel{margin:10px 12px 0;display:flex;flex-direction:column;gap:8px}
+.cp-row{display:flex;flex-direction:column;gap:6px}
+.cp-res{flex-direction:row;align-items:center;justify-content:space-between;gap:8px}
+.cp-res .chips{flex-wrap:nowrap}
+.card-link{flex:0 0 auto;display:flex;align-items:center;gap:4px;min-height:40px;padding:0 10px 0 12px;border-radius:99px;border:1px solid rgba(255,255,255,.3);background:transparent;color:#dfe3e8;font-size:13.5px;font-weight:600;cursor:pointer;white-space:nowrap}
+.card-link svg.i{width:16px;height:16px;color:inherit}
+.card-link.warn{border-color:#f0b37a;color:#f7d9b9}
+.cam-panel textarea{background:#1f252e;border:1px solid #3a4250 !important;color:#f2efe6;font-size:15.5px;line-height:1.4;min-height:58px !important;max-height:18vh;padding:9px 11px !important;border-radius:12px;resize:none}
+.cam-panel textarea::placeholder{color:#9aa4b1}
+.dict-live{position:absolute;left:10px;right:10px;bottom:10px;background:rgba(18,22,28,.9);border:2px solid #e07a4f;border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;max-height:45%;overflow:auto}
+.dl-h{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:#f0dcb3}
+.dl-h .rec{width:10px;height:10px;border-radius:50%;background:#e07a4f;animation:pulse 1.2s infinite;flex:0 0 auto}
+.dl-t{font-size:16px;line-height:1.4;color:#fff;white-space:pre-wrap}
+[data-dict]{touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.cam-side.mic{width:84px}
+.cam-side.mic .c{width:60px;height:60px;transition:transform .12s}
+.cam-side.mic.mic-on .c{background:#e07a4f;transform:scale(1.12)}
+.cam-side.mic span[data-miclbl]{font-size:11.5px;text-align:center;line-height:1.2}
+/* Havaintokortin sanelupainikkeet */
+.dict-btn{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 12px 0 10px;border-radius:99px;border:1px solid var(--line-strong);background:#fff;font-size:13px;font-weight:600;color:#33455c;cursor:pointer}
+.dict-btn[data-dict=holding],.dict-btn[data-dict=locked]{background:#e07a4f;border-color:#e07a4f;color:#fff}
+.dict-prev{font-size:14px;color:var(--muted);font-style:italic;margin-top:6px;min-height:0}
+.dict-prev:empty{display:none}
+/* Havaintokortin puutelista */
+.missing-box{display:flex;gap:10px;align-items:flex-start;background:var(--note-bg);color:#6e3a0e;border-radius:10px;padding:10px 12px;font-size:14px;margin-bottom:12px}
+.missing-box.ok{background:var(--ok-bg);color:var(--ok)}
+.recent .thumb .warn{position:absolute;left:5px;top:5px;width:20px;height:20px;border-radius:50%;background:#c9771d;color:#fff;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff}
+
+.cl-n{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;border-radius:10px;background:#c9771d;color:#fff;font-size:12px;font-weight:800;padding:0 5px}
+.cp-res .chip{padding:6px 11px;font-size:13.5px}
+.cam .chip.c-note[aria-pressed=true]{background:#f7e9dc;border-color:#c9771d;color:#8a4a14}
+.cam .chip.c-ok[aria-pressed=true]{background:#e6f0ea;border-color:#5fd18a;color:#245a3e}
+
+.todo-img{width:56px;height:56px;object-fit:cover;border-radius:8px;flex:0 0 auto}
+.todo .tt:has(.todo-img)::before{display:none}
