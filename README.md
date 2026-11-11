@@ -1,0 +1,103 @@
+# Kuva + sanelu
+
+Mobiilikäyttöinen kenttälomake kuntotutkimuksiin. Kuva ja sanelu ovat lomakkeen ydin. Lomake ohjaa tutkijaa kirjaamaan kentällä ne tiedot, joita AI-raportointityökalu ei voi päätellä kuvista:
+
+- mittausarvot ja niiden vahvistus
+- tutkimuksen kattavuus (tarkastettu / poikkeama / ei pääsyä / ei tutkittu)
+- tutkimussuunnitelman toteutuminen ja pois jätettyjen kohtien syyt
+
+Aineisto viedään ZIP-pakettina, jonka voi antaa AI-työkalulle sellaisenaan.
+
+Sovellus on osa RTA-opinnäytetyön kehitystyötä ja erillinen PBM Kenttälomakkeet -sovelluksesta (Aloitussivu).
+
+## Näkymät
+
+| Näkymä | Tarkoitus |
+|---|---|
+| Kohde | Tutkimussuunnitelman eteneminen, viimeisimmät havainnot ja Kuva + sanelu -painike |
+| Kuva + sanelu | Kamera ja sanelu päällä yhtä aikaa. Kuvat ja sanelu tallentuvat samaan havaintoon heti. Sijainti muistetaan edellisestä havainnosta. |
+| Havaintokortti | Havainto (sanelu), sijainti, tulos, menetelmä, suunnitelman kohta, menetelmän kentät, mittausarvojen vahvistus ja tutkijan alustava tulkinta erikseen |
+| Pohjapiirros | Kerrokset, pohjakuva (kuva tai PDF), tilat ja niiden tutkimustilanne, havaintomerkit |
+| Lähtötarkistus | Puutteet suunnitelmaa, tiloja ja pakollisia tietoja vasten. Vienti avautuu, kun puutteet on tehty tai perusteltu. |
+
+## Tallennus ja tietosuoja
+
+- Tiedot tallentuvat vain laitteen selaimeen (IndexedDB). Palvelinta tai pilveä ei ole.
+- Sovellus pyytää selaimelta pysyvää tallennustilaa, mutta selaimen tietojen tyhjennys poistaa kohteet. **Vie ZIP-paketti jokaisesta kohteesta.** Samalla paketilla kohteen voi palauttaa (etusivu → Palauta varmuuskopio).
+- Puheentunnistus (Web Speech API) käsittelee puheen selaimen palvelussa (Chrome: Google). Arvioi tämä organisaation tietosuojakäytäntöjä vasten ennen tuotantokäyttöä.
+
+## ZIP-paketin sisältö
+
+```
+LUE_MINUT.txt            ohje aineiston käyttöön, myös AI-työkalulle
+havainnot.md             havainnot luettavassa muodossa
+havainnot.json           samat tiedot jäsenneltynä
+kuvat/H01_1.jpg …
+aanitteet/H01_1.webm …   jos puheentunnistus ei ollut käytössä
+pohjapiirrokset/<kerros>.png               merkinnöin
+pohjapiirrokset/<kerros>_alkuperainen.*    ilman merkintöjä
+varmuuskopio/data.json   palautusta varten
+```
+
+Mittausarvot ovat paketissa erillään havainnosta, ja jokaisessa havainnossa kerrotaan, onko tutkija vahvistanut arvot. `LUE_MINUT.txt` ohjeistaa käyttämään vain vahvistettuja arvoja ja kirjaamaan tutkimatta jääneet tilat ja pois jätetyt kohdat rajauksina.
+
+## Käyttöönotto GitHub Pagesissa
+
+1. Luo uusi repositorio ja vie tämän kansion tiedostot sen juureen.
+2. Settings → Pages → Source: *Deploy from a branch*, haara `main`, kansio `/ (root)`.
+3. Avaa osoite puhelimella ja lisää sovellus kotinäytölle.
+
+Kamera ja mikrofoni vaativat HTTPS-yhteyden (GitHub Pages käyttää sitä). Paikallisesti testattaessa `http://localhost` toimii:
+
+```
+python3 -m http.server 8000
+```
+
+**Päivitykset:** nosta `sw.js`:n `CACHE`-versiota (esim. `kuva-sanelu-v2`) aina, kun julkaiset muutoksia. Muuten puhelimet voivat käyttää vanhaa versiota.
+
+## Selaintuki
+
+| | Kamera | Puheentunnistus |
+|---|---|---|
+| Chrome, Android | kyllä | kyllä, vaatii verkkoyhteyden |
+| Safari, iOS | kyllä | selainikkunassa yleensä kyllä. Kotinäytöltä avattuna puheentunnistus voi puuttua: silloin sanelu tallennetaan äänitteenä, ja tekstin voi sanella näppäimistön mikrofonilla. |
+| Edge, Windows | kyllä | kyllä |
+
+Jos selaimen kamera ei käynnisty, laukaisin avaa puhelimen oman kamerasovelluksen.
+
+## Rakenne
+
+```
+index.html             sovelluksen runko
+css/app.css            PBM-väriteema
+js/ui.js               kuvakkeet, ikkunat, ilmoitukset
+js/db.js               IndexedDB-tallennus
+js/methods.js          menetelmät, kentät, pakolliset tiedot, rakenneosat  ← muokkaa tätä
+js/dictation.js        sanelu (puheentunnistus tai äänite)
+js/camera.js           kamera ja kuvien pienennys
+js/app.js              tila, reititys, kohteet, tutkimussuunnitelma
+js/capture.js          Kuva + sanelu
+js/card.js             havaintokortti
+js/plan.js             pohjapiirros, kerrokset, tilat, sijainnin valinta
+js/check.js            lähtötarkistus
+js/export.js           ZIP-vienti ja palautus
+sw.js                  toiminta ilman verkkoa
+```
+
+Ulkoiset kirjastot ladataan cdnjs:stä ja tallennetaan välimuistiin: JSZip 3.10.1 (vienti) ja pdf.js 3.11.174 (PDF-pohjakuvat). Muita riippuvuuksia tai käännösvaihetta ei ole.
+
+### Menetelmien muokkaus
+
+Menetelmät ja niiden kentät ovat tiedostossa `js/methods.js`. Kentän asetukset:
+
+- `req: true` – pakollinen. Lähtötarkistus näyttää puuttuvan arvon.
+- `mittaus: true` – mittaustulos. Vaatii vahvistuksen, ja paketissa se on erillään muista tiedoista.
+- `muista: true` – arvo, esim. mittalaite, muistetaan seuraavaan saman menetelmän havaintoon.
+- `u` – yksikkö. Sanelusta tunnistetut luvut ehdotetaan kenttiin yksikön perusteella.
+
+## Tunnetut rajoitukset
+
+- Ei synkronointia laitteiden välillä. Siirto tehdään ZIP-paketilla.
+- Pohjakuvasta käytetään yhtä PDF-sivua kerrosta kohden.
+- Tiloja ei piirretä alueina: tila merkitään pohjapiirrokseen tunnuksella, ja sen väri kertoo tutkimustilanteen.
+- Sanelusta tunnistetut luvut ovat ehdotuksia. Tutkija valitsee ne ja vahvistaa arvot itse.
