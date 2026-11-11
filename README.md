@@ -42,6 +42,8 @@ Tavoite: havainnon kirjaaminen vie saman ajan kuin pelkkä kuvaaminen. Tutkija k
 | Lukupäivä | Kuvauspäivä. |
 | Mittausten vahvistus | Varmat kameraluvut ja itse kirjoitetut arvot ovat vahvistettuja. Vain epävarmat lukemat tarkistetaan. |
 
+**Oppiminen (`js/learn.js`).** Kun avainsanat eivät tunnista menetelmää, sovellus ehdottaa sitä oppimansa perusteella (merkintä *opittu*). Malli oppii valmiista havainnoista, millainen sanelu kuuluu millekin menetelmälle: tutkijan itse valitsema tai korjaama menetelmä painaa enemmän (2) kuin automaattisesti tunnistettu ja hyväksytty (0,5), jottei malli vahvista omia virheitään. Malli on naiivi Bayes -luokittelija, joka toimii kokonaan laitteella. Piirteinä ovat sanojen alut (taivutusmuodot), yhdyssanojen osat, numerot ja yksiköt sekä rakenneosa, ja jokainen sana antaa yhden äänen. Tilojen nimet jätetään pois. Ehdotus tehdään vasta, kun esimerkkejä on vähintään 6 ja todennäköisyys on vähintään 0,85 (`RAJAT`). Menetelmät-sivulla näkyy esimerkkien määrä menetelmittäin, ja oppimisen voi nollata. Malli kulkee Vie menetelmät -tiedostossa, ja tuotaessa se yhdistetään laitteen malliin, joten tiimi voi kerätä yhteisen mallin.
+
 Automaattinen arvo näkyy merkinnällä *sanelusta* eikä koskaan korvaa tutkijan itse valitsemaa arvoa. Yksi napautus muuttaa sen. ZIP-paketti kertoo, mitkä tiedot on tunnistettu sanelusta. Tunnistus on tarkoituksella varovainen: epäselvässä tapauksessa arvo jää tyhjäksi ja lähtötarkistus muistuttaa siitä. Sanalistoja voi täydentää tiedostossa `js/autofill.js`.
 
 **Muut periaatteet**
@@ -148,6 +150,7 @@ js/methods.js          oletusmenetelmät, rakenneosat, menetelmien tallennus
 js/editor.js           menetelmien muokkaus
 js/methodpicker.js     menetelmän valinta: ehdotukset, haku ja uusi menetelmä
 js/autofill.js         tietojen tunnistus sanelusta ja automaattinen täyttö
+js/learn.js            oppiva menetelmän tunnistus (naiivi Bayes, laitteella)
 js/meter.js            mittarin näytön kameraluku ja lukemien tarkistus
 js/lukulaite-ocr.js    tunnistusydin (kopio PBM Kenttälomakkeista)
 js/dictation.js        sanelu (puheentunnistus tai äänite)
