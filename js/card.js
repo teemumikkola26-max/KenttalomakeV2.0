@@ -43,7 +43,21 @@
 
     const root = document.getElementById("app");
     const save = UI.debounce(() => Model.saveHavainto(h), 400);
-    let dict = null, dictTarget = null;
+    let dict = null, dictTarget = null, picker = null;
+
+    function selectMethod(id) {
+      if (h.menetelma === id) return;
+      h.menetelma = id;
+      h.vahvistettu = false;
+      // muistetut arvot (esim. mittalaite) valmiiksi
+      M.menetelma(h.menetelma).kentat.forEach((f) => {
+        const mem = S.kohde.muisti[h.menetelma + "." + f.k];
+        if (f.muista && mem && !h.kentat[f.k]) h.kentat[f.k] = mem;
+      });
+      const cur = Model.kohta(h.suunnitelmaId);
+      if (cur && cur.menetelma !== h.menetelma) h.suunnitelmaId = null;
+      save(); paint();
+    }
 
     function kohtaOptions() {
       const own = k.suunnitelma.filter((p) => p.menetelma === h.menetelma);
@@ -106,8 +120,7 @@
         '<button class="chip c-ok" data-a="tulos" data-v="ok" aria-pressed="' + (h.tulos === "ok") + '">Ei huomautettavaa</button></div>' +
         '<div style="display:flex;justify-content:space-between;align-items:baseline"><span class="label' + (h.menetelma ? "" : " missing") + '">Menetelmä <span class="req">*</span>' + (h.menetelma ? "" : " · valitse") + '</span>' +
         '<a class="link" href="#/menetelmat" style="font-size:13px;padding:0 0 6px">Muokkaa menetelmiä</a></div>' +
-        '<div class="chips scroll" data-menlist style="margin-bottom:14px">' +
-        M.MENETELMAT.filter((x) => !x.piilotettu || x.id === h.menetelma).map((x) => '<button class="chip" data-a="men" data-v="' + x.id + '" aria-pressed="' + (x.id === h.menetelma) + '">' + esc(x.nimi) + "</button>").join("") + "</div>" +
+        '<div data-mpick style="margin-bottom:14px"></div>' +
         (k.suunnitelma.length ? '<label class="field" style="margin:0"><span>Tutkimussuunnitelman kohta</span><select data-a="kohta">' + kohtaOptions() + "</select></label>" : "") +
         "</div></section>" +
 
@@ -121,7 +134,8 @@
         "</main>" +
         '<div class="actionbar"><a class="btn" href="#/k/' + k.id + '">Tallenna</a>' +
         '<button class="btn btn-primary wide" data-a="next">' + icon("cam") + "Tallenna ja uusi kuva</button></div>";
-      UI.showSelected(root.querySelector("[data-menlist]"));
+      if (picker) picker.destroy();
+      picker = MethodPicker.mount(root.querySelector("[data-mpick]"), { selected: h.menetelma, excludeHavainto: h.id, onSelect: selectMethod });
       root.querySelectorAll("[data-gl]").forEach((el) => UI.showSelected(el));
       if (m.kentat.some((f) => f.ocr) && window.LukulaiteOcr) window.LukulaiteOcr.preload();
     }
@@ -416,7 +430,9 @@
       }
       if (a === "tulos") { h.tulos = h.tulos === b.dataset.v ? null : b.dataset.v; save(); paint(); }
       else if (a === "men") {
-        if (h.menetelma === b.dataset.v) return;
+        selectMethod(b.dataset.v);
+      }
+      else if (false) {
         h.menetelma = b.dataset.v;
         h.vahvistettu = false;
         // muistetut arvot (esim. mittalaite) valmiiksi
@@ -444,7 +460,7 @@
       else if (a === "view") viewer(+b.dataset.i);
       else if (a === "next") {
         save.flush();
-        S.kohde.viimeisin = { kerrosId: h.sijainti.kerrosId, tilaId: h.sijainti.tilaId, rakenneosa: h.sijainti.rakenneosa };
+        S.kohde.viimeisin = { kerrosId: h.sijainti.kerrosId, tilaId: h.sijainti.tilaId, rakenneosa: h.sijainti.rakenneosa, menetelma: h.menetelma || (S.kohde.viimeisin || {}).menetelma };
         await Model.saveKohde();
         location.hash = "#/k/" + k.id + "/kuvaus";
       }
@@ -456,7 +472,7 @@
     };
 
     paint();
-    S.cleanup = () => { stopDict(); save.flush(); window.removeEventListener("ks-ocr", onOcr); root.oninput = root.onchange = root.onclick = null; };
+    S.cleanup = () => { if (picker) picker.destroy(); stopDict(); save.flush(); window.removeEventListener("ks-ocr", onOcr); root.oninput = root.onchange = root.onclick = null; };
   }
 
   window.Card = { view };

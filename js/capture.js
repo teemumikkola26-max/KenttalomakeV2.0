@@ -28,10 +28,6 @@
     }
     let saved = !isNew;
 
-    function methodChips() {
-      const list = M.MENETELMAT.filter((m) => !m.piilotettu || m.id === h.menetelma);
-      return list.map((m) => '<button class="chip" data-m="' + esc(m.id) + '" aria-pressed="' + (m.id === h.menetelma) + '">' + esc(m.nimi) + "</button>").join("");
-    }
 
     document.getElementById("app").innerHTML =
       '<div class="cam">' +
@@ -42,7 +38,7 @@
       '<div class="viewfinder"><video autoplay playsinline muted></video><div class="flash"></div>' +
       '<div class="vf-msg" data-vfmsg>Käynnistetään kameraa…</div>' +
       '<span class="vf-count" data-count></span><div class="vf-thumbs" data-thumbs></div></div>' +
-      '<div class="cam-methods"><span class="cam-lbl" data-mlbl>Menetelmä</span><div class="chips scroll" data-methods>' + methodChips() + "</div></div>" +
+      '<div class="cam-methods"><span class="cam-lbl" data-mlbl>Menetelmä</span><div data-mpick></div></div>' +
       '<div class="dict">' +
       '<div class="dict-h off" data-dh><span class="rec"></span><span data-dstate>Havainto</span></div>' +
       '<textarea data-text aria-label="Havainto" placeholder="Kirjoita havainto tai paina Sanele">' + esc(h.sanelu) + "</textarea>" +
@@ -149,7 +145,7 @@
       await new Promise((r) => setTimeout(r, dict.mode === "audio" ? 400 : 0));
       if (hasContent()) {
         await Model.saveHavainto(h);
-        S.kohde.viimeisin = { kerrosId: h.sijainti.kerrosId, tilaId: h.sijainti.tilaId, rakenneosa: h.sijainti.rakenneosa };
+        S.kohde.viimeisin = { kerrosId: h.sijainti.kerrosId, tilaId: h.sijainti.tilaId, rakenneosa: h.sijainti.rakenneosa, menetelma: h.menetelma || (S.kohde.viimeisin || {}).menetelma };
         await Model.saveKohde();
         saved = true;
       }
@@ -160,20 +156,6 @@
     ta.addEventListener("input", () => { h.sanelu = ta.value; persist(); });
 
     root.addEventListener("click", async (e) => {
-      const mb = e.target.closest("[data-m]");
-      if (mb) {
-        const id = mb.dataset.m;
-        if (h.menetelma === id) return;
-        h.menetelma = id;
-        h.vahvistettu = false;
-        applyMemory(h);
-        const cur = Model.kohta(h.suunnitelmaId);
-        if (cur && cur.menetelma !== id) h.suunnitelmaId = null;
-        root.querySelectorAll("[data-m]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.m === id)));
-        paintMethodLabel();
-        if (saved) persist();
-        return;
-      }
       const b = e.target.closest("[data-c]");
       if (!b) return;
       const c = b.dataset.c;
@@ -190,7 +172,19 @@
     });
 
     paintLoc(); paintMethodLabel(); paintThumbs(); paintMic("stopped");
-    UI.showSelected(root.querySelector("[data-methods]"));
+    const picker = MethodPicker.mount(root.querySelector("[data-mpick]"), {
+      selected: h.menetelma, excludeHavainto: h.id, dark: true,
+      onSelect: (id) => {
+        if (h.menetelma === id) return;
+        h.menetelma = id;
+        h.vahvistettu = false;
+        applyMemory(h);
+        const cur = Model.kohta(h.suunnitelmaId);
+        if (cur && cur.menetelma !== id) h.suunnitelmaId = null;
+        paintMethodLabel();
+        if (saved) persist();
+      }
+    });
 
     try {
       await Camera.start(video);
@@ -199,7 +193,7 @@
       $("[data-vfmsg]").innerHTML = "<div>Selaimen kameraa ei saatu käyttöön.<br>Laukaisin avaa puhelimen kamerasovelluksen.</div>";
     }
 
-    S.cleanup = () => { dict.stop(); Camera.stop(); h.sanelu = ta.value; persist.flush(); };
+    S.cleanup = () => { picker.destroy(); dict.stop(); Camera.stop(); h.sanelu = ta.value; persist.flush(); };
   }
 
   window.Capture = { view };
