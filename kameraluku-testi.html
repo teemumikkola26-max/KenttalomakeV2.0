@@ -16,7 +16,7 @@
 </head>
 <body>
 <header class="topbar"><a class="tb-back" href="index.html" aria-label="Takaisin">‹</a>
-  <div class="tb-title"><h1>Kameraluvun testi</h1><span class="sub">Näytön paikannus ja tunnistus valitusta kuvasta</span></div></header>
+  <div class="tb-title"><h1>Kameraluvun testi</h1><span class="sub" id="ver">Näytön paikannus ja tunnistus valitusta kuvasta</span></div></header>
 <main class="view no-nav">
   <p class="hint" style="margin-top:0">Valitse yksi tai useampi kuva mittarin näytöstä. Sivu näyttää, mihin näyttö paikannettiin (vihreä kehys), rajauksen, jolta arvot luettiin, ja tunnistetun tekstin. Kuvat eivät tallennu mihinkään.</p>
   <button class="btn btn-primary btn-block" id="pick">Valitse kuvat</button>
@@ -31,6 +31,7 @@
 <script>
 (function () {
   const C = window.LukulaiteOcr.core;
+  document.getElementById("ver").textContent = "Näytön paikannus ja tunnistus · versio " + window.APP_VERSION;
   window.LukulaiteOcr.preload();
   const fmt = (v, d) => v == null ? "–" : Number(v).toFixed(d).replace(".", ",");
   document.getElementById("pick").addEventListener("click", async () => {
@@ -59,10 +60,12 @@
     const crop = d ? Meter._cropNorm(full, d) : C.cropCanvas(full, full.width, full.height, { x: 0, y: 0, w: full.width, h: full.height });
     const t1 = performance.now();
     const r = await C.recognizeQuick(crop, 6);
+    const live = await C.recognizeQuick(crop, 3, { agree: true });
     const tOcr = performance.now() - t1;
     const V = r.values, ok = r.consistent && ["T", "RH", "a"].every((k) => r.status[k] === "ok");
     box.innerHTML = "<b>" + UI.esc(file.name) + "</b>" +
       "<div class='vals'>" + (ok ? "✅ Varma" : "⚠️ Epävarma") + " &nbsp; <b>" + fmt(V.T, 1) + "</b> °C &nbsp; <b>" + fmt(V.RH, 1) + "</b> %RH &nbsp; <b>" + fmt(V.a, 2) + "</b> g/m³ &nbsp; Td " + fmt(V.Td, 1) + "</div>" +
+ "<div class='hint'>Reaaliaikainen luenta: " + (live.sure ? "varma" : "ei varma (" + live.agree + "/" + live.passes + " samaa luentaa)") + " · näytön leveys " + (d ? Math.round(d.w * full.width) : "–") + " px</div>" +
       "<div class='hint'>Näyttö " + (d ? "löytyi" : "EI löytynyt, luettiin koko kuva") + " (" + Math.round(tDet) + " ms) · tunnistus " + (tOcr / 1000).toFixed(1) + " s, " + (r.passes || "?") + " kierrosta · tila: " + UI.esc(JSON.stringify(r.status)) + "</div>" +
       "<div class='row2'></div><details><summary>Tunnistettu teksti</summary><pre></pre></details>";
     box.querySelector(".row2").append(prev, crop);

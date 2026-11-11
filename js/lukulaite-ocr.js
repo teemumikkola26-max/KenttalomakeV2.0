@@ -214,8 +214,8 @@ function recognize(canvas){
 
 /* Kevyt luenta reaaliaikaiseen esikatseluun (Kuva + sanelu): 1–n esikäsittelyvarianttia,
    lopetetaan heti, kun T, RH ja a on luettu ja RH on fysikaalisesti johdonmukainen. */
-function recognizeQuick(canvas,n){
-  n=n||2;
+function recognizeQuick(canvas,n,opts){
+  n=n||2;opts=opts||{};
   var w=canvas.width,h=canvas.height,g=gray(canvas),parses=[],raws=[];
   // Varma: johdonmukainen ja kaikki arvot luettu. Vaihtoehtoinen luenta (esim. 8/9-sekaannus)
   // ohitetaan vain, jos vähintään kaksi eri esikäsittelyllä tehtyä luentaa antaa täsmälleen samat arvot.
@@ -223,7 +223,14 @@ function recognizeQuick(canvas,n){
     if(parses.length<2)return false;
     return parses.every(function(p){return KEYS.every(function(k){return p[k]!==undefined&&c.values[k]!==null&&Math.abs(p[k]-c.values[k])<1e-9;});});
   }
-  function allOk(c){return c.consistent&&KEYS.every(function(k){return c.status[k]==="ok";})&&(!c.alternative||unanimous(c));}
+  // Montako luentaa antoi täsmälleen tuloksen arvot (T, RH, a)
+  function agree(c){
+    return parses.filter(function(p){return KEYS.every(function(k){return p[k]!==undefined&&c.values[k]!==null&&Math.abs(p[k]-c.values[k])<1e-9;});}).length;
+  }
+  // opts.agree: vaaditaan vähintään kaksi samaa luentaa (reaaliaikainen luenta). Fysikaalinen
+  // ristiintarkistus ei erota pieniä lämpötilavirheitä (esim. 22.6 / 22.8), mutta kaksi eri
+  // esikäsittelyllä tehtyä samaa luentaa erottaa.
+  function allOk(c){return c.consistent&&KEYS.every(function(k){return c.status[k]==="ok";})&&(!c.alternative||unanimous(c))&&(!opts.agree||agree(c)>=2);}
   // Kastepisteen miinusmerkki katoaa usein luennassa (-1.4 -> 1.4), jolloin ristiintarkistus
   // "korjaisi" oikeat arvot vääriksi. Jos tulos ei ole johdonmukainen, arvioidaan ilman Td:tä
   // (ristiintarkistus absoluuttisella kosteudella).
@@ -249,7 +256,7 @@ function recognizeQuick(canvas,n){
       });
     }
     return next();
-  }).then(function(){var c=best();c.raw=raws.join("\n----\n");c.passes=parses.length;return c;});
+  }).then(function(){var c=best();c.raw=raws.join("\n----\n");c.passes=parses.length;c.agree=agree(c);c.sure=allOk(c);return c;});
 }
 
 /* ---------- Jono ---------- */

@@ -50,7 +50,9 @@ Rivin voi lisätä myös käsin (*Rivi käsin*), esimerkiksi jos mittarin näytt
 
 **Testisivu:** `kameraluku-testi.html` (sama osoite kuin sovellus, esim. …/kameraluku-testi.html). Valitse puhelimella otettuja kuvia mittarin näytöstä, niin sivu näyttää paikannetun näytön, rajauksen, luetut arvot ja tunnistetun tekstin. Kuvat eivät tallennu. Sivu sopii epäonnistuneiden tapausten keräämiseen ja tunnistuksen kehittämiseen.
 
-Testattu: kaksi oikeaa mittarikuvaa (eri valkotasapaino), sininen, kellertävä ja vihertävä sävy, hämärä, kaukana oleva mittari ja heijastus näytössä luetaan oikein. Selvästi vinossa (n. 6°) kuvassa osa arvoista voi mennä väärin, mutta luentaa ei silloin hyväksytä varmaksi, vaan rivi merkitään tarkistettavaksi.
+**Milloin luenta on varma:** RH täsmää absoluuttiseen kosteuteen tai kastepisteeseen, vähintään kaksi eri esikäsittelyllä tehtyä luentaa antaa täsmälleen samat arvot ja näyttö on kamerakuvassa riittävän suuri (reaaliaikaisessa luennassa vähintään noin 420 px leveä, taustatunnistuksessa 300 px). Fysikaalinen ristiintarkistus ei yksinään erota pieniä lämpötilavirheitä (esim. 22,6 / 22,8), koska RH muuttuu niissä vähän. Siksi pieneltä näytöltä luetut arvot merkitään aina tarkistettaviksi.
+
+Testattu: kolme oikeaa mittarikuvaa (eri valkotasapaino), sininen, kellertävä ja vihertävä sävy, hämärä, kaukana oleva mittari ja heijastus näytössä luetaan oikein. Selvästi vinossa (n. 6°) kuvassa osa arvoista voi mennä väärin, mutta luentaa ei silloin hyväksytä varmaksi, vaan rivi merkitään tarkistettavaksi.
 
 **Ilman verkkoa:** tekstintunnistuksen moottori (Tesseract.js 5.1.1) ja kielidata ladataan ensimmäisellä kameraluvulla ja tallennetaan laitteelle. Tee ensimmäinen luku verkkoyhteydessä, jolloin kameraluku toimii jatkossa myös kellarissa.
 
@@ -93,7 +95,7 @@ Kamera ja mikrofoni vaativat HTTPS-yhteyden (GitHub Pages käyttää sitä). Pai
 python3 -m http.server 8000
 ```
 
-**Päivitykset:** nosta `sw.js`:n `CACHE`-versiota (esim. `kuva-sanelu-v2`) aina, kun julkaiset muutoksia. Muuten puhelimet voivat käyttää vanhaa versiota.
+**Päivitykset:** nosta aina kahta numeroa yhdessä, kun julkaiset muutoksia: `sw.js`:n `CACHE` (esim. `kuva-sanelu-v8`) ja `js/ui.js`:n `APP_VERSION` (esim. `"8"`). Versio näkyy etusivun alareunassa ja kameraluvun tiedoissa. Sovellus tarkistaa päivityksen, kun se avataan tai palaa näkyviin, ja ottaa uuden version käyttöön automaattisesti etusivulla tai kohdenäkymässä. Kesken olevaa kuvausta tai kirjausta ei keskeytetä.
 
 ## Selaintuki
 

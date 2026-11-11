@@ -91,19 +91,25 @@
     const c = document.createElement("canvas"), sc = 1000 / rw;
     c.width = 1000; c.height = Math.max(1, Math.round(rh * sc));
     c.getContext("2d").drawImage(src, rx, ry, rw, rh, 0, 0, c.width, c.height);
+    c._fracW = rw / src.width;
     return c;
   }
 
   async function recognizeBest(canvas) {
-    const lcd = canvas._lcd ? null : lcdCrop(canvas);
+    let lcd = canvas._lcd ? null : lcdCrop(canvas);
+    if (!lcd && !canvas._lcd) {
+      // Varapolku: sama paikannus kuin kameranäkymässä (yhtenäinen alue), sitten tarkennus.
+      const d = findDisplay(canvas);
+      if (d && d.w * d.h < 0.9) lcd = cropNorm(canvas, d);
+    }
     let r = null;
     if (lcd) {
-      r = await core().recognizeQuick(lcd, 6);
-      if (r.values.RH != null && r.values.T != null) { r.how = "näyttö rajattu automaattisesti"; return r; }
+      r = await core().recognizeQuick(lcd, 6, { agree: true });
+      if (r.values.RH != null && r.values.T != null) { r.how = "näyttö rajattu automaattisesti (versio " + APP_VERSION + ")"; return r; }
     }
-    const r2 = await core().recognizeQuick(canvas, 6);
-    if (!r || (r2.values.RH != null && r2.values.T != null)) { r2.how = "koko rajaus"; return r2; }
-    r.how = "näyttö rajattu automaattisesti";
+    const r2 = await core().recognizeQuick(canvas, 6, { agree: true });
+    if (!r || (r2.values.RH != null && r2.values.T != null)) { r2.how = "koko rajaus, näyttöä ei paikannettu (versio " + APP_VERSION + ")"; return r2; }
+    r.how = "näyttö rajattu automaattisesti (versio " + APP_VERSION + ")";
     return r;
   }
 
@@ -137,12 +143,15 @@
     const map = f.ocr || {}, V = r.values, o = row._ocr, DEC = core().DEC;
     o.alt = r.alternative || null;
     o.read = { T: V.T, RH: V.RH, a: V.a };
+    // Epävarma, jos kaksi luentaa ei antanut samoja arvoja tai näyttö oli kuvassa pieni.
+    const weak = r.sure === false || (o.lcdPx && o.lcdPx < 300);
     o.flags = {
-      T: r.status.T !== "ok" || !!o.alt || V.T == null,
-      RH: r.status.RH !== "ok" || !r.consistent || !!o.alt || V.RH == null,
+      T: r.status.T !== "ok" || !!o.alt || V.T == null || weak,
+      RH: r.status.RH !== "ok" || !r.consistent || !!o.alt || V.RH == null || weak,
       a: !!map.a && (r.status.a !== "ok" || V.a == null)
     };
-    o.raw = (r.how ? "Tapa: " + r.how + "\n" : "") + (r.raw || "");
+    o.raw = (r.how ? "Tapa: " + r.how + "\n" : "") + "Samoja luentoja: " + (r.agree != null ? r.agree + "/" + r.passes : "–") +
+      (o.lcdPx ? " · näytön leveys " + o.lcdPx + " px" : "") + "\n" + (r.raw || "");
     o.state = "done";
     o.reviewed = false;
     o.edited = o.edited || {};
@@ -235,7 +244,9 @@
     const c = core().cropCanvas(full, full.width, full.height, { x: r.x * full.width, y: r.y * full.height, w: r.w * full.width, h: r.h * full.height });
     const l = lcdCrop(c);
     if (l) l._lcd = true;   // jo rajattu näyttöön: ei rajata uudelleen tunnistuksessa
-    return l || c;
+    const out = l || c;
+    out._srcW = Math.round(r.w * full.width * (l ? l._fracW || 1 : 1));   // näytön leveys alkuperäisessä kuvassa
+    return out;
   }
 
   function fmtVal(v, d) { return v == null ? "–" : Number(v).toFixed(d).replace(".", ","); }
@@ -310,7 +321,11 @@
       box.style.height = (det.h * c.vh * c.s) + "px";
       box.classList.toggle("ok", liveOk());
     }
-    function liveOk() { return !!(live && live.r.consistent && live.r.values.RH != null && live.r.values.T != null && Date.now() - live.t < 2500); }
+    function liveOk() { return !!(live && live.r.sure && live.r.values.RH != null && live.r.values.T != null && Date.now() - live.t < 2500); }
+    /* Näytön koko kamerakuvassa pikseleinä: pieni näyttö luetaan epäluotettavasti. */
+    const MIN_LCD_PX = 420;
+    function lcdPx() { return det ? det.w * video.videoWidth : 0; }
+    const minPx = () => Math.min(MIN_LCD_PX, video.videoWidth * 0.45);
     function paintLive(msg) {
       const p = $("[data-live]");
       if (msg) { p.classList.remove("hidden", "ok"); p.innerHTML = '<span class="lmsg">' + esc(msg) + "</span>"; }
@@ -367,7 +382,8 @@
         const region = det;
         const crop = cropNorm(full, region);
         if (C.sharpness(crop) < C.SHARP_MIN) { paintLive("Kuva epätarkka: pidä paikallaan"); return; }
-        const r = await C.recognizeQuick(crop, 2);
+        if (lcdPx() < minPx()) { live = null; paintLive("Tuo puhelin lähemmäs näyttöä"); return; }
+        const r = await C.recognizeQuick(crop, 3, { agree: true });
         if (!alive) return;
         // Pidetään edellinen varma luenta, jos uusi kierros on epävarmempi samalle näytölle.
         if (!(liveOk() && !r.consistent)) live = { r, full, crop, region, t: Date.now() };
@@ -390,7 +406,7 @@
       const cropBlob = await new Promise((r) => crop.toBlob(r, "image/jpeg", 0.9));
       const kuva = await DB.putFile(S.kohde.id, blob, { kind: "lukema", havaintoId: h.id });
       const rajaus = await DB.putFile(S.kohde.id, cropBlob, { kind: "rajaus", havaintoId: h.id });
-      const row = { id: DB.uid("r_"), _ocr: { state: "reading", kuva, rajaus, edited: {}, sharp: Math.round(sharp) } };
+      const row = { id: DB.uid("r_"), _ocr: { state: "reading", kuva, rajaus, edited: {}, sharp: Math.round(sharp), lcdPx: crop._srcW || null } };
       if (gcol) row[gcol.k] = ryhma;
       setDate(f, row);
       if (result) { result.how = how; applyResult(f, row, result); }
