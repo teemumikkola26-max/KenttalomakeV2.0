@@ -2,18 +2,22 @@
    - Omat tiedostot: verkko ensin (3,5 s), muuten välimuisti.
    - CDN-kirjastot (jszip, pdf.js): välimuisti ensin, ladataan valmiiksi.
    Nosta CACHE-versiota aina, kun julkaiset muutoksia. */
-const CACHE = "kuva-sanelu-v2";
+const CACHE = "kuva-sanelu-v3";
 const SHELL = [
   "./", "index.html", "css/app.css",
   "js/ui.js", "js/db.js", "js/methods.js", "js/dictation.js", "js/camera.js",
-  "js/app.js", "js/plan.js", "js/check.js", "js/capture.js", "js/card.js", "js/export.js", "js/editor.js",
+  "js/app.js", "js/plan.js", "js/check.js", "js/capture.js", "js/card.js", "js/export.js", "js/editor.js", "js/lukulaite-ocr.js", "js/meter.js",
   "manifest.webmanifest", "pbm-logo.png", "icon-192.png", "icon-512.png", "icon-maskable-512.png"
 ];
 const CDN = [
   "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js",
   "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js",
-  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"
+  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js",
+  "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"
 ];
+// Tekstintunnistuksen (Tesseract) moottori ja kielidata ladataan ensimmäisellä
+// kameraluvulla ja tallennetaan välimuistiin, jotta luku toimii myös ilman verkkoa.
+const CDN_HOSTS = ["cdnjs.cloudflare.com", "cdn.jsdelivr.net", "tessdata.projectnaptha.com"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -59,6 +63,6 @@ self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;
   const url = new URL(req.url);
-  if (url.hostname === "cdnjs.cloudflare.com") { event.respondWith(cacheFirst(req)); return; }
+  if (CDN_HOSTS.includes(url.hostname)) { event.respondWith(cacheFirst(req)); return; }
   if (url.origin === self.location.origin) event.respondWith(networkFirst(req));
 });

@@ -89,7 +89,9 @@
     const m = M.MENETELMAT.find((x) => x.id === id);
     if (!m) { location.hash = "#/menetelmat"; return; }
     const n = (await kaytto())[m.id] || 0;
-    const flags = (f) => [M.tyyppiNimi(f.t) + (f.u ? " (" + f.u + ")" : ""), f.req && "pakollinen", f.mittaus && "mittaustulos", f.muista && "muistetaan"].filter(Boolean).join(" · ");
+    const flags = (f) => [M.tyyppiNimi(f.t) + (f.u ? " (" + f.u + ")" : ""),
+      f.t === "table" && (f.sarakkeet || []).map((c) => c.l).join(", "),
+      f.ocr && "kameraluku", f.req && "pakollinen", f.mittaus && "mittaustulos", f.muista && "muistetaan"].filter(Boolean).join(" · ");
     const rows = m.kentat.map((f, i) =>
       '<div class="row" style="cursor:default">' +
       '<button class="grow" data-a="field" data-i="' + i + '" style="background:none;border:none;padding:0;text-align:left;cursor:pointer;min-height:44px">' +
@@ -153,6 +155,12 @@
         M.KENTTATYYPIT.map((t) => '<option value="' + t.v + '"' + (t.v === f.t ? " selected" : "") + ">" + esc(t.l) + "</option>").join("") + "</select></label>" +
         '<label class="field" data-show="u"><span>Yksikkö</span><input type="text" data-f="u" value="' + esc(f.u || "") + '" placeholder="esim. %, °C, mm"></label></div>' +
         '<label class="field" data-show="o"><span>Vaihtoehdot <span class="u">(yksi riville)</span></span><textarea data-f="o">' + esc((f.o || []).join("\n")) + "</textarea></label>" +
+        '<div data-show="cols" class="sect"><span class="label">Sarakkeet</span><div data-cols></div>' +
+        '<button class="btn btn-sm" data-addcol style="margin-top:6px">' + icon("plus") + "Lisää sarake</button>" +
+        '<p class="hint">Ryhmittely: rivit ryhmitellään tämän sarakkeen mukaan, esim. mittaussyvyys. Rinnakkaiset mittaukset tehdään samalla arvolla.</p>' +
+        '<div style="margin-top:12px">' + chk("ocr", "Kameraluku mittarin näytöltä", "Vaisala HM40 -sarjan näyttö (T, RH). Jokaisesta kuvasta syntyy rivi.", !!f.ocr) + "</div>" +
+        '<div class="grid2" data-ocrmap style="margin-top:10px"><label class="field"><span>RH-sarake</span><select data-map="RH"></select></label>' +
+        '<label class="field"><span>Lämpötilasarake</span><select data-map="T"></select></label></div></div>' +
         '<div style="display:flex;flex-direction:column;gap:12px;margin:4px 0 16px">' +
         chk("req", "Pakollinen", "Lähtötarkistus muistuttaa, jos kenttä on tyhjä.", f.req) +
         '<div data-show="mittaus">' + chk("mittaus", "Mittaustulos", "Tutkija vahvistaa arvon. Viedään erillään muista tiedoista.", f.mittaus) + "</div>" +
@@ -162,11 +170,60 @@
         '<button class="btn btn-primary" data-ok>Tallenna</button></div>',
         (el, close) => {
           const $ = (s) => el.querySelector(s);
+          // Taulukon sarakkeiden työkopio
+          let cols = JSON.parse(JSON.stringify(f.sarakkeet || [
+            { k: DB.uid("c_"), l: "", t: "num" }
+          ]));
+          const ocrMap = Object.assign({}, f.ocr || {});
+          const readCols = () => {
+            el.querySelectorAll("[data-col]").forEach((r) => {
+              const c = cols[+r.dataset.col];
+              c.l = r.querySelector('[data-cf="l"]').value.trim();
+              c.t = r.querySelector('[data-cf="t"]').value;
+              c.u = r.querySelector('[data-cf="u"]').value.trim() || undefined;
+              c.mittaus = (c.t === "num" && r.querySelector('[data-cf="mittaus"]').checked) || undefined;
+              c.ryhma = r.querySelector('[data-cf="ryhma"]').checked || undefined;
+            });
+            el.querySelectorAll("[data-map]").forEach((sel) => { ocrMap[sel.dataset.map] = sel.value || undefined; });
+          };
+          const paintCols = () => {
+            $("[data-cols]").innerHTML = cols.map((c, i) =>
+              '<div data-col="' + i + '" style="border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px">' +
+              '<div style="display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1.3fr) minmax(0,1fr) 44px;gap:6px;align-items:end">' +
+              '<label class="field" style="margin:0"><span>Otsikko</span><input type="text" data-cf="l" value="' + esc(c.l) + '"></label>' +
+              '<label class="field" style="margin:0"><span>Tyyppi</span><select data-cf="t"><option value="num"' + (c.t === "num" ? " selected" : "") + '>Numero</option><option value="text"' + (c.t === "text" ? " selected" : "") + ">Teksti</option></select></label>" +
+              '<label class="field" style="margin:0"><span>Yksikkö</span><input type="text" data-cf="u" value="' + esc(c.u || "") + '"></label>' +
+              '<button class="icon-btn" data-delcol="' + i + '" aria-label="Poista sarake">' + icon("trash") + "</button></div>" +
+              '<div style="display:flex;gap:16px;margin-top:8px;font-size:14px">' +
+              '<label style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-cf="mittaus"' + (c.mittaus ? " checked" : "") + ' style="width:20px;height:20px">Mittaustulos</label>' +
+              '<label style="display:flex;gap:6px;align-items:center"><input type="radio" name="ryhma" data-cf="ryhma"' + (c.ryhma ? " checked" : "") + ' style="width:20px;height:20px">Ryhmittely</label>' +
+              "</div></div>").join("");
+            const nums = cols.filter((c) => c.t === "num");
+            el.querySelectorAll("[data-map]").forEach((sel) => {
+              const k = sel.dataset.map;
+              sel.innerHTML = (k === "T" ? '<option value="">Ei käytössä</option>' : '<option value="">Valitse</option>') +
+                nums.map((c) => '<option value="' + esc(c.k) + '"' + (ocrMap[k] === c.k ? " selected" : "") + ">" + esc(c.l || "(nimetön)") + "</option>").join("");
+            });
+            $("[data-ocrmap]").classList.toggle("hidden", !$('[data-c="ocr"]').checked);
+          };
+          el.addEventListener("click", (e) => {
+            const add = e.target.closest("[data-addcol]");
+            const del = e.target.closest("[data-delcol]");
+            if (add) { readCols(); cols.push({ k: DB.uid("c_"), l: "", t: "num" }); paintCols(); }
+            else if (del) { readCols(); if (cols.length <= 1) { toast("Taulukossa on oltava vähintään yksi sarake"); return; } cols.splice(+del.dataset.delcol, 1); paintCols(); }
+          });
+          el.addEventListener("change", (e) => {
+            if (e.target.matches('[data-cf="l"],[data-cf="t"],[data-c="ocr"]')) { readCols(); paintCols(); }
+          });
+
           const vis = () => {
             const t = $('[data-f="t"]').value;
             $('[data-show="u"]').classList.toggle("hidden", !(t === "num" || t === "text"));
             $('[data-show="o"]').classList.toggle("hidden", t !== "select");
             $('[data-show="mittaus"]').classList.toggle("hidden", t !== "num");
+            $('[data-show="cols"]').classList.toggle("hidden", t !== "table");
+            $('[data-c="muista"]').closest("label").classList.toggle("hidden", t === "table");
+            if (t === "table") paintCols();
           };
           $('[data-f="t"]').addEventListener("change", vis);
           vis();
@@ -176,12 +233,22 @@
             const t = $('[data-f="t"]').value;
             const o = $('[data-f="o"]').value.split("\n").map((x) => x.trim()).filter(Boolean);
             if (t === "select" && o.length < 2) { toast("Valintalistassa on oltava vähintään kaksi vaihtoehtoa"); return; }
+            let tableDef = null;
+            if (t === "table") {
+              readCols();
+              if (cols.some((c) => !c.l)) { toast("Anna jokaiselle sarakkeelle otsikko"); return; }
+              const useOcr = $('[data-c="ocr"]').checked;
+              if (useOcr && !ocrMap.RH) { toast("Valitse kameraluvun RH-sarake"); return; }
+              tableDef = { sarakkeet: cols, ocr: useOcr ? { laite: "vaisala", RH: ocrMap.RH, T: ocrMap.T || undefined } : undefined };
+            }
             f.l = l; f.t = t;
             f.u = (t === "num" || t === "text") ? $('[data-f="u"]').value.trim() || undefined : undefined;
             f.o = t === "select" ? o : undefined;
             f.req = $('[data-c="req"]').checked || undefined;
             f.mittaus = (t === "num" && $('[data-c="mittaus"]').checked) || undefined;
-            f.muista = $('[data-c="muista"]').checked || undefined;
+            f.muista = (t !== "table" && $('[data-c="muista"]').checked) || undefined;
+            f.sarakkeet = tableDef ? tableDef.sarakkeet : undefined;
+            f.ocr = tableDef ? tableDef.ocr : undefined;
             if (isNew) m.kentat.push(f);
             await M.save();
             close(true);

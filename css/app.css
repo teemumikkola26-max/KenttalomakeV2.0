@@ -256,3 +256,22 @@ svg.i{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;stroke
   main.view{max-width:640px;margin:0 auto}
   .recent{grid-template-columns:repeat(6,minmax(0,1fr))}
 }
+
+/* ---- Mittaustaulukko ---- */
+.trow{display:grid;gap:6px;align-items:center;padding:6px 0;border-top:1px solid var(--line)}
+.trow.thead{border-top:none;padding:0 0 2px;font-size:12px;font-weight:700;color:var(--muted)}
+.trow.thead span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tin{min-height:44px !important;padding:8px !important;text-align:right;font-size:16px}
+.tin.flag{border:2px solid #c9771d !important;background:#fff4e5}
+.rthumb{width:52px;height:44px;border-radius:6px;overflow:hidden;border:none;padding:0;background:#1f252e;cursor:pointer}
+.rthumb img{width:100%;height:100%;object-fit:cover;display:block}
+.rthumb.empty{background:transparent;cursor:default}
+.tstate{width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;font-weight:700}
+.tstate.reading{color:var(--muted);animation:pulse 1.2s infinite;font-size:22px}
+.tstate.flagged{color:#8a4a14;border-color:#c9771d;background:#fff4e5}
+.tstate.err{color:#a13030;border-color:#a13030}
+.tstate.ok{color:var(--ok);border-color:var(--ok)}
+.tsum{margin-top:8px;background:#f7f5f0;border-radius:8px;padding:8px 10px;font-size:13.5px;line-height:1.5}
+input.flag{border:2px solid #c9771d !important;background:#fff4e5}
+.meter-frame{position:absolute;left:14%;top:16%;width:72%;height:54%;border:3px solid #fff;border-radius:10px;box-shadow:0 0 0 100vmax rgba(0,0,0,.45);pointer-events:none}
+.meter .viewfinder{flex:1 1 auto}

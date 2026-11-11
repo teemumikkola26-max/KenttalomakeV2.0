@@ -43,11 +43,23 @@
       if (!h.sijainti || !h.sijainti.tilaId) puuttuu.push("tila");
       if (!h.menetelma) puuttuu.push("menetelmä");
       if (!h.tulos) puuttuu.push("tulos (poikkeama / ei huomautettavaa)");
-      m.kentat.forEach((f) => { if (f.req && tyhja(h.kentat[f.k])) puuttuu.push(f.l.toLowerCase()); });
+      m.kentat.forEach((f) => {
+        if (f.t === "table") {
+          const rows = M.rivit(h, f);
+          if (f.req && !rows.length) { puuttuu.push(f.l.toLowerCase()); return; }
+          const mcols = (f.sarakkeet || []).filter((c) => c.mittaus);
+          const vajaat = rows.filter((r) => mcols.some((c) => tyhja(r[c.k])) && Meter.rowState(r) !== "reading").length;
+          if (vajaat) puuttuu.push("puuttuvia lukemia (" + vajaat + " riviä)");
+          const g = M.ryhmaSarake(f);
+          if (g && rows.some((r) => tyhja(r[g.k]))) puuttuu.push(g.l.toLowerCase() + " puuttuu riviltä");
+          Meter.rowIssues(h, f).forEach((x) => puuttuu.push(x));
+          return;
+        }
+        if (f.req && tyhja(h.kentat[f.k])) puuttuu.push(f.l.toLowerCase());
+      });
       if (m.id === "avaus" && !h.kuvat.length) puuttuu.push("kuva avauksesta");
       if (k.suunnitelma.length && !h.suunnitelmaId) puuttuu.push("suunnitelman kohta");
-      const mittaus = m.kentat.some((f) => f.mittaus && !tyhja(h.kentat[f.k]));
-      if (mittaus && !h.vahvistettu) puuttuu.push("mittausarvojen vahvistus");
+      if (M.onMittauksia(h) && !h.vahvistettu) puuttuu.push("mittausarvojen vahvistus");
       if (!puuttuu.length) return;
       out.push({
         tyyppi: "havainto", id: h.id, otsikko: nro(h.nro) + " · " + (Model.sijaintiTeksti(h.sijainti) || m.nimi),

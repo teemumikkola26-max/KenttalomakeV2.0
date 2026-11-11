@@ -62,6 +62,10 @@
     },
     async deleteHavainto(h) {
       for (const f of h.kuvat.concat(h.aanitteet || [])) await DB.del("tiedostot", f);
+      for (const v of Object.values(h.kentat || {})) {
+        if (!Array.isArray(v)) continue;
+        for (const r of v) if (r && r._ocr) { if (r._ocr.kuva) await DB.del("tiedostot", r._ocr.kuva); if (r._ocr.rajaus) await DB.del("tiedostot", r._ocr.rajaus); }
+      }
       await DB.del("havainnot", h.id);
       S.havainnot = S.havainnot.filter((x) => x.id !== h.id);
     },

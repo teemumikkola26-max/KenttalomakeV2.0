@@ -10,6 +10,10 @@
              req: pakollinen ennen vientiä,
              mittaus: mittaustulos, vaatii vahvistuksen,
              muista: edellinen arvo ehdotetaan seuraavaan havaintoon }
+   Taulukko (t: "table"): rivit tallentuvat havainnon kenttään taulukkona.
+     sarakkeet: [{ k, l, t: "num"|"text", u, mittaus, ryhma }]
+       ryhma: sarake, jolla rivit ryhmitellään (esim. mittaussyvyys)
+     ocr: { laite: "vaisala", RH: sarake, T: sarake } kameraluku mittarin näytöltä
    Menetelmä: { id, nimi, lyhyt, kentat: [...], piilotettu: bool }
    ========================================================================= */
 (function () {
@@ -29,10 +33,16 @@
       id: "rh", nimi: "Rakenteen RH-mittaus", lyhyt: "RH", kentat: [
         { k: "tunnus", l: "Mittauspisteen tunnus", t: "text", req: true },
         { k: "laite", l: "Mittalaite", t: "text", req: true, muista: true },
-        { k: "syvyys", l: "Mittaussyvyys", u: "mm", t: "num", req: true },
-        { k: "tasaantuminen", l: "Tasaantumisaika", u: "h", t: "num", req: true },
-        { k: "rh", l: "Suhteellinen kosteus", u: "%", t: "num", req: true, mittaus: true },
-        { k: "t", l: "Lämpötila", u: "°C", t: "num", req: true, mittaus: true },
+        { k: "tasaantuminen", l: "Tasaantumisaika", u: "h", t: "num", req: true, muista: true },
+        {
+          k: "mittaukset", l: "Mittaukset", t: "table", req: true,
+          sarakkeet: [
+            { k: "syvyys", l: "Syvyys", u: "mm", t: "num", ryhma: true },
+            { k: "rh", l: "RH", u: "%", t: "num", mittaus: true },
+            { k: "t", l: "T", u: "°C", t: "num", mittaus: true }
+          ],
+          ocr: { laite: "vaisala", RH: "rh", T: "t" }
+        },
         { k: "rh_ilma", l: "Sisäilman RH", u: "%", t: "num", mittaus: true },
         { k: "t_ilma", l: "Sisäilman lämpötila", u: "°C", t: "num", mittaus: true }
       ]
@@ -85,7 +95,8 @@
     { v: "textarea", l: "Teksti (pitkä)" },
     { v: "num", l: "Numero" },
     { v: "date", l: "Päivämäärä" },
-    { v: "select", l: "Valintalista" }
+    { v: "select", l: "Valintalista" },
+    { v: "table", l: "Taulukko (useita mittauksia)" }
   ];
 
   const RAKENNEOSAT = [
@@ -112,7 +123,16 @@
     async load() {
       try {
         const rec = await DB.get("asetukset", "menetelmat");
-        if (rec && Array.isArray(rec.lista) && rec.lista.length) M.MENETELMAT = rec.lista;
+        if (rec && Array.isArray(rec.lista) && rec.lista.length) {
+          M.MENETELMAT = rec.lista;
+          // Päivitys: vanha RH-mittaus (yksi lukema per havainto) korvataan mittauspistetaulukolla.
+          const i = M.MENETELMAT.findIndex((m) => m.id === "rh");
+          const old = M.MENETELMAT[i];
+          if (old && !old.kentat.some((f) => f.t === "table") && old.kentat.some((f) => f.k === "syvyys")) {
+            M.MENETELMAT[i] = clone(OLETUKSET.find((m) => m.id === "rh"));
+            await M.save();
+          }
+        }
       } catch (e) { console.warn("Menetelmien lataus epäonnistui", e); }
     },
     async save() {
@@ -140,6 +160,19 @@
       if (!id) return VALITSEMATTA;
       return M.MENETELMAT.find((m) => m.id === id) || { id, nimi: "Tuntematon menetelmä", lyhyt: "?", kentat: [] };
     },
+    /* Onko havainnossa mittausarvoja (myös taulukoissa)? */
+    onMittauksia(h) {
+      const tyhja = (v) => v == null || String(v).trim() === "";
+      return M.menetelma(h.menetelma).kentat.some((f) => {
+        if (f.t === "table") {
+          const rivit = Array.isArray(h.kentat[f.k]) ? h.kentat[f.k] : [];
+          return rivit.some((r) => (f.sarakkeet || []).some((c) => c.mittaus && !tyhja(r[c.k])));
+        }
+        return f.mittaus && !tyhja(h.kentat[f.k]);
+      });
+    },
+    rivit(h, f) { return Array.isArray(h.kentat[f.k]) ? h.kentat[f.k] : []; },
+    ryhmaSarake(f) { return (f.sarakkeet || []).find((c) => c.ryhma) || null; },
     tyyppiNimi(t) { const x = KENTTATYYPIT.find((k) => k.v === t); return x ? x.l : t; },
 
     /* Sanelusta tunnistetut lukuarvot. Vain ehdotuksia: käyttäjä vahvistaa. */

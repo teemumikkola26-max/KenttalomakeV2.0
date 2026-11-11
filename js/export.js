@@ -69,8 +69,43 @@
 
   function mittausRivit(h) {
     const m = M.menetelma(h.menetelma);
-    return m.kentat.filter((f) => h.kentat[f.k] != null && String(h.kentat[f.k]).trim() !== "")
+    return m.kentat.filter((f) => f.t !== "table" && h.kentat[f.k] != null && String(h.kentat[f.k]).trim() !== "")
       .map((f) => ({ kentta: f.l, arvo: String(h.kentat[f.k]).trim(), yksikko: f.u || "", mittaus: !!f.mittaus }));
+  }
+
+  function num(v) { const n = parseFloat(String(v == null ? "" : v).replace(",", ".")); return isNaN(n) ? null : n; }
+
+  /* Taulukkokentät (esim. RH-mittauspisteen lukemat syvyyksittäin) */
+  function taulukot(h, paths) {
+    const m = M.menetelma(h.menetelma);
+    return m.kentat.filter((f) => f.t === "table").map((f) => {
+      const cols = f.sarakkeet || [];
+      const g = M.ryhmaSarake(f);
+      const rows = M.rivit(h, f);
+      const rivit = rows.map((r) => {
+        const o = {};
+        cols.forEach((c) => { o[c.l + (c.u ? " (" + c.u + ")" : "")] = r[c.k] == null ? "" : String(r[c.k]); });
+        o.lahde = r._ocr ? "kameraluku" + (r._ocr.edited && Object.keys(r._ocr.edited).length ? ", korjattu käsin" : "") : "käsin";
+        if (r._ocr) o.tarkistettu = Meter.rowState(r) === "ok";
+        if (paths.lukemat[r.id]) o.kuva = paths.lukemat[r.id];
+        return o;
+      });
+      const groups = {};
+      rows.forEach((r) => { const key = g ? String(r[g.k] || "") : ""; (groups[key] = groups[key] || []).push(r); });
+      const yhteenveto = Object.keys(groups).map((key) => {
+        const y = { lukemia: groups[key].length };
+        if (g) y[g.l + (g.u ? " (" + g.u + ")" : "")] = key;
+        cols.filter((c) => c.mittaus).forEach((c) => {
+          const v = groups[key].map((r) => num(r[c.k])).filter((x) => x != null);
+          if (v.length) {
+            y[c.l + " keskiarvo" + (c.u ? " (" + c.u + ")" : "")] = Math.round((v.reduce((a, b) => a + b, 0) / v.length) * 10) / 10;
+            y[c.l + " vaihteluväli" + (c.u ? " (" + c.u + ")" : "")] = [Math.min.apply(null, v), Math.max.apply(null, v)];
+          }
+        });
+        return y;
+      });
+      return { kentta: f.l, sarakkeet: cols.map((c) => c.l + (c.u ? " (" + c.u + ")" : "")), rivit, yhteenveto_laskettu: yhteenveto };
+    });
   }
 
   function buildJson(paths, puutteet, keskenerainen) {
@@ -102,6 +137,7 @@
           havainto_sanelu: h.sanelu || "",
           tiedot: rivit.filter((r) => !r.mittaus).map((r) => ({ kentta: r.kentta, arvo: r.arvo, yksikko: r.yksikko })),
           mittaustulokset: rivit.filter((r) => r.mittaus).map((r) => ({ kentta: r.kentta, arvo: r.arvo, yksikko: r.yksikko })),
+          mittaustaulukot: taulukot(h, paths),
           mittaustulokset_vahvistettu: !!h.vahvistettu,
           tutkijan_alustava_tulkinta: h.tulkinta || "",
           kuvat: paths.kuvat[h.id] || [],
@@ -155,11 +191,24 @@
       L.push("");
       L.push("**Havainto (tutkijan sanelu):** " + (h.havainto_sanelu || "–"));
       L.push("");
-      if (h.mittaustulokset.length) {
+      const taul = (h.mittaustaulukot || []).filter((t) => t.rivit.length);
+      if (h.mittaustulokset.length || taul.length) {
         L.push("**Mittaustulokset (" + (h.mittaustulokset_vahvistettu ? "vahvistettu" : "EI VAHVISTETTU, älä käytä raportissa ilman tarkistusta") + "):**");
         L.push("");
         h.mittaustulokset.forEach((r) => L.push("- " + r.kentta + ": " + fmtNum(r.arvo) + (r.yksikko ? " " + r.yksikko : "")));
-        L.push("");
+        if (h.mittaustulokset.length) L.push("");
+        taul.forEach((t) => {
+          L.push(t.kentta + ":");
+          L.push("");
+          L.push("| " + t.sarakkeet.join(" | ") + " | Lähde | Kuva |");
+          L.push("|" + t.sarakkeet.map(() => "---").join("|") + "|---|---|");
+          t.rivit.forEach((r) => L.push("| " + t.sarakkeet.map((c) => fmtNum(r[c] || "")).join(" | ") + " | " + r.lahde + (r.tarkistettu === false ? ", TARKISTAMATTA" : "") + " | " + (r.kuva || "") + " |"));
+          L.push("");
+          L.push("Laskettu yhteenveto (sovelluksen laskema, ei mittaustulos):");
+          L.push("");
+          t.yhteenveto_laskettu.forEach((y) => L.push("- " + Object.keys(y).map((kk) => kk + ": " + (Array.isArray(y[kk]) ? y[kk].map(fmtNum).join("–") : fmtNum(y[kk]))).join(", ")));
+          L.push("");
+        });
       }
       L.push("**Tutkijan alustava tulkinta:** " + (h.tutkijan_alustava_tulkinta || "–"));
       L.push("");
@@ -179,7 +228,8 @@
     "Aineisto on koottu kentällä Kuva + sanelu -sovelluksella. Tiedostot:\n" +
     "  havainnot.md     havainnot luettavassa muodossa\n" +
     "  havainnot.json   samat tiedot jäsenneltynä\n" +
-    "  kuvat/           kuvat, nimetty havainnon tunnuksella (H01_1.jpg)\n" +
+    "  kuvat/           kuvat, nimetty havainnon tunnuksella (H01_1.jpg);\n" +
+    "                   mittarin näytön kuvat H01_lukema_1.jpg\n" +
     "  aanitteet/       sanelut äänitteinä, jos puheentunnistus ei ollut käytössä\n" +
     "  pohjapiirrokset/ pohjapiirrokset havainto- ja tilamerkinnöin\n" +
     "  varmuuskopio/    sovelluksen omat tiedot palautusta varten\n\n" +
@@ -195,7 +245,11 @@
     "   esitetä kuntoa koskevia päätelmiä.\n" +
     "4. Jos jokin tieto puuttuu, se merkitään puuttuvaksi. Puuttuvaa tietoa ei\n" +
     "   täydennetä oletuksilla.\n" +
-    "5. Johtopäätökset ja korjaussuositukset tarkistaa ja hyväksyy raportin\n" +
+    "5. Mittaustaulukon rivit ovat yksittäisiä lukemia (esim. rinnakkaiset\n" +
+    "   mittaukset samalta syvyydeltä). Kameraluvulla saadut arvot on tunnistettu\n" +
+    "   mittarin näytöltä; rivit, joita ei ole tarkistettu, merkitään\n" +
+    "   tarkistettaviksi. \"Laskettu yhteenveto\" on sovelluksen laskema apuluku.\n" +
+    "6. Johtopäätökset ja korjaussuositukset tarkistaa ja hyväksyy raportin\n" +
     "   allekirjoittava tutkija.\n";
 
   async function run(keskenerainen) {
@@ -204,7 +258,7 @@
     try {
       await UI.loadScript(JSZIP);
       const zip = new JSZip();
-      const paths = { kuvat: {}, aanitteet: {} };
+      const paths = { kuvat: {}, aanitteet: {}, lukemat: {} };
       const backupFiles = {}; // fileId -> polku
 
       for (const h of S.havainnot) {
@@ -216,6 +270,24 @@
           zip.file(p, f.blob);
           paths.kuvat[h.id].push(p);
           backupFiles[f.id] = p;
+        }
+        // Mittarin näytön kuvat (taulukkorivit)
+        let li = 0;
+        for (const f of M.menetelma(h.menetelma).kentat.filter((x) => x.t === "table")) {
+          for (const r of M.rivit(h, f)) {
+            if (!r._ocr) continue;
+            li++;
+            const fk = r._ocr.kuva && await DB.get("tiedostot", r._ocr.kuva);
+            if (fk) {
+              const p = "kuvat/" + nro(h.nro) + "_lukema_" + li + "." + ext(fk.blob.type);
+              zip.file(p, fk.blob); paths.lukemat[r.id] = p; backupFiles[fk.id] = p;
+            }
+            const fr = r._ocr.rajaus && await DB.get("tiedostot", r._ocr.rajaus);
+            if (fr) {
+              const p = "varmuuskopio/rajaukset/" + nro(h.nro) + "_" + li + "." + ext(fr.blob.type);
+              zip.file(p, fr.blob); backupFiles[fr.id] = p;
+            }
+          }
         }
         paths.aanitteet[h.id] = [];
         for (let i = 0; i < (h.aanitteet || []).length; i++) {
