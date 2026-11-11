@@ -16,27 +16,53 @@
 
   const core = () => window.LukulaiteOcr && window.LukulaiteOcr.core;
 
+  /* ---------- Näytön tunnistusmaskit ----------
+     Näytön sävy vaihtelee valaistuksen ja kameran valkotasapainon mukaan (harmaa, sinertävä,
+     kellertävä). Siksi kiinteän värisäännön sijaan käytetään ensisijaisesti kuvan keskeltä
+     mitattua sävyä: kameraa osoitetaan näyttöön, joten keskellä on näytön tausta.
+     Varalla: kirkas ja vähän värikylläinen alue. Palauttaa listan maskeja kokeiltavaksi. */
+  function displayMasks(d, W, H) {
+    const N = W * H, mx = new Uint8Array(N), cr = new Float32Array(N), cg = new Float32Array(N), cb = new Float32Array(N), sat = new Float32Array(N);
+    for (let i = 0, k = 0; i < d.length; i += 4, k++) {
+      const a = Math.max(d[i], d[i + 1], d[i + 2]) || 1, b = Math.min(d[i], d[i + 1], d[i + 2]);
+      mx[k] = a; cr[k] = d[i] / a; cg[k] = d[i + 1] / a; cb[k] = d[i + 2] / a; sat[k] = (a - b) / a;
+    }
+    const med = (arr) => { const s = arr.slice().sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
+    const masks = [];
+    // a) keskeltä mitattu sävy
+    const box = [];
+    for (let y = Math.floor(H * 0.35); y < Math.ceil(H * 0.65); y++) for (let x = Math.floor(W * 0.35); x < Math.ceil(W * 0.65); x++) box.push(y * W + x);
+    const bm = box.map((k) => mx[k]).sort((x, y) => x - y);
+    const p60 = bm[Math.floor(bm.length * 0.6)];
+    const ref = box.filter((k) => mx[k] >= p60);
+    if (ref.length) {
+      const rM = med(ref.map((k) => mx[k])), rr = med(ref.map((k) => cr[k])), rg = med(ref.map((k) => cg[k])), rb = med(ref.map((k) => cb[k]));
+      const rs = 1 - Math.min(rr, rg, rb);
+      if (rM >= 90 && rs < 0.75) {  // keskellä kirkas pinta; muoto ratkaisee, onko se näyttö
+        const m = new Uint8Array(N);
+        for (let k = 0; k < N; k++) m[k] = mx[k] >= rM * 0.62 && Math.abs(cr[k] - rr) < 0.14 && Math.abs(cg[k] - rg) < 0.14 && Math.abs(cb[k] - rb) < 0.14 ? 1 : 0;
+        masks.push({ m, center: true });
+      }
+    }
+    // b) kirkas ja vähän värikylläinen (varalla)
+    const hist = new Uint32Array(256);
+    for (let k = 0; k < N; k++) hist[mx[k]]++;
+    const pct = (q) => { let acc = 0, v = 0; for (; v < 255; v++) { acc += hist[v]; if (acc >= N * q) break; } return v; };
+    const lim = Math.max(100, (pct(0.08) + pct(0.92)) / 2);
+    const m2 = new Uint8Array(N);
+    for (let k = 0; k < N; k++) m2[k] = mx[k] >= lim && sat[k] < 0.3 ? 1 : 0;
+    masks.push({ m: m2, center: false });
+    return masks;
+  }
+
   /* ---------- Näytön automaattinen rajaus ----------
      Mittarin tumma kehys ja värillinen runko sotkevat tunnistuksen kynnysarvon.
-     Etsitään rajauksen sisältä kirkas ja harmaa (vähän värikylläinen) alue,
-     joka on nestekidenäyttö, ja luetaan vain se. */
+     Etsitään rajauksen sisältä näytön sävyinen alue (ks. displayMasks) ja luetaan vain se. */
   function lcdCrop(src) {
     const W = 220, H = Math.max(8, Math.round(src.height * W / src.width));
     const t = document.createElement("canvas"); t.width = W; t.height = H;
     const g = t.getContext("2d"); g.drawImage(src, 0, 0, W, H);
     const d = g.getImageData(0, 0, W, H).data;
-    const bright = new Float32Array(W * H), sat = new Float32Array(W * H);
-    const vals = [];
-    for (let i = 0, k = 0; i < d.length; i += 4, k++) {
-      const mx = Math.max(d[i], d[i + 1], d[i + 2]), mn = Math.min(d[i], d[i + 1], d[i + 2]);
-      bright[k] = mx; sat[k] = mx ? (mx - mn) / mx : 0; vals.push(mx);
-    }
-    vals.sort((a, b) => a - b);
-    // Kynnys tummien (tekstin, kehyksen) ja kirkkaiden (näytön taustan) sävyjen puoliväliin:
-    // toimii sekä väljässä rajauksessa että silloin, kun kuva on jo lähes kokonaan näyttöä.
-    const lim = Math.max(100, (vals[Math.floor(vals.length * 0.08)] + vals[Math.floor(vals.length * 0.92)]) / 2);
-    const mask = new Uint8Array(W * H);
-    for (let k = 0; k < mask.length; k++) mask[k] = bright[k] >= lim && sat[k] < 0.3 ? 1 : 0;
     const run = (frac, n, thr) => {
       let best = [0, -1], s = -1;
       for (let i = 0; i <= n; i++) {
@@ -45,14 +71,19 @@
       }
       return best;
     };
-    const rows = new Float32Array(H);
-    for (let y = 0; y < H; y++) { let c = 0; for (let x = 0; x < W; x++) c += mask[y * W + x]; rows[y] = c / W; }
-    const [y0, y1] = run(rows, H, 0.35);
-    if (y1 - y0 < H * 0.2) return null;
-    const cols = new Float32Array(W);
-    for (let x = 0; x < W; x++) { let c = 0; for (let y = y0; y <= y1; y++) c += mask[y * W + x]; cols[x] = c / (y1 - y0 + 1); }
-    const [x0, x1] = run(cols, W, 0.35);
-    if (x1 - x0 < W * 0.2) return null;
+    let x0 = 0, x1 = -1, y0 = 0, y1 = -1, found = false;
+    for (const { m: mask } of displayMasks(d, W, H)) {
+      const rows = new Float32Array(H);
+      for (let y = 0; y < H; y++) { let c = 0; for (let x = 0; x < W; x++) c += mask[y * W + x]; rows[y] = c / W; }
+      [y0, y1] = run(rows, H, 0.35);
+      if (y1 - y0 < H * 0.2) continue;
+      const cols = new Float32Array(W);
+      for (let x = 0; x < W; x++) { let c = 0; for (let y = y0; y <= y1; y++) c += mask[y * W + x]; cols[x] = c / (y1 - y0 + 1); }
+      [x0, x1] = run(cols, W, 0.35);
+      if (x1 - x0 < W * 0.2) continue;
+      found = true; break;
+    }
+    if (!found) return null;
     const sx = src.width / W, sy = src.height / H;
     const ix = (x1 - x0) * 0.01, iy = (y1 - y0) * 0.01;
     const rx = (x0 + ix) * sx, ry = (y0 + iy) * sy, rw = (x1 - x0 - 2 * ix) * sx, rh = (y1 - y0 - 2 * iy) * sy;
@@ -151,8 +182,8 @@
   }
 
   /* ---------- Näytön paikannus kamerakuvasta ----------
-     Pienennetystä kuvasta etsitään kirkas, harmaa (vähän värikylläinen) ja
-     suorakulmainen yhtenäinen alue, joka ei jatku kuvan reunoille (seinä, paperi).
+     Pienennetystä kuvasta etsitään näytön sävyinen (ks. displayMasks), suorakulmainen
+     yhtenäinen alue, joka ei jatku kuvan reunoille (seinä, paperi).
      Kevyt: ~200 px leveä kuva, ajetaan useita kertoja sekunnissa. */
   function findDisplay(src) {
     const sw = src.videoWidth || src.width, sh = src.videoHeight || src.height;
@@ -163,39 +194,35 @@
     const g = t.getContext("2d", { willReadFrequently: true });
     g.drawImage(src, 0, 0, W, H);
     const d = g.getImageData(0, 0, W, H).data;
-    const N = W * H, mx = new Uint8Array(N), lowSat = new Uint8Array(N), hist = new Uint32Array(256);
-    for (let i = 0, k = 0; i < d.length; i += 4, k++) {
-      const a = Math.max(d[i], d[i + 1], d[i + 2]), b = Math.min(d[i], d[i + 1], d[i + 2]);
-      mx[k] = a; lowSat[k] = a && (a - b) / a < 0.3 ? 1 : 0; hist[a]++;
-    }
-    const pct = (q) => { let acc = 0, v = 0; for (; v < 255; v++) { acc += hist[v]; if (acc >= N * q) break; } return v; };
-    const lim = Math.max(100, (pct(0.08) + pct(0.92)) / 2);
-    const mask = new Uint8Array(N);
-    for (let k = 0; k < N; k++) mask[k] = mx[k] >= lim && lowSat[k] ? 1 : 0;
+    const N = W * H;
     const lab = new Int32Array(N), stack = new Int32Array(N);
-    let best = null, id = 0;
-    for (let s0 = 0; s0 < N; s0++) {
-      if (!mask[s0] || lab[s0]) continue;
-      id++;
-      let sp = 0, area = 0, x0 = W, y0 = H, x1 = 0, y1 = 0;
-      stack[sp++] = s0; lab[s0] = id;
-      while (sp) {
-        const k = stack[--sp], x = k % W, y = (k / W) | 0;
-        area++;
-        if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
-        if (x > 0 && mask[k - 1] && !lab[k - 1]) { lab[k - 1] = id; stack[sp++] = k - 1; }
-        if (x < W - 1 && mask[k + 1] && !lab[k + 1]) { lab[k + 1] = id; stack[sp++] = k + 1; }
-        if (y > 0 && mask[k - W] && !lab[k - W]) { lab[k - W] = id; stack[sp++] = k - W; }
-        if (y < H - 1 && mask[k + W] && !lab[k + W]) { lab[k + W] = id; stack[sp++] = k + W; }
+    let best = null;
+    for (const { m: mask, center } of displayMasks(d, W, H)) {
+      lab.fill(0);
+      let id = 0;
+      for (let s0 = 0; s0 < N; s0++) {
+        if (!mask[s0] || lab[s0]) continue;
+        id++;
+        let sp = 0, area = 0, x0 = W, y0 = H, x1 = 0, y1 = 0;
+        stack[sp++] = s0; lab[s0] = id;
+        while (sp) {
+          const k = stack[--sp], x = k % W, y = (k / W) | 0;
+          area++;
+          if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+          if (x > 0 && mask[k - 1] && !lab[k - 1]) { lab[k - 1] = id; stack[sp++] = k - 1; }
+          if (x < W - 1 && mask[k + 1] && !lab[k + 1]) { lab[k + 1] = id; stack[sp++] = k + 1; }
+          if (y > 0 && mask[k - W] && !lab[k - W]) { lab[k - W] = id; stack[sp++] = k - W; }
+          if (y < H - 1 && mask[k + W] && !lab[k + W]) { lab[k + W] = id; stack[sp++] = k + W; }
+        }
+        const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
+        if (area < N * 0.03) continue;
+        const fill = area / (bw * bh), asp = bw / bh;
+        const edges = (x0 <= 1) + (y0 <= 1) + (x1 >= W - 2) + (y1 >= H - 2);
+        if (fill < 0.45 || asp < 0.45 || asp > 2.4 || edges > 1) continue;
+        const cx = (x0 + x1) / 2 / W - 0.5, cy = (y0 + y1) / 2 / H - 0.5;
+        const score = area * fill * (1 - Math.min(0.6, Math.hypot(cx, cy))) * (center ? 1.5 : 1);
+        if (!best || score > best.score) best = { score, x0, y0, x1, y1 };
       }
-      const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
-      if (area < N * 0.03) continue;
-      const fill = area / (bw * bh), asp = bw / bh;
-      const edges = (x0 <= 1) + (y0 <= 1) + (x1 >= W - 2) + (y1 >= H - 2);
-      if (fill < 0.5 || asp < 0.45 || asp > 2.4 || edges > 1) continue;
-      const cx = (x0 + x1) / 2 / W - 0.5, cy = (y0 + y1) / 2 / H - 0.5;
-      const score = area * fill * (1 - Math.min(0.6, Math.hypot(cx, cy)));
-      if (!best || score > best.score) best = { score, x0, y0, x1, y1 };
     }
     if (!best) return null;
     const ix = (best.x1 - best.x0) * 0.01, iy = (best.y1 - best.y0) * 0.01;
@@ -233,7 +260,7 @@
     el.className = "cam meter";
     el.innerHTML =
       '<div class="cam-top"><button class="cam-round" data-c="close" aria-label="Sulje">' + icon("close") + "</button>" +
-      '<div style="flex:1;min-width:0"><div style="font-weight:700">' + esc(f.l) + ': lue mittarista</div><div style="font-size:12.5px;color:#c9cfd8" data-hint>Osoita kameralla mittarin näyttöä</div></div>' +
+      '<div style="flex:1;min-width:0"><div style="font-weight:700">' + esc(f.l) + ': lue mittarista</div><div style="font-size:12.5px;color:#c9cfd8" data-hint>Tuo mittarin näyttö kuvan keskelle</div></div>' +
       '<span class="vf-count" data-n style="position:static"></span></div>' +
       (gcol ? '<div class="cam-methods" style="margin-top:0"><span class="cam-lbl" data-glbl></span><div class="chips scroll" data-groups></div></div>' : "") +
       '<div class="viewfinder" data-stage style="margin-top:10px"><video autoplay playsinline muted></video><div class="flash"></div>' +
@@ -298,7 +325,7 @@
           '<span class="lst">' + (ok ? icon("ok") + " Luenta varma" : "Luetaan… pidä paikallaan") + "</span>";
       }
       $(".shutter").classList.toggle("ready", liveOk());
-      $("[data-hint]").textContent = liveOk() ? "Tallenna lukema laukaisimesta" : det ? "Näyttö löytyi" : "Osoita kameralla mittarin näyttöä";
+      $("[data-hint]").textContent = liveOk() ? "Tallenna lukema laukaisimesta" : det ? "Näyttö löytyi" : "Tuo mittarin näyttö kuvan keskelle";
     }
 
     /* Näytön paikannus noin 6 kertaa sekunnissa */
@@ -520,5 +547,5 @@
     await Model.saveHavainto(h);
   }
 
-  window.Meter = { open, review, rowState, rowIssues, removeRow, setDate, today, _lcdCrop: lcdCrop, _recognizeBest: recognizeBest, _findDisplay: findDisplay };
+  window.Meter = { open, review, rowState, rowIssues, removeRow, setDate, today, _lcdCrop: lcdCrop, _recognizeBest: recognizeBest, _findDisplay: findDisplay, _cropNorm: cropNorm };
 })();

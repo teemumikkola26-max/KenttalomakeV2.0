@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kameraluvun testi</title>
+<link rel="stylesheet" href="css/app.css">
+<style>
+  .res{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:14px}
+  .res canvas{width:100%;height:auto;border-radius:8px;display:block}
+  .row2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}
+  .vals{font-size:15px;margin:8px 0}
+  .vals b{font-size:20px}
+  pre{white-space:pre-wrap;font-size:12px;color:var(--muted);max-height:220px;overflow:auto;background:#f7f5f0;padding:8px;border-radius:8px}
+</style>
+</head>
+<body>
+<header class="topbar"><a class="tb-back" href="index.html" aria-label="Takaisin">‹</a>
+  <div class="tb-title"><h1>Kameraluvun testi</h1><span class="sub">Näytön paikannus ja tunnistus valitusta kuvasta</span></div></header>
+<main class="view no-nav">
+  <p class="hint" style="margin-top:0">Valitse yksi tai useampi kuva mittarin näytöstä. Sivu näyttää, mihin näyttö paikannettiin (vihreä kehys), rajauksen, jolta arvot luettiin, ja tunnistetun tekstin. Kuvat eivät tallennu mihinkään.</p>
+  <button class="btn btn-primary btn-block" id="pick">Valitse kuvat</button>
+  <div id="out" style="margin-top:14px"></div>
+</main>
+<script src="js/ui.js"></script>
+<script src="js/db.js"></script>
+<script src="js/methods.js"></script>
+<script>window.App = { S: {}, Model: {} };</script>
+<script src="js/lukulaite-ocr.js"></script>
+<script src="js/meter.js"></script>
+<script>
+(function () {
+  const C = window.LukulaiteOcr.core;
+  window.LukulaiteOcr.preload();
+  const fmt = (v, d) => v == null ? "–" : Number(v).toFixed(d).replace(".", ",");
+  document.getElementById("pick").addEventListener("click", async () => {
+    const files = await UI.pickFile("image/*", true);
+    for (const file of files) await test(file);
+  });
+  async function test(file) {
+    const box = document.createElement("div");
+    box.className = "res";
+    box.innerHTML = "<b>" + UI.esc(file.name) + "</b><div class='vals'>Luetaan…</div>";
+    document.getElementById("out").prepend(box);
+    const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
+    const full = document.createElement("canvas");
+    full.width = bmp.width; full.height = bmp.height;
+    full.getContext("2d").drawImage(bmp, 0, 0);
+    const t0 = performance.now();
+    const d = Meter._findDisplay(full);
+    const tDet = performance.now() - t0;
+    // Esikatselu ja paikannuskehys
+    const prev = document.createElement("canvas");
+    const sc = Math.min(1, 900 / full.width);
+    prev.width = full.width * sc; prev.height = full.height * sc;
+    const g = prev.getContext("2d");
+    g.drawImage(full, 0, 0, prev.width, prev.height);
+    if (d) { g.strokeStyle = "#2fbf6a"; g.lineWidth = 6; g.strokeRect(d.x * prev.width, d.y * prev.height, d.w * prev.width, d.h * prev.height); }
+    const crop = d ? Meter._cropNorm(full, d) : C.cropCanvas(full, full.width, full.height, { x: 0, y: 0, w: full.width, h: full.height });
+    const t1 = performance.now();
+    const r = await C.recognizeQuick(crop, 6);
+    const tOcr = performance.now() - t1;
+    const V = r.values, ok = r.consistent && ["T", "RH", "a"].every((k) => r.status[k] === "ok");
+    box.innerHTML = "<b>" + UI.esc(file.name) + "</b>" +
+      "<div class='vals'>" + (ok ? "✅ Varma" : "⚠️ Epävarma") + " &nbsp; <b>" + fmt(V.T, 1) + "</b> °C &nbsp; <b>" + fmt(V.RH, 1) + "</b> %RH &nbsp; <b>" + fmt(V.a, 2) + "</b> g/m³ &nbsp; Td " + fmt(V.Td, 1) + "</div>" +
+      "<div class='hint'>Näyttö " + (d ? "löytyi" : "EI löytynyt, luettiin koko kuva") + " (" + Math.round(tDet) + " ms) · tunnistus " + (tOcr / 1000).toFixed(1) + " s, " + (r.passes || "?") + " kierrosta · tila: " + UI.esc(JSON.stringify(r.status)) + "</div>" +
+      "<div class='row2'></div><details><summary>Tunnistettu teksti</summary><pre></pre></details>";
+    box.querySelector(".row2").append(prev, crop);
+    box.querySelector("pre").textContent = r.raw || "";
+  }
+})();
+</script>
+</body>
+</html>

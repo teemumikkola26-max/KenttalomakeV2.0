@@ -44,11 +44,13 @@ Rivin voi lisätä myös käsin (*Rivi käsin*), esimerkiksi jos mittarin näytt
 
 **Tunnistus** on sama kuin PBM Kenttälomakkeissa (`js/lukulaite-ocr.js`, Vaisala HM40 -sarjan näkymä T, RH, Td, Tw, a). Ydin vertaa RH:ta kastepisteestä ja absoluuttisesta kosteudesta laskettuun arvoon ja merkitsee ristiriitaiset lukemat epävarmoiksi. Tiedosto on kopio: kun tunnistusta parannetaan, päivitä se molempiin sovelluksiin. Tähän kopioon on lisätty vain `window.LukulaiteOcr.core`-vienti. Kuva + sanelu lisää ytimen ympärille:
 
-- **Näytön paikannus** (`findDisplay`, `js/meter.js`): kirkas, harmaa ja suorakulmainen alue, joka ei jatku kuvan reunoille. Ajetaan pienennetystä kamerakuvasta noin 6 kertaa sekunnissa (~20 ms/kerta).
+- **Näytön paikannus** (`findDisplay`, `js/meter.js`): näytön sävy mitataan kuvan keskeltä (sinne kameraa osoitetaan), joten paikannus toimii, vaikka valkotasapaino tekisi näytöstä sinertävän tai kellertävän. Näytöksi hyväksytään yhtenäinen, suorakulmainen alue, joka ei jatku kuvan reunoille. Varalla on kirkkaan ja harmaan alueen sääntö. Ajetaan pienennetystä kamerakuvasta noin 6 kertaa sekunnissa (~20 ms/kerta).
 - **Tarkennettu rajaus** (`lcdCrop`): rajaus kiristetään pelkkään nestekidenäyttöön, koska mittarin kehys ja runko sotkevat tunnistuksen kynnysarvon.
 - **Kevyt luenta** (`recognizeQuick`, lisätty tunnistusytimen kopioon): enintään 2 esikäsittelyvarianttia reaaliaikaisessa luennassa, 6 taustatunnistuksessa. Jos kastepisteen miinusmerkki katoaa luennassa (−1,4 → 1,4), johdonmukaisuus arvioidaan absoluuttisella kosteudella eikä oikeita RH- ja T-arvoja "korjata" vääriksi. **Tämä korjaus kannattaa viedä myös PBM Kenttälomakkeiden tunnistukseen.**
 
-Testattu: hämärä, kaukana oleva mittari ja heijastus näytössä luetaan oikein. Selvästi vinossa (n. 6°) kuvassa osa arvoista voi mennä väärin, mutta luentaa ei silloin hyväksytä varmaksi, vaan rivi merkitään tarkistettavaksi.
+**Testisivu:** `kameraluku-testi.html` (sama osoite kuin sovellus, esim. …/kameraluku-testi.html). Valitse puhelimella otettuja kuvia mittarin näytöstä, niin sivu näyttää paikannetun näytön, rajauksen, luetut arvot ja tunnistetun tekstin. Kuvat eivät tallennu. Sivu sopii epäonnistuneiden tapausten keräämiseen ja tunnistuksen kehittämiseen.
+
+Testattu: kaksi oikeaa mittarikuvaa (eri valkotasapaino), sininen, kellertävä ja vihertävä sävy, hämärä, kaukana oleva mittari ja heijastus näytössä luetaan oikein. Selvästi vinossa (n. 6°) kuvassa osa arvoista voi mennä väärin, mutta luentaa ei silloin hyväksytä varmaksi, vaan rivi merkitään tarkistettavaksi.
 
 **Ilman verkkoa:** tekstintunnistuksen moottori (Tesseract.js 5.1.1) ja kielidata ladataan ensimmäisellä kameraluvulla ja tallennetaan laitteelle. Tee ensimmäinen luku verkkoyhteydessä, jolloin kameraluku toimii jatkossa myös kellarissa.
 
