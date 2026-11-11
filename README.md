@@ -18,6 +18,7 @@ Sovellus on osa RTA-opinnäytetyön kehitystyötä ja erillinen PBM Kenttälomak
 | Kuva + sanelu | Kamera, menetelmän valinta ja havaintoteksti samassa näkymässä. Havainnon voi kirjoittaa, tai sanelu käynnistetään Sanele-painikkeesta. Kuvat ja teksti tallentuvat samaan havaintoon heti. Sijainti muistetaan edellisestä havainnosta. |
 | Havaintokortti | Havainto, sijainti, tulos (pakollinen), menetelmä (pakollinen), suunnitelman kohta, menetelmän kentät, mittausarvojen vahvistus ja tutkijan alustava tulkinta erikseen |
 | Mittauspiste (RH) | Yhteen havaintoon kirjataan mittauspisteen kaikki lukemat taulukkona: syvyys, RH, T, absoluuttinen kosteus ja lukupäivä. Ympäröivät olosuhteet kirjataan samalla tavalla omaan taulukkoonsa. Syvyys valitaan siruista (esim. 28 mm, 70 mm), ja rinnakkaiset mittaukset kuvataan samalla syvyydellä. **Lue mittarista** lukee arvot mittarin näytöltä kameralla. |
+| Menetelmän valinta | Ehdotuksina edellinen menetelmä ja tutkimussuunnitelman tekemättömät menetelmät (esim. *Merkkiainekoe 0/1*). Hakukenttä löytää menetelmän nimen tai lyhenteen alusta, eikä välitä isoista kirjaimista tai ääkkösistä (*lampo* → Lämpökuvaus). Jos osumaa ei ole, hausta voi lisätä uuden menetelmän, jolle voi myöhemmin lisätä kenttiä Menetelmät-sivulla. |
 | Menetelmät | Menetelmien lisäys, muokkaus, järjestys, piilotus ja jakaminen tiedostona (etusivu → Menetelmät tai havaintokortti → Muokkaa menetelmiä) |
 | Pohjapiirros | Kerrokset, pohjakuva (kuva tai PDF), tilat ja niiden tutkimustilanne, havaintomerkit |
 | Lähtötarkistus | Puutteet suunnitelmaa, tiloja ja pakollisia tietoja vasten. Vienti avautuu, kun puutteet on tehty tai perusteltu. |
@@ -116,6 +117,7 @@ js/ui.js               kuvakkeet, ikkunat, ilmoitukset
 js/db.js               IndexedDB-tallennus
 js/methods.js          oletusmenetelmät, rakenneosat, menetelmien tallennus
 js/editor.js           menetelmien muokkaus
+js/methodpicker.js     menetelmän valinta: ehdotukset, haku ja uusi menetelmä
 js/meter.js            mittarin näytön kameraluku ja lukemien tarkistus
 js/lukulaite-ocr.js    tunnistusydin (kopio PBM Kenttälomakkeista)
 js/dictation.js        sanelu (puheentunnistus tai äänite)
