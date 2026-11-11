@@ -2,7 +2,7 @@
    ui.js – yhteiset apuvälineet: kuvakkeet, escapointi, ikkunat, ilmoitukset
    ========================================================================= */
 /* Sovelluksen versio: nosta yhdessä sw.js:n CACHE-version kanssa. */
-window.APP_VERSION = "8";
+window.APP_VERSION = "10";
 
 (function () {
   "use strict";
@@ -157,7 +157,22 @@ window.APP_VERSION = "8";
     if (sel) container.scrollLeft = Math.max(0, sel.offsetLeft - container.offsetLeft - 16);
   }
 
+  /* Näyttö pysyy päällä kuvauksen ja kameraluvun ajan (Wake Lock API, jos tuettu). */
+  function keepAwake() {
+    let lock = null, alive = true;
+    const req = async () => {
+      try { if (alive && "wakeLock" in navigator && document.visibilityState === "visible") lock = await navigator.wakeLock.request("screen"); }
+      catch (e) { /* ei tuettu tai estetty */ }
+    };
+    const onVis = () => { if (document.visibilityState === "visible") req(); };
+    document.addEventListener("visibilitychange", onVis);
+    req();
+    return () => { alive = false; document.removeEventListener("visibilitychange", onVis); try { if (lock) lock.release(); } catch (e) { /* ohita */ } };
+  }
+
+  function buzz(ms) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) { /* ohita */ } }
+
   function nro(n) { return "H" + String(n).padStart(2, "0"); }
 
-  window.UI = { icon, esc, toast, sheet, confirmSheet, promptSheet, pickFile, loadScript, debounce, pvm, nro, showSelected };
+  window.UI = { icon, esc, toast, sheet, confirmSheet, promptSheet, pickFile, loadScript, debounce, pvm, nro, showSelected, keepAwake, buzz };
 })();

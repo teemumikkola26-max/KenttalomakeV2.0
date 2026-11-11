@@ -42,8 +42,8 @@
     }
 
     const root = document.getElementById("app");
-    const save = UI.debounce(() => Model.saveHavainto(h), 400);
-    let dict = null, dictTarget = null, picker = null;
+    const save = UI.debounce(async () => { await Model.saveHavainto(h); refreshMissing(); }, 400);
+    let picker = null;
 
     function selectMethod(id) {
       if (h.menetelma === id) return;
@@ -51,11 +51,13 @@
       h.vahvistettu = false;
       // muistetut arvot (esim. mittalaite) valmiiksi
       M.menetelma(h.menetelma).kentat.forEach((f) => {
-        const mem = S.kohde.muisti[h.menetelma + "." + f.k];
+        const mem = Model.muistiGet(h.menetelma + "." + f.k);
         if (f.muista && mem && !h.kentat[f.k]) h.kentat[f.k] = mem;
       });
       const cur = Model.kohta(h.suunnitelmaId);
-      if (cur && cur.menetelma !== h.menetelma) h.suunnitelmaId = null;
+      if (cur && cur.menetelma !== h.menetelma) { h.suunnitelmaId = null; if (h.auto) h.auto.kohta = true; }
+      Auto.manual(h, "menetelma");
+      Auto.autoKohta(h); Auto.autoTunnus(h);
       save(); paint();
     }
 
@@ -68,10 +70,13 @@
         '<option value="ei"' + (h.suunnitelmaId === "ei" ? " selected" : "") + ">Ei suunnitelmassa</option>";
     }
 
-    function autoKohta() {
-      if (h.suunnitelmaId) return;
-      const open = k.suunnitelma.filter((p) => p.menetelma === h.menetelma && !Model.kohtaValmis(p));
-      if (open.length === 1) h.suunnitelmaId = open[0].id;
+    /* Sanelusta tunnistetut tiedot (menetelmä, tila, rakenneosa, tulos) */
+    async function runAuto() {
+      const changes = await Auto.apply(h);
+      if (!changes.length) return;
+      const shown = changes.filter((c) => ["menetelmä", "tulos", "tila", "rakenneosa"].includes(c.kentta));
+      if (shown.length) toast("Sanelusta: " + shown.map((c) => c.arvo).join(", "), 2600);
+      save(); paint();
     }
 
     function suggestions() {
@@ -81,9 +86,8 @@
     }
 
     function paint() {
-      const before = h.suunnitelmaId;
-      autoKohta();
-      if (before !== h.suunnitelmaId) save();
+      if (Auto.autoKohta(h) | Auto.autoTunnus(h)) save();
+      const autoTag = (key) => h.auto && h.auto[key] === "sanelu" ? ' <span class="mp-tag">sanelusta</span>' : "";
       const m = M.menetelma(h.menetelma);
       const thumbs = h.kuvat.map((fid, i) =>
         '<button class="thumb" data-a="view" data-i="' + i + '" aria-label="Kuva ' + (i + 1) + '"><img src="' + Model.url(fid) + '" alt=""></button>').join("");
@@ -95,8 +99,7 @@
             sug.map((s, i) => '<button class="chip sugg" data-a="sugg" data-i="' + i + '">' + esc(s.arvo.replace(".", ",") + " " + s.u) + "</button>").join("") + "</div>" : "") +
           '<div class="grid2">' + m.kentat.map((f) => f.t === "table" ? tableHtml(f) : fieldHtml(f, h.kentat[f.k] != null ? h.kentat[f.k] : "")).join("") + "</div>" +
           (m.kentat.some((f) => f.mittaus || (f.t === "table" && (f.sarakkeet || []).some((c) => c.mittaus)))
-            ? '<label style="display:flex;gap:10px;align-items:flex-start;font-size:14.5px;font-weight:600;margin-top:4px"><input type="checkbox" data-a="vahv" style="width:22px;height:22px;flex:0 0 auto;margin-top:1px"' + (h.vahvistettu ? " checked" : "") + ">Olen tarkistanut mittausarvot</label>" +
-              '<p class="hint">Raporttiin viedään mittausarvoina vain vahvistetut arvot. AI-työkalua ohjeistetaan, ettei se päättele arvoja kuvista tai sanelusta.</p>'
+            ? '<p class="hint">Varmat kameraluvut ja itse kirjoitetut arvot ovat vahvistettuja. Oranssilla merkityt lukemat tarkistetaan napauttamalla riviä.</p>'
             : "") +
           "</div></section>"
         : "";
@@ -106,18 +109,19 @@
         '<div class="thumbs" style="margin-bottom:12px">' + thumbs +
         '<a class="thumb-add" href="#/k/' + k.id + "/kuvaus/" + h.id + '" aria-label="Lisää kuvia ja sanelua">' + icon("cam") + "</a></div>" +
 
-        '<section class="card"><div class="card-h"><h2>Havainto</h2>' +
-        '<button class="icon-btn" data-a="dict" data-t="sanelu" aria-label="Sanele havaintoon">' + icon(dictTarget === "sanelu" ? "stop" : "mic") + "</button></div>" +
-        '<div class="card-b"><textarea data-t="sanelu" aria-label="Havainto">' + esc(h.sanelu) + "</textarea>" + audio +
-        '<p class="hint">Kirjoita tai sanele, mitä näet ja mittaat. Tulkinta kirjataan erikseen alempana.</p></div></section>' +
+        '<div data-missing>' + missingHtml() + "</div>" +
+        '<section class="card"><div class="card-h"><h2>Havainto</h2>' + dictBtnHtml("sanelu") + "</div>" +
+        '<div class="card-b"><textarea data-t="sanelu" aria-label="Havainto">' + esc(h.sanelu) + "</textarea>" +
+        '<div class="dict-prev" data-prev="sanelu"></div>' + audio +
+        '<p class="hint">Kirjoita tai sanele (pidä mikrofonia pohjassa), mitä näet ja mittaat. Tulkinta kirjataan erikseen alempana.</p></div></section>' +
 
         '<section class="card"><div class="card-b" style="padding-top:12px">' +
         '<span class="label">Sijainti</span>' +
         '<button class="btn btn-block" data-a="loc" style="justify-content:flex-start;margin-bottom:14px">' + icon("pin") + esc(Model.sijaintiTeksti(h.sijainti) || "Valitse sijainti") +
-        (h.sijainti.piste ? " · merkitty pohjaan" : "") + "</button>" +
+        (h.sijainti.piste ? " · merkitty pohjaan" : "") + autoTag("tila") + "</button>" +
         '<span class="label' + (h.tulos ? "" : " missing") + '">Tulos <span class="req">*</span>' + (h.tulos ? "" : " · valitse") + '</span><div class="chips" style="margin-bottom:14px">' +
-        '<button class="chip c-note" data-a="tulos" data-v="poikkeama" aria-pressed="' + (h.tulos === "poikkeama") + '">Poikkeama</button>' +
-        '<button class="chip c-ok" data-a="tulos" data-v="ok" aria-pressed="' + (h.tulos === "ok") + '">Ei huomautettavaa</button></div>' +
+        '<button class="chip c-note" data-a="tulos" data-v="poikkeama" aria-pressed="' + (h.tulos === "poikkeama") + '">Poikkeama' + (h.tulos === "poikkeama" ? autoTag("tulos") : "") + "</button>" +
+        '<button class="chip c-ok" data-a="tulos" data-v="ok" aria-pressed="' + (h.tulos === "ok") + '">Ei huomautettavaa' + (h.tulos === "ok" ? autoTag("tulos") : "") + "</button></div>" +
         '<div style="display:flex;justify-content:space-between;align-items:baseline"><span class="label' + (h.menetelma ? "" : " missing") + '">Menetelmä <span class="req">*</span>' + (h.menetelma ? "" : " · valitse") + '</span>' +
         '<a class="link" href="#/menetelmat" style="font-size:13px;padding:0 0 6px">Muokkaa menetelmiä</a></div>' +
         '<div data-mpick style="margin-bottom:14px"></div>' +
@@ -126,14 +130,15 @@
 
         mit +
 
-        '<section class="card"><div class="card-h"><h2>Alustava tulkinta <span style="font-weight:400;color:var(--muted)">(valinnainen)</span></h2>' +
-        '<button class="icon-btn" data-a="dict" data-t="tulkinta" aria-label="Sanele tulkinta">' + icon(dictTarget === "tulkinta" ? "stop" : "mic") + "</button></div>" +
-        '<div class="card-b"><textarea data-t="tulkinta" style="min-height:72px" aria-label="Alustava tulkinta" placeholder="Tutkijan oma arvio, esim. todennäköinen syy">' + esc(h.tulkinta) + "</textarea></div></section>" +
+        '<section class="card"><div class="card-h"><h2>Alustava tulkinta <span style="font-weight:400;color:var(--muted)">(valinnainen)</span></h2>' + dictBtnHtml("tulkinta") + "</div>" +
+        '<div class="card-b"><textarea data-t="tulkinta" style="min-height:72px" aria-label="Alustava tulkinta" placeholder="Tutkijan oma arvio, esim. todennäköinen syy">' + esc(h.tulkinta) + "</textarea>" +
+        '<div class="dict-prev" data-prev="tulkinta"></div></div></section>' +
 
         '<button class="btn btn-danger btn-block" data-a="del">' + icon("trash") + "Poista havainto</button>" +
         "</main>" +
-        '<div class="actionbar"><a class="btn" href="#/k/' + k.id + '">Tallenna</a>' +
-        '<button class="btn btn-primary wide" data-a="next">' + icon("cam") + "Tallenna ja uusi kuva</button></div>";
+        '<div class="actionbar"><a class="btn" href="#/k/' + k.id + '">' + icon("ok") + "Valmis</a>" +
+        '<button class="btn btn-primary wide" data-a="next">' + icon("cam") + "Uusi havainto</button></div>";
+      bindDict();
       if (picker) picker.destroy();
       picker = MethodPicker.mount(root.querySelector("[data-mpick]"), { selected: h.menetelma, excludeHavainto: h.id, onSelect: selectMethod });
       root.querySelectorAll("[data-gl]").forEach((el) => UI.showSelected(el));
@@ -238,6 +243,7 @@
       await Model.ensureUrls(M.rivit(h, f).map((r) => r._ocr && r._ocr.rajaus).filter(Boolean));
       const el = root.querySelector('[data-tbl="' + f.k + '"]');
       if (el) { el.innerHTML = tableInner(f); UI.showSelected(el.querySelector("[data-gl]")); }
+      refreshMissing();
     }
     function repaintSummary(f) {
       const el = root.querySelector('[data-tsum="' + f.k + '"]');
@@ -266,42 +272,59 @@
         }
         repaintSummary(f);
       });
+      refreshMissing();
     }
     window.addEventListener("ks-ocr", onOcr);
 
-    function stopDict() {
-      if (dict) dict.stop();
-      dict = null; dictTarget = null;
-    }
-
-    function startDict(target) {
-      stopDict();
-      dictTarget = target;
-      const ta = () => root.querySelector('textarea[data-t="' + target + '"]');
-      dict = new Dictation({
-        onFinal: (t) => {
-          if (!t) return;
-          let cur = h[target] || "";
-          cur = (cur ? cur.replace(/\s+$/, "") + " " : "") + t.charAt(0).toUpperCase() + t.slice(1);
-          if (!/[.!?]$/.test(cur)) cur += ".";
-          h[target] = cur;
-          if (ta()) ta().value = cur;
+    /* ---------- Sanelu: pidä pohjassa (havainto ja tulkinta) ---------- */
+    function makeDict(target) {
+      return new Dictation({
+        onCommit: (text) => {
+          h[target] = DictButton.appendText(h[target], text);
+          const ta = root.querySelector('textarea[data-t="' + target + '"]');
+          if (ta) ta.value = h[target];
           save();
+          if (target === "sanelu") runAuto();
         },
-        onInterim: () => {},
+        onPreview: (t) => { const el = root.querySelector('[data-prev="' + target + '"]'); if (el) el.textContent = t; },
         onState: (st, msg) => {
-          if (st === "error") { if (msg) toast(msg, 4000); dictTarget = null; paint(); }
+          if (st === "error" && msg) toast(msg, 4000);
+          if (st === "recording" && msg) toast(msg, 3000);
+          const b = binds[target]; if (b) b.paint();
         },
         onAudio: async (blob) => {
           const fid = await DB.putFile(k.id, blob, { kind: "aanite", havaintoId: h.id });
           h.aanitteet = (h.aanitteet || []).concat(fid);
           await Model.ensureUrls([fid]);
           await Model.saveHavainto(h); paint();
+          toast("Äänite tallennettu havaintoon");
         }
       });
-      dict.start();
-      paint();
     }
+    const dicts = { sanelu: makeDict("sanelu"), tulkinta: makeDict("tulkinta") };
+    const binds = {};
+    function dictBtnHtml(target) {
+      return '<button type="button" class="dict-btn" data-dictbtn="' + target + '" aria-label="Sanele: pidä pohjassa">' + icon("mic") + '<span data-dl="' + target + '">Pidä: sanele</span></button>';
+    }
+    function bindDict() {
+      Object.keys(dicts).forEach((t) => {
+        const btn = root.querySelector('[data-dictbtn="' + t + '"]');
+        if (!btn) return;
+        // Vain yksi sanelu kerrallaan
+        btn.addEventListener("pointerdown", () => { Object.keys(dicts).forEach((o) => { if (o !== t && dicts[o].active) dicts[o].stop(); }); }, true);
+        binds[t] = DictButton.bind(btn, dicts[t], { labelEl: root.querySelector('[data-dl="' + t + '"]') });
+      });
+    }
+    function stopDict() { Object.values(dicts).forEach((d) => d.stop()); }
+
+    /* ---------- Puuttuvat tiedot kortin yläosassa ---------- */
+    function missingHtml() {
+      const miss = Check.havaintoPuutteet(h);
+      return miss.length
+        ? '<div class="missing-box">' + icon("alert") + "<div><b>Puuttuu:</b> " + esc(miss.join(", ")) + "</div></div>"
+        : '<div class="missing-box ok">' + icon("ok") + "<div>Pakolliset tiedot kirjattu.</div></div>";
+    }
+    function refreshMissing() { const el = root.querySelector("[data-missing]"); if (el) el.innerHTML = missingHtml(); }
 
     function viewer(i) {
       const fid = h.kuvat[i];
@@ -351,32 +374,26 @@
       else if (t.matches("[data-fk]") && t.type !== "date") {
         const f = M.menetelma(h.menetelma).kentat.find((x) => x.k === t.dataset.fk);
         h.kentat[t.dataset.fk] = t.value;
+        if (t.dataset.fk === "tunnus") Auto.manual(h, "tunnus");
         if (f && f.mittaus && h.vahvistettu) { h.vahvistettu = false; const cb = root.querySelector('[data-a="vahv"]'); if (cb) cb.checked = false; }
-        if (f && f.muista) { S.kohde.muisti[h.menetelma + "." + f.k] = t.value; Model.saveKohde(); }
+        if (f && f.muista) Model.muistiSet(h.menetelma + "." + f.k, t.value);
         save();
       }
     };
     root.onchange = (e) => {
       const t = e.target;
-      if (t.matches('[data-a="kohta"]')) { h.suunnitelmaId = t.value || null; save(); }
+      if (t.matches('[data-a="kohta"]')) { h.suunnitelmaId = t.value || null; Auto.manual(h, "kohta"); save(); }
+      else if (t.matches('textarea[data-t="sanelu"]')) runAuto();
       else if (t.matches("[data-tc]")) {
         const f = tableField(t.dataset.tf);
         const row = f && M.rivit(h, f).find((r) => r.id === t.dataset.tr);
         // Vain yhteenveto päivitetään: rivin uudelleenpiirto veisi fokuksen seuraavasta kentästä.
         if (f && row) repaintSummary(f);
       }
-      else if (t.matches('[data-a="vahv"]')) {
-        if (t.checked && !hasMittaus(h)) { t.checked = false; toast("Kirjaa ensin mittausarvot"); return; }
-        if (t.checked) {
-          const open = M.menetelma(h.menetelma).kentat.filter((f) => f.t === "table").some((f) => M.rivit(h, f).some((r) => ["reading", "flagged", "error", "interrupted"].includes(Meter.rowState(r))));
-          if (open) { t.checked = false; toast("Tarkista ensin oranssilla merkityt tai keskeneräiset lukemat", 3500); return; }
-        }
-        h.vahvistettu = t.checked; save();
-      }
       else if (t.matches("[data-fk]") && (t.tagName === "SELECT" || t.type === "date")) {
         h.kentat[t.dataset.fk] = t.value;
         const f = M.menetelma(h.menetelma).kentat.find((x) => x.k === t.dataset.fk);
-        if (f && f.muista) { S.kohde.muisti[h.menetelma + "." + f.k] = t.value; Model.saveKohde(); }
+        if (f && f.muista) Model.muistiSet(h.menetelma + "." + f.k, t.value);
         save();
       }
     };
@@ -428,7 +445,7 @@
         });
         return;
       }
-      if (a === "tulos") { h.tulos = h.tulos === b.dataset.v ? null : b.dataset.v; save(); paint(); }
+      if (a === "tulos") { h.tulos = h.tulos === b.dataset.v ? null : b.dataset.v; Auto.manual(h, "tulos"); save(); paint(); }
       else if (a === "men") {
         selectMethod(b.dataset.v);
       }
@@ -437,7 +454,7 @@
         h.vahvistettu = false;
         // muistetut arvot (esim. mittalaite) valmiiksi
         M.menetelma(h.menetelma).kentat.forEach((f) => {
-          const mem = S.kohde.muisti[h.menetelma + "." + f.k];
+          const mem = Model.muistiGet(h.menetelma + "." + f.k);
           if (f.muista && mem && !h.kentat[f.k]) h.kentat[f.k] = mem;
         });
         const cur = Model.kohta(h.suunnitelmaId);
@@ -455,8 +472,7 @@
           toast(target.l + ": " + s.arvo.replace(".", ",") + " " + s.u + ". Tarkista arvo.");
         }
       }
-      else if (a === "loc") Plan.locationSheet(h.sijainti, (s) => { h.sijainti = s; save(); paint(); });
-      else if (a === "dict") { if (dictTarget === b.dataset.t) { stopDict(); paint(); } else startDict(b.dataset.t); }
+      else if (a === "loc") Plan.locationSheet(h.sijainti, (s) => { h.sijainti = s; Auto.manual(h, "tila"); Auto.manual(h, "rakenneosa"); save(); paint(); });
       else if (a === "view") viewer(+b.dataset.i);
       else if (a === "next") {
         save.flush();

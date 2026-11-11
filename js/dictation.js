@@ -1,112 +1,247 @@
 /* =========================================================================
-   dictation.js – sanelu puheentunnistuksella (Web Speech API, fi-FI)
-   Jos selain ei tue puheentunnistusta, sanelu tallennetaan äänitteenä
-   (MediaRecorder), jotta mitään ei menetetä. Äänite viedään ZIP-pakettiin.
+   dictation.js – sanelu (Web Speech API, fi-FI) ja pidä pohjassa -painike
+
+   Sanelukerta (session): painikkeen painalluksesta vapautukseen. Teksti
+   kootaan kerran tuloksista ja annetaan käyttöön (onCommit) vasta, kun
+   kerta päättyy. Näin vältetään tuplateksti:
+     - Android Chrome palauttaa jatkuvassa tunnistuksessa valmiit lauseet
+       kumulatiivisesti ("lattia on" -> "lattia on märkä"), ja
+     - tunnistus voi päättyä hiljaisuuteen ja käynnistyä uudelleen.
+   Ilman verkkoa (tai jos tunnistus ei ole käytettävissä) sanelu tallennetaan
+   äänitteenä (onAudio), jotta mitään ei menetetä.
    ========================================================================= */
 (function () {
   "use strict";
 
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 
+  const norm = (s) => String(s || "").toLowerCase().replace(/[^\p{L}\p{N} ]/gu, "").replace(/\s+/g, " ").trim();
+
+  /* Kumulatiiviset ja toistuvat tulokset yhdeksi listaksi */
+  function collapse(list) {
+    const out = [];
+    for (let t of list) {
+      t = String(t || "").trim();
+      if (!t) continue;
+      if (out.length) {
+        const a = norm(out[out.length - 1]), b = norm(t);
+        if (b === a) continue;
+        if (b.startsWith(a)) { out[out.length - 1] = t; continue; }   // laajennus edellisestä
+        if (a.startsWith(b)) continue;                                // edellinen sisältää jo
+      }
+      out.push(t);
+    }
+    return out;
+  }
+
+  /* Muotoilu kenttään: iso alkukirjain ja piste, liitetään edellisen tekstin perään */
+  function appendText(prev, add) {
+    add = String(add || "").trim();
+    if (!add) return prev || "";
+    add = add.charAt(0).toUpperCase() + add.slice(1);
+    if (!/[.!?]$/.test(add)) add += ".";
+    let cur = String(prev || "").replace(/\s+$/, "");
+    if (cur && !/[.!?:]$/.test(cur)) cur += ".";
+    return (cur ? cur + " " : "") + add;
+  }
+
   class Dictation {
     constructor(opts) {
-      this.onFinal = opts.onFinal || function () {};     // (teksti) valmis lause
-      this.onInterim = opts.onInterim || function () {}; // (teksti) keskeneräinen
-      this.onState = opts.onState || function () {};     // (tila, viesti)
-      this.onAudio = opts.onAudio || function () {};     // (blob) äänite
+      this.onCommit = opts.onCommit || function () {};     // (teksti) sanelukerran valmis teksti
+      this.onPreview = opts.onPreview || function () {};   // (teksti) keskeneräinen esikatselu
+      this.onState = opts.onState || function () {};       // (tila, viesti): listening | recording | stopped | error
+      this.onAudio = opts.onAudio || function () {};       // (blob) äänite
       this.active = false;
-      this.mode = SR ? "speech" : (window.MediaRecorder ? "audio" : "none");
+      this.locked = false;          // napautuksella lukittu sanelu
       this.rec = null;
       this.recorder = null;
-      this.chunks = [];
-      this.startedAt = 0;
-      this.errorCount = 0;
+      this.finals = [];             // tämän tunnistuskierroksen valmiit tulokset
+      this.committed = [];          // sanelukerran aiemmat kierrokset
+      this.interim = "";
+      this.mode = null;
     }
 
     static supported() { return !!SR; }
+    static available() { return !!SR || !!window.MediaRecorder; }
 
     start() {
       if (this.active) return;
       this.active = true;
-      this.startedAt = Date.now();
-      this.errorCount = 0;
-      if (this.mode === "speech") this._startSpeech();
-      else if (this.mode === "audio") this._startAudio();
-      else { this.active = false; this.onState("error", "Selain ei tue sanelua. Kirjoita teksti tai käytä näppäimistön sanelua."); }
+      this.committed = []; this.finals = []; this.interim = "";
+      const online = navigator.onLine !== false;
+      if (SR && online) { this.mode = "speech"; this._startSpeech(); }
+      else if (window.MediaRecorder) {
+        this.mode = "audio";
+        this._startAudio(SR ? "Ei verkkoyhteyttä: sanelu tallennetaan äänitteenä." : "Puheentunnistusta ei ole tässä selaimessa: sanelu tallennetaan äänitteenä.");
+      } else { this.active = false; this.onState("error", "Selain ei tue sanelua. Kirjoita teksti."); }
     }
 
     stop() {
       if (!this.active) return;
       this.active = false;
-      if (this.rec) { try { this.rec.stop(); } catch (e) { /* ohita */ } }
-      if (this.recorder && this.recorder.state !== "inactive") { try { this.recorder.stop(); } catch (e) { /* ohita */ } }
+      this.locked = false;
+      if (this.mode === "speech" && this.rec) {
+        try { this.rec.stop(); } catch (e) { /* ohita */ }
+        // Jos tunnistus ei päätä kierrosta (onend), annetaan teksti silti käyttöön.
+        const rec = this.rec;
+        setTimeout(() => { if (this.rec === rec) { try { rec.abort(); } catch (e) { /* ohita */ } this._endRound(rec); } }, 1500);
+      }
+      if (this.mode === "audio" && this.recorder && this.recorder.state !== "inactive") { try { this.recorder.stop(); } catch (e) { /* ohita */ } }
       this.onState("stopped");
     }
 
-    _startSpeech() {
+    sessionText() { return collapse(this.committed.concat(this.finals)).join(" "); }
+
+    _preview() {
+      const f = this.sessionText();
+      const i = this.interim.trim();
+      let p = f;
+      if (i) p = norm(i).startsWith(norm(f)) && f ? i : (f ? f + " " + i : i);   // Android: välitulos voi sisältää koko tekstin
+      this.onPreview(p);
+    }
+
+    _endRound(rec) {
+      if (this.rec !== rec) return;
+      this.rec = null;
+      // Kierroksen tulokset talteen
+      this.committed = collapse(this.committed.concat(this.finals));
+      // Keskeneräinen välitulos otetaan mukaan, jos kierros katkesi ennen lopullista tulosta.
+      if (this.interim.trim()) this.committed = collapse(this.committed.concat([this.interim]));
+      this.finals = []; this.interim = "";
+      if (this.active) {
+        // Tunnistus päättyi hiljaisuuteen, mutta painike on yhä pohjassa: uusi kierros.
+        setTimeout(() => { if (this.active && this.mode === "speech") this._startSpeech(true); }, 120);
+        this._preview();
+      } else {
+        const text = this.committed.join(" ");
+        this.committed = [];
+        this.onPreview("");
+        if (text) this.onCommit(text);
+      }
+    }
+
+    _startSpeech(restart) {
       const rec = new SR();
       rec.lang = "fi-FI";
       rec.continuous = true;
       rec.interimResults = true;
       rec.maxAlternatives = 1;
       rec.onresult = (ev) => {
+        if (this.rec !== rec) return;
+        const finals = [];
         let interim = "";
-        for (let i = ev.resultIndex; i < ev.results.length; i++) {
+        // Koko tuloslista luetaan joka kerta alusta: indeksit eivät ole luotettavia Androidilla.
+        for (let i = 0; i < ev.results.length; i++) {
           const r = ev.results[i];
-          if (r.isFinal) this.onFinal(r[0].transcript.trim());
-          else interim += r[0].transcript;
+          if (r.isFinal) finals.push(r[0].transcript);
+          else interim += (interim ? " " : "") + r[0].transcript;
         }
-        this.onInterim(interim.trim());
+        this.finals = collapse(finals);
+        this.interim = interim;
+        this._preview();
       };
       rec.onerror = (ev) => {
         if (ev.error === "no-speech" || ev.error === "aborted") return;
-        this.errorCount++;
-        if (ev.error === "not-allowed" || ev.error === "service-not-allowed") {
-          this.active = false;
-          this.onState("error", "Mikrofonin käyttö estettiin. Salli mikrofoni selaimen asetuksista.");
-        } else if (ev.error === "audio-capture") {
-          this.active = false;
-          this.onState("error", "Mikrofonia ei löytynyt tai se on toisen sovelluksen käytössä.");
-        } else if (ev.error === "network") {
-          this.active = false;
-          this.onState("error", "Puheentunnistus vaatii verkkoyhteyden tässä selaimessa. Kirjoita teksti tai yritä uudelleen.");
-        } else if (this.errorCount > 3) {
-          this.active = false;
-          this.onState("error", "Sanelu keskeytyi (" + ev.error + ").");
+        if (ev.error === "network") {
+          // Verkko katosi: jatketaan äänitteenä, jos painike on yhä pohjassa.
+          this.rec = null;
+          const text = collapse(this.committed.concat(this.finals)).join(" ");
+          this.committed = []; this.finals = []; this.interim = "";
+          if (text) this.onCommit(text);
+          if (this.active && window.MediaRecorder) { this.mode = "audio"; this._startAudio("Ei verkkoyhteyttä: sanelu jatkuu äänitteenä."); }
+          else { this.active = false; this.onState("error", "Puheentunnistus vaatii verkkoyhteyden."); }
+          return;
         }
+        const msg = ev.error === "not-allowed" || ev.error === "service-not-allowed"
+          ? "Mikrofonin käyttö estettiin. Salli mikrofoni selaimen asetuksista."
+          : ev.error === "audio-capture" ? "Mikrofonia ei löytynyt tai se on toisen sovelluksen käytössä."
+          : "Sanelu keskeytyi (" + ev.error + ").";
+        this.active = false; this.locked = false;
+        this.onState("error", msg);
       };
-      // Android Chrome lopettaa tunnistuksen hiljaisuuden jälkeen: jatketaan niin kauan kuin sanelu on päällä.
-      rec.onend = () => {
-        this.onInterim("");
-        if (this.active) {
-          setTimeout(() => { if (this.active) { try { rec.start(); } catch (e) { /* jo käynnissä */ } } }, 150);
-        }
-      };
+      rec.onend = () => this._endRound(rec);
       this.rec = rec;
-      try { rec.start(); this.onState("listening"); }
-      catch (e) { this.active = false; this.onState("error", "Sanelun käynnistys epäonnistui."); }
+      try { rec.start(); if (!restart) this.onState("listening"); }
+      catch (e) { this.rec = null; this.active = false; this.onState("error", "Sanelun käynnistys epäonnistui."); }
     }
 
-    async _startAudio() {
+    async _startAudio(msg) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        if (!this.active) { stream.getTracks().forEach((t) => t.stop()); return; }
         const rec = new MediaRecorder(stream);
-        this.chunks = [];
-        rec.ondataavailable = (e) => { if (e.data && e.data.size) this.chunks.push(e.data); };
+        const chunks = [];
+        rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
         rec.onstop = () => {
           stream.getTracks().forEach((t) => t.stop());
-          const blob = new Blob(this.chunks, { type: rec.mimeType || "audio/webm" });
-          if (blob.size) this.onAudio(blob);
+          const blob = new Blob(chunks, { type: rec.mimeType || "audio/webm" });
+          if (blob.size > 2000) this.onAudio(blob);
         };
         rec.start();
         this.recorder = rec;
-        this.onState("recording", "Puheentunnistusta ei ole tässä selaimessa: sanelu tallennetaan äänitteenä.");
+        this.onState("recording", msg);
       } catch (e) {
-        this.active = false;
+        this.active = false; this.locked = false;
         this.onState("error", "Mikrofonia ei saatu käyttöön.");
       }
     }
   }
 
+  /* -----------------------------------------------------------------------
+     Pidä pohjassa -painike
+       - pidä pohjassa: sanelu, vapautus lopettaa ja lisää tekstin
+       - lyhyt napautus: lukitsee sanelun päälle, uusi napautus lopettaa
+     bind(btn, dict, { labelEl, idle, holding, locked, onChange })
+     ----------------------------------------------------------------------- */
+  const TAP_MS = 350;
+
+  function buzz(ms) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) { /* ohita */ } }
+
+  function bind(btn, dict, o) {
+    o = o || {};
+    const labels = { idle: o.idle || "Pidä: sanele", holding: o.holding || "Vapauta: valmis", locked: o.locked || "Lopeta" };
+    let downAt = 0, pid = null;
+
+    function paint() {
+      const st = !dict.active ? "idle" : dict.locked ? "locked" : "holding";
+      btn.dataset.dict = st;
+      btn.setAttribute("aria-pressed", String(dict.active));
+      if (o.labelEl) o.labelEl.textContent = labels[st];
+      if (o.onChange) o.onChange(st);
+    }
+
+    btn.addEventListener("contextmenu", (e) => e.preventDefault());
+    btn.addEventListener("pointerdown", (e) => {
+      if (e.button > 0) return;
+      e.preventDefault();
+      if (dict.active && dict.locked) { dict.stop(); buzz(10); paint(); pid = null; return; }
+      pid = e.pointerId;
+      try { btn.setPointerCapture(pid); } catch (err) { /* ohita */ }
+      downAt = Date.now();
+      dict.start();
+      if (dict.active) buzz(15);
+      paint();
+    });
+    const release = (e) => {
+      if (pid === null || (e && e.pointerId !== pid)) return;
+      pid = null;
+      if (!dict.active) { paint(); return; }
+      if (Date.now() - downAt < TAP_MS) { dict.locked = true; paint(); return; }   // lyhyt napautus: lukitse
+      dict.stop(); buzz(10); paint();
+    };
+    btn.addEventListener("pointerup", release);
+    btn.addEventListener("pointercancel", release);
+    // Näppäimistö ja ruudunlukija: Enter/välilyönti vaihtaa päälle/pois
+    btn.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      e.preventDefault();
+      if (dict.active) dict.stop(); else { dict.start(); dict.locked = true; }
+      paint();
+    });
+    paint();
+    return { paint };
+  }
+
   window.Dictation = Dictation;
+  window.DictButton = { bind, appendText, collapse, buzz };
 })();

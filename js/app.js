@@ -55,6 +55,13 @@
         await Model.saveKohde();
       }
       h.updated = Date.now();
+      // Mittausarvot ovat vahvistettuja, kun yhtään kameralukua ei ole kesken, epäonnistunut
+      // tai tarkistamatta. Itse kirjoitetut arvot ovat tutkijan omia, eikä niitä tarvitse kuitata.
+      if (window.Meter) {
+        const open = M.menetelma(h.menetelma).kentat.filter((f) => f.t === "table")
+          .some((f) => M.rivit(h, f).some((r) => ["reading", "flagged", "error", "interrupted"].includes(Meter.rowState(r))));
+        h.vahvistettu = !open;
+      }
       await DB.put("havainnot", h);
       const i = S.havainnot.findIndex((x) => x.id === h.id);
       if (i >= 0) S.havainnot[i] = h; else S.havainnot.push(h);
@@ -68,6 +75,16 @@
       }
       await DB.del("havainnot", h.id);
       S.havainnot = S.havainnot.filter((x) => x.id !== h.id);
+    },
+    /* Muistetut arvot (esim. mittalaite): ensin tämä kohde, sitten tämä laite (edelliset kohteet). */
+    muistiGet(key) {
+      const v = S.kohde && S.kohde.muisti ? S.kohde.muisti[key] : null;
+      if (v) return v;
+      try { return localStorage.getItem("ks_muisti_" + key) || null; } catch (e) { return null; }
+    },
+    muistiSet(key, val) {
+      if (S.kohde) { S.kohde.muisti[key] = val; Model.saveKohde(); }
+      try { if (val) localStorage.setItem("ks_muisti_" + key, val); } catch (e) { /* ohita */ }
     },
     kerros(id) { return S.kohde.kerrokset.find((k) => k.id === id) || null; },
     tila(id) { return S.kohde.tilat.find((t) => t.id === id) || null; },
@@ -209,7 +226,9 @@
       const u = Model.url(h.kuvat[0]);
       rec += '<button class="item" data-act="openH" data-id="' + h.id + '"><span class="thumb">' +
         (u ? '<img src="' + u + '" alt="">' : "") + '<span class="dot" style="background:var(--pin-' + (h.tulos === "poikkeama" ? "note" : h.tulos === "ok" ? "ok" : "neutral") + ')"></span>' +
-        '<span class="no">' + nro(h.nro) + "</span></span>" + esc(Model.sijaintiTeksti(h.sijainti) || "Sijainti puuttuu") + "</button>";
+        '<span class="no">' + nro(h.nro) + "</span>" +
+        (Check.havaintoPuutteet(h).length ? '<span class="warn" title="Tietoja puuttuu">!</span>' : "") + "</span>" +
+        esc(Model.sijaintiTeksti(h.sijainti) || "Sijainti puuttuu") + "</button>";
     }
 
     const puutteet = Check.puutteet();

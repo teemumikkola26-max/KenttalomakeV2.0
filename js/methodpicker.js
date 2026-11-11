@@ -36,9 +36,39 @@
     return out;
   }
 
+  /* Ehdotukset: valittu, edellinen ja suunnitelman tekemättömät (enintään 6) */
+  function ehdotukset(selected, excludeId) {
+    const out = [];
+    const add = (id, tag) => {
+      const ex = id && out.find((x) => x.id === id);
+      if (ex) { if (tag) ex.tag = ex.tag ? ex.tag + " · " + tag : tag; return; }
+      if (!id) return;
+      const m = M.MENETELMAT.find((x) => x.id === id);
+      if (!m || (m.piilotettu && id !== selected)) return;
+      out.push({ id, nimi: m.nimi, tag });
+    };
+    add(selected, null);
+    const prev = edellinen(excludeId);
+    if (prev !== selected) add(prev, "edellinen");
+    suunnitelmasta().forEach((p) => add(p.id, p.tehty + "/" + p.maara));
+    return out.slice(0, 6);
+  }
+
+  /* Koko haku omana ikkunanaan (kuvausnäkymän "Muu…") */
+  function openSheet(opts) {
+    let picker = null;
+    UI.sheet('<h3>Menetelmä</h3><div data-mp-sheet></div>', (el, close) => {
+      picker = mount(el.querySelector("[data-mp-sheet]"), {
+        selected: opts.selected, excludeHavainto: opts.excludeHavainto, listOpen: true,
+        onSelect: (id) => { close(); opts.onSelect(id); }
+      });
+      setTimeout(() => { const i = el.querySelector("input"); if (i) i.focus(); }, 60);
+    }, { onClose: () => { if (picker) picker.destroy(); } });
+  }
+
   function mount(el, opts) {
     let selected = opts.selected || null;
-    let open = false;
+    let open = !!opts.listOpen;
 
     el.classList.add("mpick");
     if (opts.dark) el.classList.add("dark");
@@ -51,22 +81,7 @@
     const input = el.querySelector("input");
     const list = el.querySelector(".mp-list");
 
-    function suggestions() {
-      const out = [];
-      const add = (id, tag) => {
-        const ex = id && out.find((x) => x.id === id);
-        if (ex) { if (tag) ex.tag = ex.tag ? ex.tag + " · " + tag : tag; return; }
-        if (!id) return;
-        const m = M.MENETELMAT.find((x) => x.id === id);
-        if (!m || (m.piilotettu && id !== selected)) return;
-        out.push({ id, nimi: m.nimi, tag });
-      };
-      add(selected, null);
-      const prev = edellinen(opts.excludeHavainto);
-      if (prev !== selected) add(prev, "edellinen");
-      suunnitelmasta().forEach((p) => add(p.id, p.tehty + "/" + p.maara));
-      return out.slice(0, 6);
-    }
+    const suggestions = () => ehdotukset(selected, opts.excludeHavainto);
 
     function paintSugg() {
       const s = suggestions();
@@ -139,7 +154,7 @@
       } else if (e.key === "Escape") { open = false; input.value = ""; input.blur(); paintList(); }
     });
     // Lista suljetaan, kun napautetaan muualle (pointerdown ennen blur-tapahtumaa).
-    const outside = (e) => { if (open && !el.contains(e.target)) { open = false; input.value = ""; paintList(); } };
+    const outside = (e) => { if (open && !opts.listOpen && !el.contains(e.target)) { open = false; input.value = ""; paintList(); } };
     document.addEventListener("pointerdown", outside, true);
 
     paintSugg(); paintList();
@@ -149,5 +164,5 @@
     };
   }
 
-  window.MethodPicker = { mount };
+  window.MethodPicker = { mount, ehdotukset, openSheet };
 })();

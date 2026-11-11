@@ -145,6 +145,7 @@
           tiedot: rivit.filter((r) => !r.mittaus).map((r) => ({ kentta: r.kentta, arvo: r.arvo, yksikko: r.yksikko })),
           mittaustulokset: rivit.filter((r) => r.mittaus).map((r) => ({ kentta: r.kentta, arvo: r.arvo, yksikko: r.yksikko })),
           mittaustaulukot: taulukot(h, paths),
+          tunnistettu_sanelusta: Object.keys(h.auto || {}).filter((x) => h.auto[x] === "sanelu"),
           mittaustulokset_vahvistettu: !!h.vahvistettu,
           tutkijan_alustava_tulkinta: h.tulkinta || "",
           kuvat: paths.kuvat[h.id] || [],
@@ -191,6 +192,7 @@
       L.push("- Menetelmä: " + h.menetelma);
       L.push("- Tulos: " + (h.tulos || "ei valittu"));
       if (h.suunnitelman_kohta) L.push("- Suunnitelman kohta: " + h.suunnitelman_kohta);
+      if (h.tunnistettu_sanelusta && h.tunnistettu_sanelusta.length) L.push("- Sovellus tunnisti sanelusta (tutkija ei muuttanut): " + h.tunnistettu_sanelusta.join(", "));
       if (s.pohjapiirros) L.push("- Pohjapiirroksessa: " + s.kerros + ", merkki " + h.tunnus);
       if (h.kuvat.length) L.push("- Kuvat: " + h.kuvat.join(", "));
       if (h.aanitteet.length) L.push("- Äänitteet: " + h.aanitteet.join(", "));
@@ -256,7 +258,10 @@
     "   mittaukset samalta syvyydeltä). Kameraluvulla saadut arvot on tunnistettu\n" +
     "   mittarin näytöltä; rivit, joita ei ole tarkistettu, merkitään\n" +
     "   tarkistettaviksi. \"Laskettu yhteenveto\" on sovelluksen laskema apuluku.\n" +
-    "6. Johtopäätökset ja korjaussuositukset tarkistaa ja hyväksyy raportin\n" +
+    "6. \"Sovellus tunnisti sanelusta\" -merkityt tiedot (esim. tulos, tila) on\n" +
+    "   päätelty tutkijan sanelusta eikä tutkija ole muuttanut niitä. Tarkista\n" +
+    "   ne sanelua vasten, jos ne vaikuttavat johtopäätöksiin.\n" +
+    "7. Johtopäätökset ja korjaussuositukset tarkistaa ja hyväksyy raportin\n" +
     "   allekirjoittava tutkija.\n";
 
   async function run(keskenerainen) {

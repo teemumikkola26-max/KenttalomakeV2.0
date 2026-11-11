@@ -38,28 +38,7 @@
 
     S.havainnot.forEach((h) => {
       const m = M.menetelma(h.menetelma);
-      const puuttuu = [];
-      if (!h.kuvat.length && !h.sanelu && !(h.aanitteet || []).length) puuttuu.push("kuva tai sanelu");
-      if (!h.sijainti || !h.sijainti.tilaId) puuttuu.push("tila");
-      if (!h.menetelma) puuttuu.push("menetelmä");
-      if (!h.tulos) puuttuu.push("tulos (poikkeama / ei huomautettavaa)");
-      m.kentat.forEach((f) => {
-        if (f.t === "table") {
-          const rows = M.rivit(h, f);
-          if (f.req && !rows.length) { puuttuu.push(f.l.toLowerCase()); return; }
-          const pcols = (f.sarakkeet || []).filter((c) => c.req && !c.ryhma);
-          const vajaat = rows.filter((r) => pcols.some((c) => tyhja(r[c.k])) && Meter.rowState(r) !== "reading").length;
-          if (vajaat) puuttuu.push("puuttuvia lukemia (" + vajaat + " riviä)");
-          const g = M.ryhmaSarake(f);
-          if (g && rows.some((r) => tyhja(r[g.k]))) puuttuu.push(g.l.toLowerCase() + " puuttuu riviltä");
-          Meter.rowIssues(h, f).forEach((x) => puuttuu.push(x));
-          return;
-        }
-        if (f.req && tyhja(h.kentat[f.k])) puuttuu.push(f.l.toLowerCase());
-      });
-      if (m.id === "avaus" && !h.kuvat.length) puuttuu.push("kuva avauksesta");
-      if (k.suunnitelma.length && !h.suunnitelmaId) puuttuu.push("suunnitelman kohta");
-      if (M.onMittauksia(h) && !h.vahvistettu) puuttuu.push("mittausarvojen vahvistus");
+      const puuttuu = havaintoPuutteet(h);
       if (!puuttuu.length) return;
       out.push({
         tyyppi: "havainto", id: h.id, otsikko: nro(h.nro) + " · " + (Model.sijaintiTeksti(h.sijainti) || m.nimi),
@@ -68,6 +47,34 @@
       });
     });
     return out;
+  }
+
+  /* Yhden havainnon puuttuvat tiedot (havaintokortti, kohdenäkymä ja lähtötarkistus) */
+  function havaintoPuutteet(h) {
+    const k = S.kohde;
+    const m = M.menetelma(h.menetelma);
+    const puuttuu = [];
+    if (!h.kuvat.length && !h.sanelu && !(h.aanitteet || []).length) puuttuu.push("kuva tai sanelu");
+    if (!h.sijainti || !h.sijainti.tilaId) puuttuu.push("tila");
+    if (!h.menetelma) puuttuu.push("menetelmä");
+    if (!h.tulos) puuttuu.push("tulos");
+    m.kentat.forEach((f) => {
+      if (f.t === "table") {
+        const rows = M.rivit(h, f);
+        if (f.req && !rows.length) { puuttuu.push(f.l.toLowerCase()); return; }
+        const pcols = (f.sarakkeet || []).filter((c) => c.req && !c.ryhma);
+        const vajaat = rows.filter((r) => pcols.some((c) => tyhja(r[c.k])) && Meter.rowState(r) !== "reading").length;
+        if (vajaat) puuttuu.push("puuttuvia lukemia (" + vajaat + " riviä)");
+        const g = M.ryhmaSarake(f);
+        if (g && rows.some((r) => tyhja(r[g.k]))) puuttuu.push(g.l.toLowerCase() + " puuttuu riviltä");
+        Meter.rowIssues(h, f).forEach((x) => puuttuu.push(x));
+        return;
+      }
+      if (f.req && tyhja(h.kentat[f.k])) puuttuu.push(f.l.toLowerCase());
+    });
+    if (m.id === "avaus" && !h.kuvat.length) puuttuu.push("kuva avauksesta");
+    if (k.suunnitelma.length && !h.suunnitelmaId) puuttuu.push("suunnitelman kohta");
+    return puuttuu;
   }
 
   function yhteenveto(list) {
@@ -82,6 +89,7 @@
   async function view() {
     const k = S.kohde;
     const list = puutteet();
+    await Model.ensureUrls(list.filter((x) => x.tyyppi === "havainto").map((x) => { const h = Model.havainto(x.id); return h && h.kuvat[0]; }).filter(Boolean));
     const cnt = { tarkastettu: 0, poikkeama: 0, ei_paasya: 0, ei_tutkittu: 0 };
     k.tilat.forEach((t) => { cnt[Model.tilaStatus(t)]++; });
     const stat = (key, bg) => '<div class="' + M.TILASTATUS[key].cls + '" style="border-radius:9px"><b>' + cnt[key] + "</b><span>" + M.TILASTATUS[key].l + "</span></div>";
@@ -97,8 +105,14 @@
       if (!items.length) return;
       body += '<h2 style="font-size:15px;margin:16px 2px 8px">' + title + " (" + items.length + ")</h2>";
       items.forEach((x) => {
-        body += '<div class="todo"><div class="tt"><div><div class="t">' + esc(x.otsikko) + '</div><div class="s">' + esc(x.selite) + "</div></div></div>" +
-          '<div class="acts"><button class="btn btn-sm btn-dark" data-a="do" data-t="' + t + '" data-id="' + x.id + '">' + esc(x.toimintoTeksti) + "</button>" +
+        const hv = t === "havainto" ? Model.havainto(x.id) : null;
+        const needTulos = hv && !hv.tulos;
+        const img = hv && hv.kuvat[0] ? '<img class="todo-img" src="' + Model.url(hv.kuvat[0]) + '" alt="">' : "";
+        body += '<div class="todo"><div class="tt">' + img + '<div><div class="t">' + esc(x.otsikko) + '</div><div class="s">' + esc(x.selite) + "</div>" +
+          (hv && hv.sanelu ? '<div class="s" style="font-style:italic;margin-top:2px">' + esc(hv.sanelu.length > 120 ? hv.sanelu.slice(0, 120) + "…" : hv.sanelu) + "</div>" : "") + "</div></div>" +
+          '<div class="acts">' +
+          (needTulos ? '<button class="btn btn-sm" data-a="qtulos" data-v="poikkeama" data-id="' + x.id + '">Poikkeama</button><button class="btn btn-sm" data-a="qtulos" data-v="ok" data-id="' + x.id + '">Ei huomautettavaa</button>' : "") +
+          '<button class="btn btn-sm btn-dark" data-a="do" data-t="' + t + '" data-id="' + x.id + '">' + esc(x.toimintoTeksti) + "</button>" +
           (t === "kohta" ? '<button class="btn btn-sm" data-a="pois" data-id="' + x.id + '">Jätetään pois + syy</button>' : "") +
           (t === "tila" ? '<button class="btn btn-sm" data-a="eip" data-id="' + x.id + '">Ei pääsyä + syy</button>' : "") +
           "</div></div>";
@@ -120,6 +134,11 @@
       const b = e.target.closest("[data-a]");
       if (!b) return;
       const a = b.dataset.a, id = b.dataset.id;
+      if (a === "qtulos") {
+        const hv = Model.havainto(id);
+        hv.tulos = b.dataset.v; Auto.manual(hv, "tulos");
+        await Model.saveHavainto(hv); App.render(); return;
+      }
       if (a === "do") {
         if (b.dataset.t === "kohta") App.kohtaActions(Model.kohta(id));
         else if (b.dataset.t === "tila") Plan.roomActions(Model.tila(id));
@@ -144,5 +163,5 @@
     S.cleanup = () => { root.onclick = null; };
   }
 
-  window.Check = { puutteet, yhteenveto, view };
+  window.Check = { puutteet, havaintoPuutteet, yhteenveto, view };
 })();

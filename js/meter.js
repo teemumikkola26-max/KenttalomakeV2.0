@@ -262,6 +262,36 @@
     const map = f.ocr || {};
     let ryhma = opts.ryhma || "";
     let ryhmat = (opts.ryhmat || []).slice();
+    /* Syvyyssarja opitaan edellisestä mittauspisteestä (esim. 28, 28, 70, 70):
+       ryhmä vaihtuu itse, kun edellisen pisteen mukainen määrä lukemia on otettu.
+       Käyttäjän oma valinta lopettaa automaattisen vaihdon tällä kerralla. */
+    const seqKey = h.menetelma + "." + f.k + ".sarja";
+    let seq = null, seqOn = false;
+    if (gcol) {
+      seq = (S.kohde.muisti || {})[seqKey] || null;
+      if (!seq) {
+        const prev = S.havainnot.filter((x) => x.id !== h.id && x.menetelma === h.menetelma && M.rivit(x, f).length >= 2).sort((a, b) => b.updated - a.updated)[0];
+        if (prev) seq = M.rivit(prev, f).map((r) => String(r[gcol.k] || "")).filter(Boolean);
+      }
+      if (seq && seq.length >= 2) {
+        seqOn = true;
+        const done = M.rivit(h, f).length;
+        if (seq[done]) ryhma = seq[done];
+        seq.forEach((g) => { if (!ryhmat.includes(g)) ryhmat.push(g); });
+      }
+    }
+    function advanceSeq() {
+      if (!seqOn) return;
+      const n = M.rivit(h, f).length;
+      const nx = seq[n];
+      if (nx && nx !== ryhma) {
+        ryhma = nx;
+        if (opts.onRyhma) opts.onRyhma(ryhma, ryhmat);
+        paintGroups();
+        UI.buzz([20, 60, 20]);
+        toast("Seuraavaksi: " + gcol.l.toLowerCase() + " " + nx + (gcol.u ? " " + gcol.u : ""), 2200);
+      }
+    }
     let count = 0, rejects = 0;
     let alive = true;
     let det = null, detMiss = 0, stableN = 0;   // näytön paikka (normalisoitu videon koordinaatistoon)
@@ -340,6 +370,8 @@
           '<span class="lst">' + (ok ? icon("ok") + " Luenta varma" : "Luetaan… pidä paikallaan") + "</span>";
       }
       $(".shutter").classList.toggle("ready", liveOk());
+      if (liveOk() && !wasSure) UI.buzz(25);
+      wasSure = liveOk();
       $("[data-hint]").textContent = liveOk() ? "Tallenna lukema laukaisimesta" : det ? "Näyttö löytyi" : "Tuo mittarin näyttö kuvan keskelle";
     }
 
@@ -416,6 +448,7 @@
       await Model.saveHavainto(h);
       count++; paintCount();
       if (opts.onRow) opts.onRow(row);
+      advanceSeq();
       if (!result) enqueue({ h, f, row, canvas: crop });
       else window.dispatchEvent(new CustomEvent("ks-ocr", { detail: { havaintoId: h.id, rowId: row.id } }));
     }
@@ -456,7 +489,15 @@
       }
     }
 
+    const releaseAwake = UI.keepAwake();
+    let wasSure = false;
     function close() {
+      // Tämän pisteen sarja muistiin seuraavaa pistettä varten
+      if (gcol) {
+        const cur = M.rivit(h, f).map((r) => String(r[gcol.k] || "")).filter(Boolean);
+        if (cur.length >= 2) { S.kohde.muisti[seqKey] = cur; Model.saveKohde(); }
+      }
+      releaseAwake();
       alive = false;
       Camera.stop();
       el.remove();
@@ -465,7 +506,7 @@
 
     el.addEventListener("click", async (e) => {
       const g = e.target.closest("[data-g]");
-      if (g) { ryhma = g.dataset.g; if (opts.onRyhma) opts.onRyhma(ryhma, ryhmat); paintGroups(); return; }
+      if (g) { ryhma = g.dataset.g; seqOn = false; if (opts.onRyhma) opts.onRyhma(ryhma, ryhmat); paintGroups(); return; }
       const b = e.target.closest("[data-c]");
       if (!b) return;
       const c = b.dataset.c;
@@ -477,7 +518,7 @@
         if (!v) return;
         const val = v.replace(/\s*(mm|cm|m)$/i, "").trim();
         if (!ryhmat.includes(val)) ryhmat.push(val);
-        ryhma = val;
+        ryhma = val; seqOn = false;
         if (opts.onRyhma) opts.onRyhma(ryhma, ryhmat);
         paintGroups();
       }
