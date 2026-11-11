@@ -488,7 +488,7 @@
     };
 
     paint();
-    S.cleanup = () => { if (picker) picker.destroy(); stopDict(); save.flush(); window.removeEventListener("ks-ocr", onOcr); root.oninput = root.onchange = root.onclick = null; };
+    S.cleanup = () => { if (picker) picker.destroy(); stopDict(); save.flush(); Learn.learn(h).then(() => Model.saveHavainto(h)).catch(() => {}); window.removeEventListener("ks-ocr", onOcr); root.oninput = root.onchange = root.onclick = null; };
   }
 
   window.Card = { view };

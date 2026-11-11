@@ -145,7 +145,8 @@
           tiedot: rivit.filter((r) => !r.mittaus).map((r) => ({ kentta: r.kentta, arvo: r.arvo, yksikko: r.yksikko })),
           mittaustulokset: rivit.filter((r) => r.mittaus).map((r) => ({ kentta: r.kentta, arvo: r.arvo, yksikko: r.yksikko })),
           mittaustaulukot: taulukot(h, paths),
-          tunnistettu_sanelusta: Object.keys(h.auto || {}).filter((x) => h.auto[x] === "sanelu"),
+          tunnistettu_sanelusta: Object.keys(h.auto || {}).filter((x) => h.auto[x] === "sanelu" || h.auto[x] === "opittu")
+            .map((x) => x + (h.auto[x] === "opittu" ? " (opittu malli)" : "")),
           mittaustulokset_vahvistettu: !!h.vahvistettu,
           tutkijan_alustava_tulkinta: h.tulkinta || "",
           kuvat: paths.kuvat[h.id] || [],

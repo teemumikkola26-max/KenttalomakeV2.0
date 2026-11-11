@@ -190,6 +190,13 @@
     if (mid && canSet("menetelma", h.menetelma) && mid !== h.menetelma) {
       h.menetelma = mid; h.auto.menetelma = "sanelu"; h.vahvistettu = false;
       changes.push({ kentta: "menetelmä", arvo: M.menetelma(mid).nimi });
+    } else if (!mid && canSet("menetelma", h.menetelma) && window.Learn) {
+      // Avainsanat eivät tunnistaneet: kokeillaan opittua mallia (vain selvät tapaukset).
+      const pred = Learn.predict(h);
+      if (pred && pred.id !== h.menetelma) {
+        h.menetelma = pred.id; h.auto.menetelma = "opittu"; h.vahvistettu = false;
+        changes.push({ kentta: "menetelmä", arvo: M.menetelma(pred.id).nimi + " (opittu)" });
+      }
     }
     const tul = detectTulos(t);
     if (tul && canSet("tulos", h.tulos) && tul !== h.tulos) {

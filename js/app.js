@@ -481,6 +481,7 @@
   });
   window.addEventListener("DOMContentLoaded", async () => {
     await M.load();
+    await Learn.load();
     render();
     if ("serviceWorker" in navigator && location.protocol !== "file:") {
       navigator.serviceWorker.register("sw.js").then((reg) => {

@@ -84,9 +84,11 @@
     }
     function paintMethods() {
       const list = MethodPicker.ehdotukset(h.menetelma, h.id).slice(0, 4);
+      const src = h.auto && h.auto.menetelma;
+      const srcTag = src === "sanelu" ? "sanelusta" : src === "opittu" ? "opittu" : "";
       $("[data-mchips]").innerHTML = list.map((x) =>
         '<button class="chip" data-m="' + esc(x.id) + '" aria-pressed="' + (x.id === h.menetelma) + '">' + esc(x.nimi) +
-        (x.tag ? ' <span class="mp-tag">' + esc(x.tag) + "</span>" : "") + "</button>").join("") +
+        (x.id === h.menetelma && srcTag ? ' <span class="mp-tag">' + srcTag + "</span>" : x.tag ? ' <span class="mp-tag">' + esc(x.tag) + "</span>" : "") + "</button>").join("") +
         '<button class="chip" data-c="more">' + (list.length ? "Muu…" : "Valitse…") + "</button>";
       $("[data-mlbl]").classList.toggle("missing", !h.menetelma);
       $("[data-mlbl]").textContent = h.menetelma ? "Menetelmä" : "Valitse menetelmä";
@@ -213,7 +215,11 @@
       h.sanelu = ta.value;
       persist.flush();
       await saveNow();
-      if (saved) await rememberContext();
+      if (saved) {
+        await rememberContext();
+        await Learn.learn(h);          // havainto valmis: malli oppii sanelun ja menetelmän yhteyden
+        await Model.saveHavainto(h);
+      }
     }
     async function finish(toCard) {
       await flush();

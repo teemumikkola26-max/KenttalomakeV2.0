@@ -34,6 +34,7 @@
       '<main class="view no-nav">' +
       '<section class="card">' + rows + "</section>" +
       '<button class="btn btn-primary btn-block" data-a="add">' + icon("plus") + "Lisää menetelmä</button>" +
+      learnHtml() +
       '<section class="card" style="margin-top:16px"><div class="card-h"><h2>Jakaminen</h2></div><div class="card-b">' +
       '<p class="hint" style="margin:0 0 10px">Menetelmät tallentuvat tälle laitteelle. Jaa ne kollegoille viemällä tiedosto ja tuomalla se heidän laitteellaan. ZIP-paketti sisältää myös menetelmät.</p>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-sm" data-a="export">' + icon("download") + "Vie menetelmät</button>" +
@@ -59,7 +60,7 @@
         await M.save();
         location.hash = "#/menetelmat/" + m.id;
       } else if (a === "export") {
-        const blob = new Blob([JSON.stringify({ muoto: "kuva-sanelu/menetelmat-1", viety: new Date().toISOString(), menetelmat: M.MENETELMAT }, null, 2)], { type: "application/json" });
+        const blob = new Blob([JSON.stringify({ muoto: "kuva-sanelu/menetelmat-1", viety: new Date().toISOString(), menetelmat: M.MENETELMAT, oppi: Learn.exportModel() }, null, 2)], { type: "application/json" });
         const el = document.createElement("a");
         el.href = URL.createObjectURL(blob);
         el.download = "menetelmat_" + new Date().toISOString().slice(0, 10) + ".json";
@@ -74,14 +75,28 @@
           if (!Array.isArray(lista)) throw new Error("Tiedostosta ei löytynyt menetelmiä.");
           const korvaa = await confirmSheet({ title: "Tuodaanko " + lista.length + " menetelmää?", text: "Uudet menetelmät lisätään. Valitse, korvataanko tällä laitteella jo olevat samat menetelmät tuodulla versiolla.", ok: "Korvaa samat", cancel: "Lisää vain uudet" });
           await M.yhdista(lista, korvaa);
+          if (data.oppi && await confirmSheet({ title: "Tuodaanko myös opittu malli?", text: "Tiedostossa on kollegan laitteella opittu malli (millainen sanelu kuuluu millekin menetelmälle). Se yhdistetään tämän laitteen malliin.", ok: "Tuo malli", cancel: "Ei" })) await Learn.importModel(data.oppi);
           toast("Menetelmät tuotu"); App.render();
         } catch (err) { toast(err.message || "Tuonti epäonnistui", 4000); }
+      } else if (a === "learnReset") {
+        if (!(await confirmSheet({ title: "Nollataanko oppiminen?", text: "Sovellus unohtaa, millainen sanelu kuuluu millekin menetelmälle. Avainsanoihin perustuva tunnistus toimii edelleen.", ok: "Nollaa", danger: true }))) return;
+        await Learn.reset(); toast("Oppiminen nollattu"); App.render();
       } else if (a === "reset") {
         if (!(await confirmSheet({ title: "Palautetaanko oletusmenetelmät?", text: "Oletusmenetelmien muutokset korvataan alkuperäisillä. Itse lisätyt menetelmät säilyvät.", ok: "Palauta oletukset", danger: true }))) return;
         await M.palautaOletukset(); toast("Oletukset palautettu"); App.render();
       }
     };
     S.cleanup = () => { root.onclick = null; };
+  }
+
+  function learnHtml() {
+    const st = Learn.stats();
+    const rows = Object.entries(st.menetelmittain).sort((a, b) => b[1] - a[1])
+      .map(([id, n]) => "<div>" + esc(M.menetelma(id).nimi) + ": <b>" + String(n).replace(".", ",") + "</b></div>").join("");
+    return '<section class="card" style="margin-top:16px"><div class="card-h"><h2>Oppiminen</h2><span class="meta">' + String(Math.round(st.yhteensa)).replace(".", ",") + " esimerkkiä</span></div><div class=\"card-b\">" +
+      '<p class="hint" style="margin:0 0 10px">Sovellus oppii valmiista havainnoista, millainen sanelu kuuluu millekin menetelmälle, ja ehdottaa menetelmää, kun avainsanat eivät riitä (merkintä <i>opittu</i>). Itse valittu menetelmä painaa enemmän kuin automaattisesti tunnistettu. Ehdotuksia aletaan tehdä, kun esimerkkejä on vähintään ' + Learn.RAJAT.minEsimerkit + ".</p>" +
+      (rows ? '<div style="font-size:14px;line-height:1.6;margin-bottom:10px">' + rows + "</div>" : "") +
+      '<button class="btn btn-sm" data-a="learnReset">Nollaa oppiminen</button></div></section>';
   }
 
   /* ---------- Yksi menetelmä ---------- */
