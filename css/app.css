@@ -470,3 +470,10 @@ input.flag{border:2px solid #c9771d !important;background:#fff4e5}
 .need-meta{color:#8a4b0f;font-weight:700}
 .more-fields{margin-top:4px}
 .more-fields .chip{font-size:13px;min-height:34px}
+/* Sanasto */
+details.vocab>summary{list-style:none;cursor:pointer}
+details.vocab>summary::-webkit-details-marker{display:none}
+details.vocab>summary h2::before{content:"▸";display:inline-block;width:1em;color:var(--muted);transition:transform .15s}
+details.vocab[open]>summary h2::before{transform:rotate(90deg)}
+details.vocab:not([open])>summary{border-bottom:none}
+.vb-ed{color:var(--safety);font-weight:700}

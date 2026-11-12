@@ -201,6 +201,7 @@
       '<button class="btn btn-primary btn-block" data-act="newKohde">' + icon("plus") + "Uusi kohde</button>" +
       '<div style="height:10px"></div><button class="btn btn-block" data-act="restore">' + icon("upload") + "Palauta varmuuskopio (ZIP)</button>" +
       '<div style="height:10px"></div><a class="btn btn-block" href="#/menetelmat">' + icon("list") + "Menetelmät</a>" +
+      '<div style="height:10px"></div><a class="btn btn-block" href="#/sanasto">' + icon("edit") + "Sanasto</a>" +
       '<p class="hint">Tiedot tallentuvat vain tälle laitteelle. Vie kohde ZIP-pakettina raportointia ja varmuuskopiota varten.' +
       (est && est.usage ? " Käytössä " + (est.usage / 1048576).toFixed(0) + " Mt." : "") + "</p>" +
       '<p class="hint" style="text-align:center;margin-top:18px">Versio ' + esc(window.APP_VERSION) + ' · <a href="kameraluku-testi.html">Kameraluvun testi</a></p>' +
@@ -474,6 +475,7 @@
     if (S.cleanup) { try { S.cleanup(); } catch (e) { /* ohita */ } S.cleanup = null; }
     const { parts, q } = parseHash();
     try {
+      if (parts[0] === "sanasto") { await VocabView.view(); return; }
       if (parts[0] === "menetelmat") {
         if (parts[1]) await Editor.viewMethod(decodeURIComponent(parts[1])); else await Editor.viewList();
         return;
@@ -508,12 +510,14 @@
 
   window.addEventListener("hashchange", (e) => {
     const from = (e.oldURL || "").split("#")[1] || "/";
-    if (location.hash.indexOf("#/menetelmat") === 0 && from.indexOf("/menetelmat") !== 0) paluuHash = "#" + from;
+    const asetus = (h) => /^\/?(menetelmat|sanasto)/.test(h);
+    if (/^#\/(menetelmat|sanasto)/.test(location.hash) && !asetus(from)) paluuHash = "#" + from;
     render();
   });
   window.addEventListener("DOMContentLoaded", async () => {
     await M.load();
     await Learn.load();
+    await Vocab.load();
     render();
     if ("serviceWorker" in navigator && location.protocol !== "file:") {
       navigator.serviceWorker.register("sw.js").then((reg) => {

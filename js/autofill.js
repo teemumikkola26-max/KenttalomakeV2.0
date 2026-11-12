@@ -19,29 +19,37 @@
 
   const norm = (s) => " " + String(s || "").toLowerCase().normalize("NFC").replace(/[^\p{L}\p{N}%]+/gu, " ").replace(/\s+/g, " ").trim() + " ";
   // Sana, joka alkaa annetulla vartalolla (taivutusmuodot: keittiö -> keittiössä)
-  const stemRe = (stem) => new RegExp("(^| )" + stem.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/ /g, " \\S* ?"), "u");
+  /* Sanaston sana on sanan alku ("kondens" osuu sanaan "kondenssi"). Lainausmerkeissä tai
+     enintään kahden kirjaimen sana ("us", "ap") on kokonainen sana. */
+  const stemRe = (stem) => {
+    let st = String(stem).trim(), exact = false;
+    if (/^".*"$/.test(st)) { st = st.slice(1, -1); exact = true; }
+    st = st.toLowerCase();
+    if (st.replace(/[^a-zåäö0-9]/g, "").length <= 2) exact = true;
+    return new RegExp("(^| )" + st.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/ /g, " \\S* ?") + (exact ? "(?=$|[ ,.;:!?-])" : ""), "u");
+  };
   const has = (t, stem) => stemRe(stem).test(t);
 
   /* ---------- Menetelmät ---------- */
   const METHOD_WORDS = {
     rh: ["rh mittau", "rh mitta", "rh piste", "rh anturi", "rh ", "suhteellinen kosteus", "suhteellisen kostey", "suhteellista kosteutta", "porareiä", "porarei", "porareik",
-      "rakennekosteu", "rakenteen kostey", "viiltomittau", "putkimittau", "mittausputk", "kosteusmittaus rakenteesta", "tasaantumisaik", "mittaussyvyy", "mittauspiste", "vaisala", "hm40", "hm42"],
-    pintakosteus: ["pintakostey", "pintakosteu", "kosteudenosoitin", "pintakosteusmittar", "kosteuskartoitu", "gann", "hydromette", "tramex", "protimeter", "pintakosteusosoitin", "vertailukoh", "vertailuarv"],
-    avaus: ["rakenneavau", "avaus", "avaukse", "avattiin", "avasimme", "avattu", "purettiin", "tarkastusaukko", "kurkistusaukko", "kurkistusreik", "rakennekerrokse", "kerrokset sisältä"],
-    nayte: ["näyte", "näytte", "materiaalinäyte", "mikrobinäyte", "asbestinäyte", "haitta-ainenäyte", "näytepala", "näytteenot", "otettiin näyte", "kuitunäyte", "pah näyte", "voc näyte"],
-    merkkiaine: ["merkkiain", "merkkikaasu", "typpived", "tiiviyskoe", "tiiviysmittau", "tiiviystarkastelu", "injektoi", "vuotoilmaa", "ilmavuoto"],
-    lampokuvaus: ["lämpökuva", "lämpökamer", "termografi", "pintalämpötil", "lämpötilaindeksi", "flir", "hikmicro", "kylmäsilta", "kylmävuoto"],
-    paine: ["painesuhte", "paine ero", "paine-ero", "paineero", "alipain", "ylipain", "ilmavirta", "ilmavirra", "ilmamäärä", "tuloilmamäär", "poistoilmamäär", "painesuhdeseuran"]
+      "rakennekosteu", "rakenteen kostey", "viiltomittau", "viiltomenetelm", "kosteusmittaukset", "rakennekosteusmittau", "putkimittau", "mittausputk", "kosteusmittaus rakenteesta", "tasaantumisaik", "mittaussyvyy", "mittauspiste", "vaisala", "hm40", "hm42"],
+    pintakosteus: ["pintakostey", "pintakosteu", "pko", "pko-arvo", "pko arvo", "yksikköä", "pinta-anturi", "b55", "b50", "hydrotest", "kosteudenosoitin", "pintakosteusmittar", "kosteuskartoitu", "gann", "hydromette", "tramex", "protimeter", "pintakosteusosoitin", "vertailukoh", "vertailuarv"],
+    avaus: ["rakenneavau", "rakennetyyppiselvity", "avauskoh", "avauskohda", "ra1", "ra2", "ra3", "avaus", "avaukse", "avattiin", "avasimme", "avattu", "purettiin", "tarkastusaukko", "kurkistusaukko", "kurkistusreik", "rakennekerrokse", "kerrokset sisältä"],
+    nayte: ["näyte", "näytte", "mik1", "mikrobimateriaalinäyte", "voc-materiaalinäyte", "voc-ilmanäyte", "mikrobi-ilmanäyte", "ilmanäyte", "laskeumanäyte", "geeliteippinäyte", "pyyhintäpölynäyte", "pölynäyte", "pölynkoostumusnäyte", "pah-näyte", "pcb-näyte", "materiaalinäyte", "mikrobinäyte", "asbestinäyte", "haitta-ainenäyte", "näytepala", "näytteenot", "otettiin näyte", "kuitunäyte", "pah näyte", "voc näyte"],
+    merkkiaine: ["merkkiain", "merkkikaasu", "merkkiainevuoto", "merkkiaineanalysaattori", "alipaineist", "sensistor", "mak1", "typpived", "tiiviyskoe", "tiiviysmittau", "tiiviystarkastelu", "injektoi", "vuotoilmaa", "ilmavuoto"],
+    lampokuvaus: ["lämpökuva", "lämpökamer", "lämpösäteily", "termografi", "pintalämpötil", "lämpötilaindeksi", "flir", "hikmicro", "kylmäsilta", "kylmävuoto"],
+    paine: ["painesuhte", "paine ero", "paine-ero", "paineero", "dp-calc", "dp calc", "paine-eromittari", "alipain", "ylipain", "ilmavirta", "ilmavirra", "ilmamäärä", "tuloilmamäär", "poistoilmamäär", "painesuhdeseuran"]
   };
   function detectMethod(t) {
     const hits = [];
-    for (const [id, words] of Object.entries(METHOD_WORDS)) {
-      if (!M.MENETELMAT.some((m) => m.id === id && !m.piilotettu)) continue;
-      for (const w of words) { const i = t.search(stemRe(w.trim())); if (i >= 0) { hits.push({ id, i }); break; } }
-    }
+    M.MENETELMAT.forEach((m) => {
+      if (m.piilotettu) return;
+      for (const w of methodWords(m)) { if (!w.trim()) continue; const i = t.search(stemRe(w.trim())); if (i >= 0) { hits.push({ id: m.id, i }); break; } }
+    });
     // Itse lisätyt menetelmät nimen perusteella (esim. "Radonmittaus")
     M.MENETELMAT.forEach((m) => {
-      if (m.piilotettu || METHOD_WORDS[m.id]) return;
+      if (m.piilotettu || methodWords(m).length) return;
       const n = norm(m.nimi).trim();
       if (n.length >= 5) { const i = t.indexOf(" " + n.slice(0, Math.max(5, n.length - 2))); if (i >= 0) hits.push({ id: m.id, i }); }
     });
@@ -50,20 +58,30 @@
     return hits[0].id;
   }
 
+  // Menetelmän tunnistussanat: menetelmäeditorissa muokatut tai oletukset
+  const methodWords = (m) => Array.isArray(m.sanat) ? m.sanat : (METHOD_WORDS[m.id] || []);
+
   /* ---------- Tulos ---------- */
-  const OK_PHRASES = ["ei huomautettava", "ei poikkeam", "ei poikkeav", "ei vaurio", "ei merkkejä", "ei viitteitä", "ei havaittu", "ei todettu", "ei havaintoja", "ei kosteutta", "ei kohonnei", "ei mikrobi",
-    "kunnossa", "ehjä", "ehjät", "normaali", "normaaleja", "normaalit", "moitteeton", "hyväkuntoi", "hyvässä kunnossa", "tavanomai", "kuiva", "kuivat", "kuivia", "tiivis", "tiiviit", "asianmukai", "vaatimusten mukai", "tasaantun hyvin"];
-  const BAD_STEMS = ["vaurio", "vaurioitu", "kosteusvaurio", "vesivaurio", "mikrobi", "home", "hilseil", "halkea", "halkeil", "irtoa", "irronnut", "irti", "kupru", "kuplii", "tummu", "värjäy", "kopo", "laho", "lahoa", "ruoste", "ruostu", "haju", "vuoto", "vuota", "märkä", "märkiä", "kostea", "kosteita", "koholla", "kohonnut", "puutteel", "rikkoutu", "rikki", "rako", "painum", "poikkeama", "korjattava", "huono", "heikko", "pullistu", "turpoa", "kastunut", "kastuu", "tippuu", "tiivistyy", "jäätyy", "vetää", "kosteusjälk", "vesijälk", "vuotojälk", "jälki", "jälkiä", "läikk", "laikk", "valum", "sammal", "levä",
+  const OK_DEF = ["ei huomautettava", "ei poikkeam", "ei poikkeav", "ei vaurio", "ei merkkejä", "ei viitteitä", "ei havaittu", "ei todettu", "ei havaintoja", "ei kosteutta", "ei kohonnei", "ei mikrobi",
+    "ei toimenpiderajan ylity", "ei havaittu puutteita", "ei viitettä", "pääosin tavanomai", "ei mikrobikasvu", "kuiva", "kunnossa", "ehjä", "ehjät", "normaali", "normaaleja", "normaalit", "moitteeton", "hyväkuntoi", "hyvässä kunnossa", "tavanomai", "kuiva", "kuivat", "kuivia", "tiivis", "tiiviit", "asianmukai", "vaatimusten mukai", "tasaantun hyvin"];
+  const BAD_DEF = ["vaurio", "vaurioitu", "kosteusvaurio", "vesivaurio", "mikrobi", "home", "hilseil", "halkea", "halkeil", "irtoa", "irronnut", "irti", "kupru", "kuplii", "tummu", "värjäy", "kopo", "laho", "lahoa", "ruoste", "ruostu", "haju", "vuoto", "vuota", "märkä", "märkiä", "kostea", "kosteita", "koholla", "kohonnut", "puutteel", "rikkoutu", "rikki", "rako", "painum", "poikkeama", "korjattava", "huono", "heikko", "pullistu", "turpoa", "kastunut", "kastuu", "tippuu", "tiivistyy", "jäätyy", "vetää", "kosteusjälk", "vesijälk", "vuotojälk", "jälki", "jälkiä", "läikk", "laikk", "valum", "sammal", "levä",
     "mikrobikasvu", "homekasvu", "hometta", "homeinen", "kosteusrasit", "kondens", "huurre", "huurtee", "korroosi", "ruosteinen", "murtunut", "murtuma", "rapautu", "lohkeil", "lohkea", "haljen",
     "lahonnut", "lahovauri", "vesivahin", "vuotanut", "tummentum", "värimuuto", "kuplii", "kuplia", "irtoill", "ummehtun", "tunkkai", "maakellari", "tiivistym", "virheellin", "riittämät",
-    "puuttuu", "puuttuva", "vajaa", "vanhentun", "elinkaaren", "käyttöikä", "ylittän", "läpivientivuoto", "vuotokoh", "ilmavuoto", "vuotoilma", "kylmäsilta", "kylmävuoto", "painunut", "kallistus väärä", "vastakaato"];
+    "puuttuu", "puuttuva", "vajaa", "vanhentun", "elinkaaren", "käyttöikä", "ylittän", "läpivientivuoto", "vuotokoh", "ilmavuoto", "vuotoilma", "kylmäsilta", "kylmävuoto", "alunoin", "kuura", "kuurassa", "kasvust", "lammikoi", "vaihtokunno", "ikääntyn", "irvistä", "löysä", "kuitulähte", "epätiiv", "merkkiainevuoto", "kohollaan", "kohonne",
+    "mikrobiperäi", "vaurioepäily", "vauriolaaj", "toimenpiderajan ylit", "viitearvon ylit", "kosteusvaurioindikaattori", "indikaattorimikrob", "stachybotrys", "sädesien", "aktinomykeet",
+    "ilmayhtey", "sisäilmayhtey", "lievästi kohol", "hieman kohon", "painunut", "kallistus väärä", "vastakaato"];
   function detectTulos(t) {
     let bad = false, ok = false, negated = false;
-    for (const p of OK_PHRASES) if (has(t, p)) { ok = true; break; }
-    for (const s of BAD_STEMS) {
-      const re = new RegExp("(^| )" + s, "gu");
+    // Aina poikkeama, myös kieltomuodossa ("ei vedeneristettä")
+    for (const p of Vocab.list("poikkeamaLauseet")) if (has(t, p)) return "poikkeama";
+    for (const p of Vocab.list("kunnossa")) if (has(t, p)) { ok = true; break; }
+    for (const s of Vocab.list("poikkeama")) {
+      const re = new RegExp(stemRe(s).source, "gu");
       let m;
       while ((m = re.exec(t))) {
+        // menetelmän nimi ei ole havainto: "mikrobinäyte", "kosteusmittaus", "vuotokohtien merkkiainekoe"
+        const st = m.index + m[1].length, word = t.slice(st, t.indexOf(" ", st + 1) < 0 ? t.length : t.indexOf(" ", st + 1));
+        if (/(näyte|näytt|analyy|mittau|kartoitu|tutkimu|koe$|kokee)/u.test(word)) continue;
         const before = t.slice(Math.max(0, m.index - 24), m.index + 1);
         const words = before.trim().split(" ").slice(-3).join(" ") + " ";
         if (/(^| )(ei|eikä|eivät|ilman|ole) /u.test(" " + words)) { negated = true; continue; }   // "ei homeen merkkejä"
@@ -77,7 +95,7 @@
   }
 
   /* ---------- Rakenneosa ---------- */
-  const PART_WORDS = [
+  const PART_DEF = [
     ["ulkoseinä", "Ulkoseinä"], ["ulkoseinä", "Ulkoseinä"], ["sokkeli", "Liittymä"], ["väliseinä", "Väliseinä"],
     ["välipohja", "Välipohja"], ["yläpohja", "Yläpohja / katto"], ["katto", "Yläpohja / katto"], ["katon", "Yläpohja / katto"], ["kato", "Yläpohja / katto"],
     ["alapohja", "Alapohja / lattia"], ["lattia", "Alapohja / lattia"], ["laatta", "Alapohja / lattia"], ["maanvarai", "Alapohja / lattia"],
@@ -92,12 +110,16 @@
     ["ikkunapenk", "Ikkuna / ovi"], ["ikkunalau", "Ikkuna / ovi"], ["vesipelti", "Ikkuna / ovi"], ["kynny", "Ikkuna / ovi"], ["ulko-ovi", "Ikkuna / ovi"], ["parvekeovi", "Ikkuna / ovi"],
     ["kaivo", "Märkätila"], ["vedeneristy", "Märkätila"], ["laatoitu", "Märkätila"], ["silikonisauma", "Märkätila"], ["suihkunurk", "Märkätila"], ["kylpyamme", "Märkätila"],
     ["alaohjauspuu", "Liittymä"], ["alajuoksu", "Liittymä"], ["perusmuuri", "Liittymä"], ["sokkelin", "Liittymä"], ["läpivien", "Liittymä"], ["saumaus", "Liittymä"],
+    ["us", "Ulkoseinä"], ["us-rakente", "Ulkoseinä"], ["tuulensuojavill", "Ulkoseinä"], ["runkovill", "Ulkoseinä"], ["tuuletusra", "Ulkoseinä"], ["ulkoverhou", "Ulkoseinä"],
+    ["ap", "Alapohja / lattia"], ["ap-laatta", "Alapohja / lattia"], ["lattiakorotu", "Alapohja / lattia"], ["kaksoislaat", "Alapohja / lattia"], ["lankkulattia", "Alapohja / lattia"], ["puukoolau", "Alapohja / lattia"], ["alustäyttö", "Alapohja / lattia"],
+    ["yp", "Yläpohja / katto"], ["puhallusvilla", "Yläpohja / katto"], ["harvalaudoitu", "Yläpohja / katto"], ["tarkastusluuk", "Yläpohja / katto"], ["alakato", "Yläpohja / katto"], ["alakatt", "Yläpohja / katto"], ["alaslaskutila", "Yläpohja / katto"],
+    ["vs", "Väliseinä"], ["pielilaudoitu", "Ikkuna / ovi"], ["laude", "Märkätila"], ["lauteet", "Märkätila"], ["jakotuk", "IV / tekniikka"], ["perusmuuri", "Liittymä"],
     ["ilmanvaihtokone", "IV / tekniikka"], ["tuloilma", "IV / tekniikka"], ["poistoilma", "IV / tekniikka"], ["kanava", "IV / tekniikka"], ["lattialämmity", "IV / tekniikka"], ["vesijohto", "IV / tekniikka"], ["lämminvesivaraaja", "IV / tekniikka"], ["kiuas", "IV / tekniikka"]
   ];
   function detectPart(t) {
     // "lattian rajassa" on lattian ja seinän liittymä: lattia mainitaan ensin -> Alapohja / lattia.
     let best = null;
-    for (const [stem, part] of PART_WORDS) {
+    for (const [stem, part] of Vocab.list("rakenneosat")) {
       if (!M.RAKENNEOSAT.includes(part)) continue;
       const i = t.search(stemRe(stem));
       if (i >= 0 && (!best || i < best.i || (i === best.i && stem.length > best.len))) best = { i, part, len: stem.length };
@@ -106,7 +128,7 @@
   }
 
   /* ---------- Tila ---------- */
-  const ROOM_VOCAB = [
+  const ROOM_DEF = [
     ["keittiö", "Keittiö"], ["kylpyhuone", "Kylpyhuone"], ["kph", "Kylpyhuone"], ["pesuhuone", "Pesuhuone"], ["sauna", "Sauna"], ["löylyhuone", "Sauna"],
     ["wc", "WC"], ["vessa", "WC"], ["makuuhuone", "Makuuhuone"], ["olohuone", "Olohuone"], ["eteinen", "Eteinen"], ["eteise", "Eteinen"],
     ["tuulikaappi", "Tuulikaappi"], ["tuulikaapi", "Tuulikaappi"], ["kodinhoitohuone", "Kodinhoitohuone"], ["khh", "Kodinhoitohuone"],
@@ -153,7 +175,7 @@
     if (best && best.ambiguous) return null;
     // 2) Yleinen tilan nimi -> uusi tila
     let v = null;
-    ROOM_VOCAB.forEach(([stem, name]) => { const i = t.search(stemRe(stem)); if (i >= 0 && (!v || i < v.i)) v = { i, name }; });
+    Vocab.list("tilat").forEach(([stem, name]) => { const i = t.search(stemRe(stem)); if (i >= 0 && (!v || i < v.i)) v = { i, name }; });
     return v ? { create: v.name } : null;
   }
 
@@ -193,13 +215,13 @@
   }
 
   /* ---------- Juokseva tunnus (M1 -> M2, RA1 -> RA2) ---------- */
-  const TUNNUS_PREFIX = { rh: "M", avaus: "RA", nayte: "N", merkkiaine: "MAK" };
+  const TUNNUS_PREFIX = { rh: "M", avaus: "RA", nayte: "MIK", merkkiaine: "MAK" };
   function autoTunnus(h) {
     const m = M.menetelma(h.menetelma);
     const f = m.kentat.find((x) => x.k === "tunnus" && x.t === "text");
     if (!f || (h.kentat.tunnus && !(h.auto && h.auto.tunnus))) return false;
     const used = S.havainnot.filter((x) => x.id !== h.id && x.menetelma === h.menetelma && x.kentat && x.kentat.tunnus).map((x) => String(x.kentat.tunnus));
-    let prefix = TUNNUS_PREFIX[m.id] || (m.lyhyt || "P").replace(/[^A-Za-zÅÄÖåäö]/g, "").slice(0, 3).toUpperCase() || "P";
+    let prefix = (m.etuliite && m.etuliite.trim().toUpperCase()) || TUNNUS_PREFIX[m.id] || (m.lyhyt || "P").replace(/[^A-Za-zÅÄÖåäö]/g, "").slice(0, 3).toUpperCase() || "P";
     let max = 0;
     used.forEach((u) => {
       const mm = u.match(/^(.*?)(\d+)\s*$/);
@@ -272,5 +294,18 @@
     if (h.sijainti.rakenneosa) h.auto.rakenneosa = true;
   }
 
-  window.Auto = { apply, manual, markCarried, autoKohta, autoTunnus, _detect: { detectMethod, detectTulos, detectPart, detectRoom, norm } };
+  /* ---------- Muokattavat sanalistat (Sanasto-sivu) ---------- */
+  Vocab.define("poikkeama", { group: "Sanelu: tulos", title: "Poikkeamaa kuvaavat sanat", type: "words", defaults: BAD_DEF,
+    help: "Kun sanelussa on jokin näistä, tulos on Poikkeama. Kieltomuoto kääntää tuloksen (\"ei homeen merkkejä\" = kunnossa). Sana on sanan alku: \"kondens\" osuu sanoihin kondenssi ja kondensoitunut." });
+  Vocab.define("poikkeamaLauseet", { group: "Sanelu: tulos", title: "Aina poikkeama, myös kieltomuodossa", type: "words",
+    defaults: ["ei vedeneriste", "ei havaittu vedeneriste", "vedeneriste puuttu", "ei tuuletusrako", "ei selkeää tuulettuvuu", "ei sulkeudu", "ei sulkeutunut", "ei reunanost", "ei kallistu", "ei tiivis"],
+    help: "Puutteet, jotka ilmaistaan kieltona: \"pesuhuoneessa ei havaittu vedeneristettä\"." });
+  Vocab.define("kunnossa", { group: "Sanelu: tulos", title: "Kunnossa olevaa kuvaavat", type: "words", defaults: OK_DEF,
+    help: "Kun sanelussa on jokin näistä eikä poikkeamaa, tulos on Ei huomautettavaa." });
+  Vocab.define("rakenneosat", { group: "Sanelu: sijainti", title: "Rakenneosat", type: "map", defaults: PART_DEF, options: () => M.RAKENNEOSAT,
+    help: "sana = rakenneosa. Ensimmäisenä sanelussa mainittu ratkaisee. Lyhyet sanat (us, ap, yp) ovat kokonaisia sanoja." });
+  Vocab.define("tilat", { group: "Sanelu: sijainti", title: "Tilojen nimet", type: "map", defaults: ROOM_DEF,
+    help: "sana = tilan nimi. Jos kohteessa ei vielä ole tilaa, se luodaan tällä nimellä. Kohteen omat tilat ja tunnukset (A101) tunnistetaan aina." });
+
+  window.Auto = { METHOD_WORDS, methodWords, TUNNUS_PREFIX, apply, manual, markCarried, autoKohta, autoTunnus, _detect: { detectMethod, detectTulos, detectPart, detectRoom, norm } };
 })();

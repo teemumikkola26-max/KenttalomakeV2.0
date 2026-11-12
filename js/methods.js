@@ -142,7 +142,13 @@
           let muuttui = false;
           OLETUKSET.filter((o) => o.versio).forEach((o) => {
             const i = M.MENETELMAT.findIndex((m) => m.id === o.id);
-            if (i >= 0 && (M.MENETELMAT[i].versio || 0) < o.versio) { M.MENETELMAT[i] = clone(o); muuttui = true; }
+            if (i >= 0 && (M.MENETELMAT[i].versio || 0) < o.versio) {
+              // tutkijan omat tunnistussanat säilyvät päivityksessä
+              const vanha = M.MENETELMAT[i], uusi = clone(o);
+              ["sanat", "etuliite"].forEach((k) => { if (vanha[k] != null) uusi[k] = vanha[k]; });
+              uusi.kentat.forEach((f) => { const v = (vanha.kentat || []).find((x) => x.k === f.k); if (v && v.sanat) f.sanat = v.sanat; });
+              M.MENETELMAT[i] = uusi; muuttui = true;
+            }
           });
           if (muuttui) await M.save();
         }

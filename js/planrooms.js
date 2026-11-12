@@ -21,7 +21,7 @@
   /* ---------- Sanasto ----------
      Suomalaisten pohjapiirustusten tavalliset tilalyhenteet. Suunnittelijoiden
      omat lyhenteet (esim. KE = keittiö, PP = puuvarasto) opitaan käytöstä. */
-  const ABBR = {
+  const ABBR_DEF = {
     // asunnot
     MH: "Makuuhuone", MHH: "Makuuhuone", OH: "Olohuone", K: "Keittiö", KT: "Keittiö", KE: "Keittiö", KEITT: "Keittiö", KK: "Keittokomero",
     RT: "Ruokailutila", R: "Ruokailutila", RH: "Ruokailuhuone", RK: "Ruokakomero", ET: "Eteinen", E: "Eteinen", TK: "Tuulikaappi",
@@ -53,7 +53,7 @@
   /* Lyhyet ja monimerkityksiset lyhenteet (K = keittiö tai kaappi, S = sauna tai kaapin tunnus):
      hyväksytään vain pinta-alan tai tilanumeron vierestä tai kun ne ovat tilojen nimien kokoisia. */
   const WEAK = new Set(["K", "S", "R", "E", "V", "P", "LH", "TK", "AK", "LJ", "TH", "ARK", "ULL", "PS", "SH", "SA", "AH", "HH", "KV", "LK", "VS", "KK", "RK", "UV"]);
-  const NAMES = [
+  const NAMES_DEF = [
     "Makuuhuone", "Olohuone", "Keittiö", "Keittokomero", "Ruokailutila", "Ruokailuhuone", "Ruokakomero", "Eteinen", "Tuulikaappi", "Kylpyhuone",
     "Pesuhuone", "Sauna", "Löylyhuone", "Kodinhoitohuone", "Vaatehuone", "Pukeutumishuone", "Varasto", "Ulkovarasto", "Kellarivarasto",
     "Irtaimistovarasto", "Kylmävarasto", "Puuvarasto", "Lastenvaunuvarasto", "Polkupyörävarasto", "Ulkoiluvälinevarasto", "Autotalli", "Autokatos",
@@ -140,7 +140,21 @@
       d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
     return d[a.length][b.length];
   }
-  const NAME_KEYS = NAMES.map((n) => ({ n, k: upPlain(n) }));
+  /* Muokattava sanasto: lyhenteet ja tilannimet (Sanasto-sivu). ABBR-olio päivitetään paikallaan. */
+  const ABBR = {};
+  let NAME_KEYS = [];
+  Vocab.define("lyhenteet", { group: "Pohjakuvat", title: "Tilojen lyhenteet", type: "map",
+    defaults: Object.entries(ABBR_DEF),
+    help: "LYHENNE = tilan nimi. Pohjakuvan tai ovikyltin lyhenne muutetaan tilan nimeksi (MH = Makuuhuone). Lyhenne kirjoitetaan isoilla kirjaimilla." });
+  Vocab.define("tilannimet", { group: "Pohjakuvat", title: "Tilojen nimet pohjakuvissa", type: "words", defaults: NAMES_DEF,
+    help: "Kokonaiset tilannimet, jotka tunnistetaan pohjakuvasta pienistä lukuvirheistä huolimatta." });
+  function rebuildVocab() {
+    Object.keys(ABBR).forEach((k) => delete ABBR[k]);
+    Vocab.list("lyhenteet").forEach(([k, v]) => { ABBR[k.toUpperCase().replace(/\s+/g, "")] = v; });
+    NAME_KEYS = Vocab.list("tilannimet").map((n) => ({ n, k: upPlain(n) }));
+  }
+  rebuildVocab();
+  Vocab.onChange(rebuildVocab);
   function matchName(token) {
     const k = upPlain(token);
     if (k.length < 4) return null;

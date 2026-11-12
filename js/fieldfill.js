@@ -60,14 +60,16 @@
   };
 
   /* ---------- Sanasto ---------- */
-  const DEVICES = [
+  const DEVICES_DEF = [
+    "GANN Hydromette BL-E", "GANN BL Compact RH-T Flex", "GANN BL Compact", "Hydrotest LG3", "Protimeter Digital mini", "FLIR E75", "TSI DP-Calc", "DP-Calc", "Inficon Sensistor XRS9012", "Sensistor XRS9012", "Sensistor", "MIRAN DLS",
     "vaisala hm40", "vaisala hm42", "vaisala hm45", "vaisala hmp40s", "vaisala hmp40", "vaisala hm70", "vaisala shm40", "vaisala",
     "gann hydromette bl compact", "gann hydromette rt 600", "gann hydromette", "gann rtu 600", "gann", "hydromette",
     "tramex cme5", "tramex cme4", "tramex", "protimeter mms3", "protimeter mms2", "protimeter", "trotec t660", "trotec t610", "trotec",
     "testo 605", "testo 635", "testo 610", "testo 440", "testo 510", "testo", "flir e8", "flir e6", "flir e96", "flir t540", "flir c5", "flir",
     "hikmicro", "seek thermal", "fluke ti", "fluke", "humidcheck", "rotronic", "hioki", "kimo", "tsi", "swema", "ttm", "brennenstuhl"
   ];
-  const MATERIALS = [
+  const MATERIALS_DEF = [
+    "puhallusvilla", "tuulensuojavilla", "runkovilla", "harvalaudoitus", "aluskate", "pintalaatta", "kaksoislaatta", "lankkulattia", "silikoni", "mikrotiivistesauma", "saumalaasti", "kumibitumi", "solumuovi", "turve", "olkisavi",
     "mineraalivilla", "lasivilla", "kivivilla", "eristevilla", "puukuitueriste", "puukuitulevy", "huokoinen puukuitulevy", "tuulensuojalevy", "kuitulevy",
     "sahanpuru", "kutterinlastu", "purueriste", "kevytsora", "styrox", "eps", "xps", "polyuretaani", "pur", "korkki",
     "kipsilevy", "lastulevy", "vaneri", "osb", "lauta", "puu", "rakennuspaperi", "bitumihuopa", "bitumi", "kattohuopa", "muovikalvo", "höyrynsulku", "filtti",
@@ -75,17 +77,35 @@
     "muovimatto", "linoleum", "parketti", "laminaatti", "lautalattia", "kokolattiamatto", "korkkimatto", "laatta", "klinkkeri", "vedeneriste", "mattoliima", "liima",
     "tapetti", "maali", "kuitulevy", "hiekka", "sora", "täyttösora", "salaojasora", "maa"
   ];
+  const lower = (a) => a.map((x) => String(x).toLowerCase().trim()).filter(Boolean);
+  const byLen = (a) => a.slice().sort((x, y) => y.length - x.length);
+  let DEVICES = [], MATERIALS = [], AINEET = [];
+  const AINEET_DEF = [["typpived", "Typpivety"], ["typpivety", "Typpivety"], ["forming", "Formingkaasu"], ["helium", "Helium"], ["rikkiheksafluorid", "Rikkiheksafluoridi (SF6)"], ["sf6", "Rikkiheksafluoridi (SF6)"], ["merkkisav", "Merkkisavu"], ["savu", "Merkkisavu"]];
+  Vocab.define("laitteet", { group: "Sanelu: menetelmän kentät", title: "Mittalaitteet", type: "words", defaults: DEVICES_DEF,
+    help: "Laitenimet, jotka tunnistetaan sanelusta Mittalaite-kenttään. Pidempi nimi voittaa (\"gann hydromette bl-e\" ennen \"gann\")." });
+  Vocab.define("materiaalit", { group: "Sanelu: menetelmän kentät", title: "Materiaalit", type: "words", defaults: MATERIALS_DEF,
+    help: "Materiaalit Materiaali- ja Rakennekerrokset-kenttiin. Sana on sanan alku: \"betoni\" osuu sanaan betonilaatta." });
+  Vocab.define("merkkiaineet", { group: "Sanelu: menetelmän kentät", title: "Merkkiaineet", type: "map", defaults: AINEET_DEF,
+    help: "sana = merkkiaine, joka kirjataan Merkkiaine-kenttään." });
+  function rebuild() {
+    // Laitenimi kirjataan sanaston kirjoitusasussa (GANN Hydromette BL-E); pienillä kirjoitettu muotoillaan
+    DEVICES = byLen(Vocab.list("laitteet").map((x) => String(x).trim()).filter(Boolean));
+    MATERIALS = lower(Vocab.list("materiaalit"));
+    AINEET = Vocab.list("merkkiaineet").map(([w, v]) => [w.toLowerCase(), v]);
+  }
+  rebuild();
+  Vocab.onChange(rebuild);
   // Kenttäkohtaiset avainsanat (kentän tunnus -> sanat). Itse lisätyt kentät saavat sanansa nimestään.
   const FIELD_WORDS = {
     laite: ["mittalaite", "mittari", "mittarilla", "laite", "laitteella", "kamera", "kameralla", "mitattiin laitteella"],
     tasaantuminen: ["tasaantumisaika", "tasaantumis", "tasaantui", "tasaantunut", "tasaantuneet", "tasaantua", "tasaantumisen"],
-    arvo: ["lukema", "lukemat", "arvo", "näyttää", "näytti", "havaintokohda", "havaintokohdassa", "mittauskohda"],
+    arvo: ["pko-arvo", "pko", "pintakosteusarvo", "lukema", "lukemat", "arvo", "näyttää", "näytti", "havaintokohda", "havaintokohdassa", "mittauskohda"],
     vertailu: ["vertailu", "vertailuarvo", "vertailukoh", "vertailupiste", "referenssi", "kuivalla kohdalla", "kuivassa kohdassa", "kuivan kohdan"],
     t_sisa: ["sisälämpötila", "sisälämpö", "sisällä", "sisäilma", "sisätila"],
     t_ulko: ["ulkolämpötila", "ulkolämpö", "ulkona", "ulkoilma"],
     paine: ["painesuhde", "paine-ero", "paine ero", "paineero", "alipaine", "ylipaine", "paine"],
-    aine: ["merkkiaine", "merkkiaineena", "merkkikaasu", "merkkikaasuna"],
-    injektointi: ["injektointikohta", "injektoitiin", "injektointi", "syötettiin", "syöttökohta"],
+    aine: ["merkkiaineena", "merkkiaineella", "merkkiaineeksi", "merkkikaasuna", "merkkikaasulla"],
+    injektointi: ["injektointikohta", "injektoitiin", "injektointi", "syöttökohta", "syötettiin rakenteeseen"],
     materiaali: ["materiaali", "materiaalista", "materiaalina", "näytemateriaali"],
     jakso: ["jakso", "tarkastelujakso", "mittausjakso"],
     kerrokset: ["rakennekerrokset", "kerrokset", "rakenne sisältä", "sisältä ulos", "rakenteen kerrokset"]
@@ -93,13 +113,17 @@
   const SELECT_WORDS = {
     tyyppi: [["mikrobi", "Mikrobi, materiaali"], ["home", "Mikrobi, materiaali"], ["kuitu", "Kuitu"], ["mineraalikuitu", "Kuitu"],
       ["asbesti", "Haitta-aine"], ["pah", "Haitta-aine"], ["pcb", "Haitta-aine"], ["lyijy", "Haitta-aine"], ["haitta-aine", "Haitta-aine"], ["voc", "VOC"], ["emissio", "VOC"]],
-    tulos: [["ei vuotoa", "Ei vuotoa"], ["vuotoa ei", "Ei vuotoa"], ["ei havaittu vuoto", "Ei vuotoa"], ["vuotoa havaittiin", "Vuotoa havaittu"], ["vuoto havaittiin", "Vuotoa havaittu"], ["vuotaa", "Vuotoa havaittu"], ["vuotoa", "Vuotoa havaittu"]],
-    asteikko: [["vertailuarvo", "Vertailuarvo"], ["vertailuasteikko", "Vertailuarvo"], ["puun kosteus", "% (puu)"], ["puuprosentti", "% (puu)"], ["laitteen asteikko", "Laitteen asteikko"]]
+    tulos: [["ei merkkiainevuoto", "Ei vuotoa"], ["ei havaittu merkkiainevuoto", "Ei vuotoa"], ["merkkiainevuotoja ei", "Ei vuotoa"], ["merkkiainevuoto", "Vuotoa havaittu"], ["ei vuotoa", "Ei vuotoa"], ["vuotoa ei", "Ei vuotoa"], ["ei havaittu vuoto", "Ei vuotoa"], ["vuotoa havaittiin", "Vuotoa havaittu"], ["vuoto havaittiin", "Vuotoa havaittu"], ["vuotaa", "Vuotoa havaittu"], ["vuotoa", "Vuotoa havaittu"]],
+    asteikko: [["vertailuarvo", "Vertailuarvo"], ["vertailuasteikko", "Vertailuarvo"], ["puun kosteus", "% (puu)"], ["puuprosentti", "% (puu)"], ["laitteen asteikko", "Laitteen asteikko"], ["yksikköä", "Laitteen asteikko"], ["digit", "Laitteen asteikko"]]
   };
   const AMBIENT = /(?:^|\s)(olosuhte|olosuhde|huoneilma|sisäilma|ympäröivä|ympäristö|huoneen ilma|tilan ilma|vertailuolosuh)/;
 
   const stemOf = (label) => String(label || "").toLowerCase().split(/[\s,/()]+/).filter((w) => w.length >= 3)[0] || "";
-  const wordsFor = (f) => (FIELD_WORDS[f.k] || []).concat(stemOf(f.l) && !FIELD_WORDS[f.k] ? [stemOf(f.l).slice(0, Math.max(4, stemOf(f.l).length - 2))] : []);
+  // Kentän tunnistussanat: menetelmäeditorissa kentälle annetut, oletukset tai kentän nimen alku
+  const wordsFor = (f) => {
+    if (Array.isArray(f.sanat) && f.sanat.length) return lower(f.sanat);
+    return (FIELD_WORDS[f.k] || []).concat(stemOf(f.l) && !FIELD_WORDS[f.k] ? [stemOf(f.l).slice(0, Math.max(4, stemOf(f.l).length - 2))] : []);
+  };
   const wre = (w) => "(?:^|[\\s,.;:])" + w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "[a-zåäö-]*";
 
   /* Numero avainsanan jälkeen (enintään muutama sana välissä), valinnaisella yksiköllä */
@@ -128,7 +152,9 @@
   /* ---------- Yksittäiset kentät ---------- */
   function scalarValue(f, t) {
     if (f.t === "num") {
-      const r = numAfter(t, wordsFor(f), f.u);
+      let r = numAfter(t, wordsFor(f), f.u);
+      // pintakosteuden lukema ilman avainsanaa: "120 yksikköä" (vertailukohta mainitaan erikseen)
+      if (!r && f.k === "arvo") { const y = t.match(new RegExp(NUM + "\\s?(?:yksikkö|digit)", "u")); if (y) r = { v: y[1], u: "" }; }
       if (!r) return null;
       let v = r.v;
       if (f.u === "h" && /^(vrk|vuorokau|päiv)/.test(r.u)) v = toNum(String(Math.round(parseFloat(v.replace(",", ".")) * 24 * 10) / 10));
@@ -141,11 +167,13 @@
       return null;
     }
     if (f.k === "laite") {
-      const d = DEVICES.find((x) => new RegExp(wre(x) + (/\d$/.test(x) ? "(?![0-9])" : ""), "u").test(t));
-      if (d) {
+      const D = DEVICES.find((x) => new RegExp(wre(x.toLowerCase()) + (/\d$/.test(x) ? "(?![0-9])" : ""), "u").test(t));
+      if (D) {
+        const d = D.toLowerCase(), own = D !== d;
         // tarkenna mallilla, jos sanelussa on laitenimen perässä malli (esim. "testo 635-2")
         const m = t.match(new RegExp(wre(d) + "(?:\\s?([a-z]{0,3}-?\\d{2,4}[a-z0-9-]*))?", "u"));
-        return titleDevice((d + (m && m[1] && !d.match(/\d/) ? " " + m[1] : "")).trim());
+        const model = m && m[1] && !d.match(/\d/) ? " " + m[1].toUpperCase() : "";
+        return ((own ? D : titleDevice(d)) + model).trim();
       }
       const ph = phraseAfter(t, wordsFor(f), 3);
       return ph ? titleDevice(ph) : null;
@@ -156,8 +184,7 @@
       return phraseAfter(t, wordsFor(f), 3);
     }
     if (f.k === "aine") {
-      const known = [["typpived", "Typpivety"], ["typpivety", "Typpivety"], ["forming", "Formingkaasu"], ["helium", "Helium"], ["rikkiheksafluorid", "Rikkiheksafluoridi (SF6)"], ["sf6", "Rikkiheksafluoridi (SF6)"], ["merkkisav", "Merkkisavu"], ["savu", "Merkkisavu"]];
-      const k = known.find(([x]) => new RegExp(wre(x), "u").test(t));
+      const k = AINEET.find(([x]) => new RegExp(wre(x), "u").test(t));
       if (k) return k[1];
       return phraseAfter(t, wordsFor(f), 2);
     }
@@ -306,5 +333,5 @@
     return f.l.toLowerCase() + (f.t === "num" ? " 12" + (f.u ? " " + f.u : "") : " …");
   }
 
-  window.FieldFill = { apply, prep, tableRows, scalarValue, hint, DEVICES, MATERIALS };
+  window.FieldFill = { apply, prep, tableRows, scalarValue, hint, wordsFor, FIELD_WORDS, get DEVICES() { return DEVICES; }, get MATERIALS() { return MATERIALS; } };
 })();

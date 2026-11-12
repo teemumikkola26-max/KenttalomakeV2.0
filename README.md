@@ -239,6 +239,8 @@ js/ui.js               kuvakkeet, ikkunat, ilmoitukset
 js/db.js               IndexedDB-tallennus
 js/methods.js          oletusmenetelmät, rakenneosat, menetelmien tallennus
 js/editor.js           menetelmien muokkaus
+js/vocab.js            muokattavat sanalistat (oletukset + tutkijan muutokset)
+js/vocabview.js        Sanasto-sivu ja sanelun kokeilu
 js/methodpicker.js     menetelmän valinta: ehdotukset, haku ja uusi menetelmä
 js/autofill.js         tietojen tunnistus sanelusta ja automaattinen täyttö
 js/learn.js            oppiva menetelmän tunnistus (naiivi Bayes, laitteella)
@@ -274,6 +276,27 @@ Menetelmiä muokataan sovelluksessa: **etusivu → Menetelmät**. Jokaiselle men
 Menetelmät tallentuvat laitteelle. Ne jaetaan kollegoille **Vie menetelmät** / **Tuo menetelmät** -toiminnoilla (JSON-tiedosto). Kohteen ZIP-paketti sisältää kohteessa käytetyt menetelmät, ja ne lisätään palautettaessa. Havainnoissa käytettyä menetelmää ei voi poistaa, mutta sen voi piilottaa valinnoista.
 
 Oletusmenetelmät ovat tiedostossa `js/methods.js` (`OLETUKSET`). Niitä muutetaan koodissa vain, jos halutaan muuttaa uusien asennusten lähtötilannetta.
+
+### Sanasto
+
+Sanelun ja pohjakuvien tulkinnan sanalistat muokataan sovelluksessa: **etusivu → Sanasto** (myös Menetelmät-sivulta). Listat:
+
+| Ryhmä | Lista | Muoto |
+|---|---|---|
+| Sanelu: tulos | Poikkeamaa kuvaavat sanat, Aina poikkeama (myös kieltomuodossa), Kunnossa olevaa kuvaavat | sana riville |
+| Sanelu: sijainti | Rakenneosat, Tilojen nimet | `sana = arvo` |
+| Sanelu: menetelmän kentät | Mittalaitteet, Materiaalit | sana riville |
+| | Merkkiaineet | `sana = arvo` |
+| Pohjakuvat | Tilojen lyhenteet | `LYHENNE = Tilan nimi` |
+| | Tilojen nimet pohjakuvissa | nimi riville |
+
+Säännöt: sana on sanan alku (`kondens` osuu sanoihin kondenssi ja kondensoitunut). Enintään kahden kirjaimen sana (`us`, `ap`, `yp`) ja lainausmerkeissä oleva sana tunnistetaan vain kokonaisena. `#` aloittaa kommentin. Mittalaite kirjataan sanaston kirjoitusasussa (`GANN Hydromette BL-E`).
+
+Sivun **Kokeile sanelua** -kenttä näyttää heti, mitä lauseesta päätellään (menetelmä, tulos, tila, rakenneosa ja kentät), joten sanaston muutoksen vaikutuksen näkee kirjoittamalla esimerkkilauseen.
+
+Menetelmäkohtaiset sanat ovat menetelmän sivulla: **Tunnistussanat** (milloin sanelu kuuluu tälle menetelmälle), **Tunnuksen etuliite** (esim. MIK → MIK1, MIK2) ja kentän muokkauksessa kentän **tunnistussanat** (minkä sanan jälkeen tuleva arvo kirjataan kenttään).
+
+Muokattu lista tallentuu laitteelle ja korvaa oletuksen. **Palauta oletus** palauttaa listan. Sanasto kulkee **Vie menetelmät** -tiedostossa, ja tuonnissa kysytään, otetaanko se käyttöön, joten tiimi voi käyttää yhteistä sanastoa. Oletussanastoon on koottu tyypillisiä raporttien sanamuotoja (esim. pko-arvo, yksikköä, RA1, MIK1, MAK1, merkkiainevuoto, alunoita, toimenpiderajan ylitys, US/AP/YP).
 
 ## Tunnetut rajoitukset
 

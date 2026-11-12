@@ -34,6 +34,9 @@
       '<main class="view no-nav">' +
       '<section class="card">' + rows + "</section>" +
       '<button class="btn btn-primary btn-block" data-a="add">' + icon("plus") + "Lisää menetelmä</button>" +
+      '<section class="card" style="margin-top:16px"><div class="card-h"><h2>Sanasto</h2><span class="meta">' + Vocab.all().filter((d) => Vocab.edited(d.key)).length + " muokattua listaa</span></div><div class=\"card-b\">" +
+      '<p class="hint" style="margin:0 0 10px">Sanat, joilla sanelusta tunnistetaan poikkeama, rakenneosa, tila, mittalaite ja materiaali, sekä pohjakuvien tilalyhenteet. Muokkaa ne oman tiimisi sanamuotoihin. Kunkin menetelmän tunnistussanat ovat menetelmän omalla sivulla.</p>' +
+      '<a class="btn btn-sm" href="#/sanasto">' + icon("edit") + "Avaa sanasto</a></div></section>" +
       learnHtml() +
       '<section class="card" style="margin-top:16px"><div class="card-h"><h2>Jakaminen</h2></div><div class="card-b">' +
       '<p class="hint" style="margin:0 0 10px">Menetelmät tallentuvat tälle laitteelle. Jaa ne kollegoille viemällä tiedosto ja tuomalla se heidän laitteellaan. ZIP-paketti sisältää myös menetelmät.</p>' +
@@ -60,7 +63,7 @@
         await M.save();
         location.hash = "#/menetelmat/" + m.id;
       } else if (a === "export") {
-        const blob = new Blob([JSON.stringify({ muoto: "kuva-sanelu/menetelmat-1", viety: new Date().toISOString(), menetelmat: M.MENETELMAT, oppi: Learn.exportModel(), tilaoppi: window.PlanRooms ? PlanRooms.exportModel() : null }, null, 2)], { type: "application/json" });
+        const blob = new Blob([JSON.stringify({ muoto: "kuva-sanelu/menetelmat-1", viety: new Date().toISOString(), menetelmat: M.MENETELMAT, sanasto: Vocab.exportAll(), oppi: Learn.exportModel(), tilaoppi: window.PlanRooms ? PlanRooms.exportModel() : null }, null, 2)], { type: "application/json" });
         const el = document.createElement("a");
         el.href = URL.createObjectURL(blob);
         el.download = "menetelmat_" + new Date().toISOString().slice(0, 10) + ".json";
@@ -75,6 +78,9 @@
           if (!Array.isArray(lista)) throw new Error("Tiedostosta ei löytynyt menetelmiä.");
           const korvaa = await confirmSheet({ title: "Tuodaanko " + lista.length + " menetelmää?", text: "Uudet menetelmät lisätään. Valitse, korvataanko tällä laitteella jo olevat samat menetelmät tuodulla versiolla.", ok: "Korvaa samat", cancel: "Lisää vain uudet" });
           await M.yhdista(lista, korvaa);
+          if (data.sanasto && Object.keys(data.sanasto).length && await confirmSheet({ title: "Tuodaanko myös sanasto?", text: "Tiedostossa on muokattu sanasto (" + Object.keys(data.sanasto).length + " listaa). Tuodut listat korvaavat tämän laitteen vastaavat listat.", ok: "Tuo sanasto", cancel: "Ei" })) {
+            await Vocab.importAll(data.sanasto);
+          }
           if ((data.oppi || data.tilaoppi) && await confirmSheet({ title: "Tuodaanko myös opittu malli?", text: "Tiedostossa on kollegan laitteella opittu malli (millainen sanelu kuuluu millekin menetelmälle ja mitä pohjakuvien tilalyhenteet tarkoittavat). Se yhdistetään tämän laitteen malliin.", ok: "Tuo malli", cancel: "Ei" })) {
             if (data.oppi) await Learn.importModel(data.oppi);
             if (data.tilaoppi && window.PlanRooms) PlanRooms.importModel(data.tilaoppi);
@@ -140,6 +146,13 @@
       '<label class="field"><span>Nimi</span><input type="text" data-m="nimi" value="' + esc(m.nimi) + '"></label>' +
       '<label class="field" style="margin:0"><span>Lyhenne <span class="u">(havaintokortin otsikossa)</span></span><input type="text" data-m="lyhyt" value="' + esc(m.lyhyt || "") + '" maxlength="14"></label>' +
       "</div></section>" +
+      '<section class="card"><div class="card-h"><h2>Sanelun tunnistus</h2>' + (Array.isArray(m.sanat) ? '<span class="meta"><b class="vb-ed">muokattu</b></span>' : "") + '</div><div class="card-b">' +
+      '<label class="field"><span>Tunnistussanat <span class="u">(yksi riville)</span></span><textarea data-ms="sanat" spellcheck="false" autocapitalize="off" style="min-height:140px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:14px">' + esc(Auto.methodWords(m).join("\n")) + "</textarea></label>" +
+      '<p class="hint" style="margin:-4px 0 10px">Kun sanelussa on jokin näistä, havainto saa tämän menetelmän. Sana on sanan alku (<b>pintakosteu</b> osuu sanaan pintakosteusmittaus). Lyhyt sana (<b>pko</b>, <b>ra1</b>) kirjoitetaan sellaisenaan.</p>' +
+      '<label class="field" style="margin:0"><span>Tunnuksen etuliite <span class="u">(esim. M, RA, MIK, MAK)</span></span><input type="text" data-ms="etuliite" value="' + esc(m.etuliite || "") + '" placeholder="' + esc(Auto.TUNNUS_PREFIX[m.id] || "ei automaattista tunnusta") + '" maxlength="6" autocapitalize="characters"></label>' +
+      '<p class="hint" style="margin:6px 0 0">Havainto saa juoksevan tunnuksen (MIK1, MIK2 …), kun menetelmällä on Tunnus-kenttä.</p>' +
+      (Array.isArray(m.sanat) || m.etuliite ? '<button class="btn btn-sm" data-a="wordsReset" style="margin-top:10px">Palauta oletussanat</button>' : "") +
+      "</div></section>" +
       '<section class="card"><div class="card-h"><h2>Kentät</h2><span class="meta">' + m.kentat.length + "</span></div>" +
       (rows || '<div class="empty">Ei kenttiä. Menetelmä kirjataan silloin pelkällä kuvalla ja sanelulla.</div>') +
       '<div class="card-b" style="padding-top:10px"><button class="btn btn-block" data-a="addField">' + icon("plus") + "Lisää kenttä</button></div></section>" +
@@ -153,12 +166,23 @@
     root.oninput = (e) => {
       const t = e.target;
       if (t.dataset.m) { m[t.dataset.m] = t.value; save(); }
+      else if (t.dataset.ms === "sanat") {
+        const ls = t.value.split("\n").map((x) => x.trim()).filter((x) => x && !x.startsWith("#"));
+        const def = (Auto.METHOD_WORDS[m.id] || []).join("\n");
+        if (ls.join("\n") === def) delete m.sanat; else m.sanat = ls;
+        save();
+      } else if (t.dataset.ms === "etuliite") {
+        const v = t.value.trim().toUpperCase().replace(/[^A-ZÅÄÖ]/g, "");
+        if (v) m.etuliite = v; else delete m.etuliite;
+        save();
+      }
     };
     root.onclick = async (e) => {
       const b = e.target.closest("[data-a]");
       if (!b || b.disabled) return;
       const a = b.dataset.a;
       if (a === "field") { if (await fieldSheet(m, m.kentat[+b.dataset.i])) App.render(); }
+      else if (a === "wordsReset") { delete m.sanat; delete m.etuliite; await M.save(); App.render(); }
       else if (a === "addField") { if (await fieldSheet(m, null)) App.render(); }
       else if (a === "fup" || a === "fdown") {
         const i = +b.dataset.i, j = a === "fup" ? i - 1 : i + 1;
@@ -201,6 +225,8 @@
         '<div data-show="mittaus">' + chk("mittaus", "Mittaustulos", "Tutkija vahvistaa arvon. Viedään erillään muista tiedoista.", f.mittaus) + "</div>" +
         chk("muista", "Muista edellinen arvo", "Esim. mittalaite täyttyy valmiiksi seuraavaan havaintoon.", f.muista) +
         "</div>" +
+        '<label class="field" data-show="sanat"><span>Tunnistussanat <span class="u">(pilkuin erotettuna)</span></span><input type="text" data-f="sanat" value="' + esc((f.sanat || []).join(", ")) + '" placeholder="' + esc(window.FieldFill ? FieldFill.wordsFor(Object.assign({}, f, { sanat: null })).join(", ") : "") + '" autocapitalize="off"></label>' +
+        '<p class="hint" data-show="sanat" style="margin:-6px 0 14px">Sanat, joiden jälkeen sanelussa tuleva arvo kirjataan tähän kenttään (esim. <i>pko-arvo 120</i>). Tyhjänä käytetään oletuksia.</p>' +
         '<div class="row-btns">' + (isNew ? '<button class="btn" data-close>Peruuta</button>' : '<button class="btn btn-danger" data-del>Poista kenttä</button>') +
         '<button class="btn btn-primary" data-ok>Tallenna</button></div>',
         (el, close) => {
@@ -260,6 +286,7 @@
             $('[data-show="mittaus"]').classList.toggle("hidden", t !== "num");
             $('[data-show="cols"]').classList.toggle("hidden", t !== "table");
             $('[data-c="muista"]').closest("label").classList.toggle("hidden", t === "table");
+            el.querySelectorAll('[data-show="sanat"]').forEach((x) => x.classList.toggle("hidden", t === "table" || t === "date"));
             if (t === "table") paintCols();
           };
           $('[data-f="t"]').addEventListener("change", vis);
@@ -286,6 +313,8 @@
             f.muista = (t !== "table" && $('[data-c="muista"]').checked) || undefined;
             f.sarakkeet = tableDef ? tableDef.sarakkeet : undefined;
             f.ocr = tableDef ? tableDef.ocr : undefined;
+            const sw = $('[data-f="sanat"]').value.split(",").map((x) => x.trim()).filter(Boolean);
+            f.sanat = sw.length && t !== "table" && t !== "date" ? sw : undefined;
             if (isNew) m.kentat.push(f);
             await M.save();
             close(true);
