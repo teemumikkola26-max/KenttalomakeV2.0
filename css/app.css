@@ -536,5 +536,39 @@ details.vocab:not([open])>summary{border-bottom:none}
 .ka-kls .chip[aria-pressed=true].ka-k3{background:#fbf3dc;border-color:#c9a227;color:#7a5f0e}
 .ka-kls .chip[aria-pressed=true].ka-k2,.ka-kls .chip[aria-pressed=true].ka-k1{background:var(--note-bg);border-color:var(--note-line);color:var(--note)}
 .ka-calc{border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:14px;line-height:1.5;background:var(--paper)}
+.ka-rk{border:1px solid var(--line);border-radius:14px;padding:10px 12px 12px;margin-bottom:12px}
+.ka-rk-h{display:flex;justify-content:space-between;align-items:center;margin:-4px 0 4px}
+.ka-rk .field{margin-bottom:8px}
 .ka-calc.pts{border-color:var(--note-line);background:var(--note-bg)}
 .ka-ul{margin:0 0 8px;padding-left:18px;font-size:14px}
+/* Pilvi */
+.syncbar{font-size:13px;padding:7px 12px;border-radius:10px;margin:0 0 12px;background:var(--ok-bg);color:var(--ok);border:1px solid transparent}
+.syncbar.warn{background:var(--note-bg);color:var(--note);border-color:var(--note-line)}
+.syncbar:empty{display:none}
+.syncbar .link{font-size:13px;padding:0 4px}
+
+/* Yleiskuvat */
+.yk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
+.yk-item{position:relative;border:0;padding:0;background:#000;border-radius:10px;overflow:hidden;aspect-ratio:1;cursor:pointer}
+.yk-item img{width:100%;height:100%;object-fit:cover;display:block}
+.yk-item .no{position:absolute;left:4px;top:4px;background:rgba(0,0,0,.6);color:#fff;font-size:11px;font-weight:700;padding:1px 5px;border-radius:6px}
+.yk-cap{position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.55);color:#fff;font-size:11px;padding:2px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
+
+/* Kameranäkymän tila: Havainto / Yleiskuva */
+.cam-mode{display:flex;gap:4px;background:rgba(255,255,255,.08);border-radius:999px;padding:3px;margin:0 auto 8px;width:max-content}
+.cam-mode button{border:0;background:transparent;color:inherit;font:inherit;font-size:13.5px;font-weight:600;padding:6px 16px;border-radius:999px;cursor:pointer;opacity:.75}
+.cam-mode button[aria-selected="true"]{background:#fff;color:#111;opacity:1}
+.yk-info{margin:0 0 6px;font-size:13px;line-height:1.4;opacity:.85;text-align:center}
+.cam.mode-yk [data-text],.cam.mode-yk .cp-need,.cam.mode-yk .cp-meta,.cam.mode-yk .vf-req,.cam.mode-yk .dict-live{display:none!important}
+.cam.mode-yk [data-mic],.cam.mode-yk [data-c="next"]{visibility:hidden}
+
+.start-steps{margin:0;padding-left:20px;font-size:14.5px;line-height:1.5}
+.start-steps li{margin-bottom:8px}
+/* Kameranäkymän ensikäytön ohje */
+.cam-guide{position:absolute;inset:0;z-index:40;background:rgba(0,0,0,.82);color:#fff;display:flex;align-items:center;justify-content:center;padding:20px}
+.cam-guide .cg-box{max-width:420px;width:100%}
+.cam-guide h3{margin:0 0 12px;font-size:20px}
+.cam-guide ol{margin:0 0 16px;padding-left:22px;font-size:15px;line-height:1.5}
+.cam-guide li{margin-bottom:8px}
+.cam-guide .btn{width:100%}
+.cam-round[data-c="ohje"]{font-size:20px;font-weight:700}
