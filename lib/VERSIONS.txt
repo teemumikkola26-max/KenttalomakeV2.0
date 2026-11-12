@@ -1,0 +1,21 @@
+Kirjastot ovat sovelluksen omassa repossa (ei CDN:stä), jotta ulkopuolinen palvelu ei voi muuttaa sovelluksen koodia.
+Päivitys: lataa sama tiedosto npm-paketista ja tarkista versio.
+
+jszip.min.js                     jszip 3.10.1 (dist/jszip.min.js)
+pdf.min.js, pdf.worker.min.js    pdfjs-dist 3.11.174 (build/)
+tesseract/tesseract.min.js       tesseract.js 5.1.1 (dist/)
+tesseract/worker.min.js          tesseract.js 5.1.1 (dist/)
+tesseract/tesseract-core-*.js    tesseract.js-core 5.1.1 (lstm, simd-lstm)
+tessdata/fin.traineddata.gz      @tesseract.js-data/fin 4.0.0
+tessdata/eng.traineddata.gz      @tesseract.js-data/eng 4.0.0
+supabase.js                      @supabase/supabase-js 2.112.4 (dist/umd/supabase.js)
+acc7e41455a80765b5fd9c7ee1b8078a6d160bbbca455aeae854de65c947d59e  jszip.min.js
+5b5799e6f8c680663207ac5b42ee14eed2a406fa7af48f50c154f0c0b1566946  pdf.min.js
+feabdf309770ed24bba31a5467836cdc8cf639c705af27d52b585b041bb8527b  pdf.worker.min.js
+8f04aa0cc81e7bde33f80e92fa01a7a665f0b4884d098acf5de9c7104a11dfaa  tesseract/tesseract-core-lstm.wasm.js
+ce20eda9533cbed1e6c2b4276fbae1e0adc61b6754b5513084be601787b457cf  tesseract/tesseract-core-simd-lstm.wasm.js
+a8e29918d098b2b06e1012bdaeffb4aec0445c5d5654709023e0bd1f442a80e8  tesseract/tesseract.min.js
+aca1229639fc9907d86f96e825955a2b7c5716d17f3bc3acd71f9c7ab66181fc  tesseract/worker.min.js
+ed350f3752f81ee8f38769edc14d92d997dababe23b565c59879372cc46a2468  tessdata/eng.traineddata.gz
+3dce0c9f4d0ebea467d167fb62c3eed2da0927c6ea16a2c25c62ddafd26d1bd0  tessdata/fin.traineddata.gz
+f8ce7fab799af1916019cbd0b485b39bb80dbdbc6dc062909a751c9e5198e04c  supabase.js
