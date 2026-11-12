@@ -16,6 +16,7 @@
     const k = S.kohde;
     let h = havaintoId ? Model.havainto(havaintoId) : null;
     let saved = !!h;
+    let prevId = null;   // edellinen havainto: pikapainike "← H05" lisäkuvia varten
 
     function applyMemory(hv) {
       M.menetelma(hv.menetelma).kentat.forEach((f) => {
@@ -55,7 +56,8 @@
       "</div>" +
       '<div class="viewfinder"><video autoplay playsinline muted></video><div class="flash"></div>' +
       '<div class="vf-msg" data-vfmsg>Käynnistetään kameraa…</div>' +
-      '<span class="vf-count" data-count></span><div class="vf-thumbs" data-thumbs></div>' +
+      '<div class="vf-left"><button class="vf-count" data-c="switch" aria-label="Vaihda havaintoa: lisää kuvia aiempaan havaintoon"><span data-count></span> ' + icon("back", "down") + "</button>" +
+      '<button class="vf-prev hidden" data-c="prev"></button></div><div class="vf-thumbs" data-thumbs></div>' +
       '<div class="dict-live hidden" data-live aria-live="polite"><div class="dl-h"><span class="rec"></span><span data-lst>Sanelu</span></div><div class="dl-t" data-prev></div></div>' +
       "</div>" +
       '<div class="cam-panel">' +
@@ -117,6 +119,10 @@
     function paintStatus() {
       const n = h.nro ? nro(h.nro) : "Uusi havainto";
       $("[data-count]").textContent = n + (h.kuvat.length ? " · " + h.kuvat.length + (h.kuvat.length === 1 ? " kuva" : " kuvaa") : "");
+      const prev = prevId && !hasContent() && Model.havainto(prevId);
+      const pb = $("[data-c=prev]");
+      pb.classList.toggle("hidden", !prev);
+      if (prev) pb.textContent = "← Lisää kuvia: " + nro(prev.nro);
       // Kortti: montako pakollista tietoa puuttuu (kuva/sanelu ei lasketa, se näkyy tässä)
       const miss = Check.havaintoPuutteet(h).filter((x) => x !== "kuva tai sanelu");
       const fields = M.menetelma(h.menetelma).kentat.length;
@@ -232,10 +238,30 @@
       const miss = Check.havaintoPuutteet(h).filter((x) => x !== "kuva tai sanelu");
       toast(nro(h.nro) + " tallennettu" + (miss.length ? " · täydennä myöhemmin: " + miss.slice(0, 2).join(", ") + (miss.length > 2 ? "…" : "") : ""), 2600);
       // Uusi havainto samaan paikkaan samalla menetelmällä
+      prevId = h.id;
       h = newObservation({ menetelma: h.menetelma });
       saved = false;
       paintAll();
       ta.blur();
+    }
+
+    /* Vaihto toiseen havaintoon kesken kuvauksen (lisäkuvat aiempaan havaintoon) */
+    async function switchTo(id) {
+      await flush();
+      const from = saved ? h.id : null;
+      if (id) {
+        const target = Model.havainto(id);
+        if (!target) return;
+        h = target; saved = true;
+        prevId = from && from !== id ? from : null;
+        toast("Kuvat menevät nyt havaintoon " + nro(h.nro), 2200);
+      } else {
+        prevId = from;
+        h = newObservation({ menetelma: h.menetelma });
+        saved = false;
+      }
+      try { history.replaceState(null, "", "#/k/" + k.id + "/kuvaus" + (saved ? "/" + h.id : "")); } catch (e) { /* ei historiaa */ }
+      paintAll();
     }
 
     function selectMethod(id) {
@@ -263,6 +289,12 @@
       const c = b.dataset.c;
       if (c === "shot") shoot();
       else if (c === "next") next();
+      else if (c === "prev") { if (prevId) switchTo(prevId); }
+      else if (c === "switch") {
+        await pendingShots;
+        ObsList.pick({ title: "Kuvat havaintoon", tilaId: h.sijainti.tilaId, exclude: h.id, allowNew: saved,
+          current: h.id, onSelect: (id) => { if (id !== h.id) switchTo(id); } });
+      }
       else if (c === "card") finish(true);
       else if (c === "close") finish(false);
       else if (c === "more") MethodPicker.openSheet({ selected: h.menetelma, excludeHavainto: h.id, onSelect: selectMethod });

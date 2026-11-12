@@ -54,6 +54,28 @@ Automaattinen arvo näkyy merkinnällä *sanelusta* eikä koskaan korvaa tutkija
 - **Mitään ei menetetä.** Kaikki tallentuu heti, myös kesken olevat kuvat ennen siirtymää.
 - **Näyttö pysyy päällä** kuvatessa, ja puhelin värähtää kuvan otossa, sanelun alussa ja lopussa, kun kameraluku on varma ja kun syvyys vaihtuu.
 
+## Tilojen tunnistus pohjakuvasta (`js/planrooms.js`)
+
+Kun kerrokseen lisätään pohjakuva, sovellus etsii siitä tilojen nimet ja tunnukset ja ehdottaa tiloja valmiiksi sijoitettuina:
+
+- **PDF, jossa on tekstiä** (CAD-tuloste): nimet luetaan suoraan PDF:n tekstistä. Tämä on nopea (alle sekunti) ja tarkka.
+- **Skannattu pohjakuva** (kuva tai kuvana tallennettu PDF): nimet luetaan tekstintunnistuksella (Tesseract, suomi). Tämä kestää muutamia sekunteja. Ensimmäisellä kerralla ladataan suomen kielidata (noin 1 Mt), ja sen jälkeen tunnistus toimii myös ilman verkkoa.
+
+Tulkinta tuntee tavalliset lyhenteet (MH, OH, KT, KPH, PH, S, ET, VH, WC, TK, AK, LJ, IV-KH, ...) ja tilannimet, myös kahdelle riville jaetut. Lyhyet ja moniselitteiset lyhenteet (K, S, TK, LH, ...) hyväksytään vain, jos lähellä on pinta-ala tai tilanumero, joten mitat ja nimiöruudun tekstit eivät tulkitu tiloiksi. Lähellä oleva tilanumero (esim. 101, A12) tulee tunnukseksi. Samannimisille tiloille annetaan numerot (MH1, MH2).
+
+Tunnistetut tilat näytetään **tarkistettavaksi** ennen lisäämistä: pohjakuvassa on numeroidut merkit ja niiden alla lista, jossa tunnuksen ja nimen voi korjata ja väärin tunnistetun tilan voi jättää pois. Tuntemattomat lyhenteet ovat aluksi valitsematta. Kun tutkija korjaa nimen tai nimeää tuntemattoman lyhenteen, sovellus oppii sen (laitteella, `ks_tilasanasto`). Jos kerroksessa on jo samanniminen tai -tunnuksinen tila, se päivitetään eikä siitä tule kaksoiskappaletta. Tunnistuksen voi ajaa uudelleen pohjapiirrosnäkymän painikkeella **Tunnista tilat pohjakuvasta**.
+
+Tilojen rajoja ei tunnisteta: tila on pohjapiirroksessa merkki nimen kohdalla.
+
+## Kuvien lisääminen aiempaan havaintoon
+
+Kun havaintoja on paljon, oikea havainto löytyy usealla tavalla:
+
+- **Kameranäkymä:** vasemman yläkulman havaintotunnus (esim. *Uusi havainto ▾*) on painike. Se avaa haun, jossa saman tilan havainnot ovat ensimmäisinä. Valinnan jälkeen kuvat ja sanelu menevät valittuun havaintoon. Seuraava-painikkeen jälkeen näkyy pikapainike *← Lisää kuvia: H05*, jos edellisestä havainnosta jäi kuva ottamatta.
+- **Havainnot-lista:** haku kohdistuu tunnukseen (H05), mittauspisteen tunnukseen (M3), tilaan, menetelmään, tulokseen ja saneluun, ja kaikkien hakusanojen on osuttava (*keittiö lattia*). Isot kirjaimet ja ääkköset eivät haittaa. Lista näytetään joko uusimmasta alkaen tai tiloittain ryhmiteltynä, ja *Puutteelliset* näyttää vain havainnot, joista puuttuu tietoja. Jokaisen rivin kamerapainike avaa kameran suoraan kyseiseen havaintoon.
+- **Pohjapiirros:** havaintomerkin ikkunassa on *Lisää kuva*.
+- **Liitä kuvia galleriasta** (Havainnot-lista): puhelimen omalla kameralla otetut kuvat liitetään havaintoihin ottoajan perusteella. Ottoaika luetaan kuvan EXIF-tiedoista. Kuvalle ehdotetaan havaintoa, jonka kirjaamisen aikaan kuva otettiin, ja ehdotuksen voi vaihtaa. Kuvat, joille ei löydy havaintoa, liitetään uuteen havaintoon (peräkkäin otetut samaan).
+
 ## RH-mittauspiste ja kameraluku
 
 Kentällä:
@@ -159,12 +181,15 @@ js/app.js              tila, reititys, kohteet, tutkimussuunnitelma
 js/capture.js          Kuva + sanelu
 js/card.js             havaintokortti
 js/plan.js             pohjapiirros, kerrokset, tilat, sijainnin valinta
+js/planrooms.js        tilojen nimien tunnistus pohjakuvasta (PDF-teksti tai OCR)
+js/obslist.js          havaintojen haku ja valinta
+js/gallery.js          galleriakuvien liittäminen ottoajan perusteella
 js/check.js            lähtötarkistus
 js/export.js           ZIP-vienti ja palautus
 sw.js                  toiminta ilman verkkoa
 ```
 
-Ulkoiset kirjastot ladataan CDN:stä ja tallennetaan välimuistiin: JSZip 3.10.1 (vienti), pdf.js 3.11.174 (PDF-pohjakuvat) ja Tesseract.js 5.1.1 (kameraluku). Muita riippuvuuksia tai käännösvaihetta ei ole.
+Ulkoiset kirjastot ladataan CDN:stä ja tallennetaan välimuistiin: JSZip 3.10.1 (vienti), pdf.js 3.11.174 (PDF-pohjakuvat) ja Tesseract.js 5.1.1 (kameraluku ja skannattujen pohjakuvien tilannimet). Muita riippuvuuksia tai käännösvaihetta ei ole.
 
 ### Menetelmien muokkaus
 
@@ -184,6 +209,8 @@ Oletusmenetelmät ovat tiedostossa `js/methods.js` (`OLETUKSET`). Niitä muuteta
 - Ei synkronointia laitteiden välillä. Siirto tehdään ZIP-paketilla.
 - Pohjakuvasta käytetään yhtä PDF-sivua kerrosta kohden.
 - Tiloja ei piirretä alueina: tila merkitään pohjapiirrokseen tunnuksella, ja sen väri kertoo tutkimustilanteen.
+- Tilojen tunnistus vaatii, että nimet ovat pohjakuvassa vaakasuorassa tekstinä. Käsin kirjoitettuja tai pystysuoria nimiä ei tunnisteta, ja heikkolaatuisesta skannauksesta osa nimistä voi jäädä löytymättä. Tulos tarkistetaan aina ennen lisäämistä.
+- Galleriakuvan ottoaika luetaan EXIF-tiedoista. Jos puhelin poistaa ne jaettaessa, käytetään tiedoston aikaleimaa, eikä ehdotus ole silloin luotettava.
 - Jokainen mittauspiste on oma havaintonsa. Saman pisteen kaikki syvyydet ja rinnakkaiset lukemat ovat havainnon taulukossa.
 - Kameraluku tunnistaa Vaisala HM40 -sarjan näytön. Muut mittarit kirjataan käsin, kunnes niille lisätään tunnistus.
 - Sanelusta tunnistetut luvut ovat ehdotuksia. Tutkija valitsee ne ja vahvistaa arvot itse.

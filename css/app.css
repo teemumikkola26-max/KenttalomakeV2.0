@@ -171,7 +171,45 @@ svg.i{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;stroke
 .viewfinder{position:relative;flex:1 1 auto;min-height:120px;margin:0 12px;border-radius:14px;overflow:hidden;background:#2a3039}
 .viewfinder video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .viewfinder .vf-msg{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:20px;font-size:14px;color:#c9cfd8}
-.vf-count{position:absolute;top:10px;left:10px;background:rgba(0,0,0,.55);border-radius:6px;padding:4px 8px;font-size:12.5px}
+.vf-left{position:absolute;top:8px;left:8px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;z-index:2}
+.vf-count{background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.35);color:#fff;border-radius:8px;padding:0 10px;min-height:36px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:4px;cursor:pointer}
+.vf-count svg.i.down{transform:rotate(-90deg);width:16px;height:16px}
+.vf-prev{background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.35);color:#fff;border-radius:8px;padding:0 10px;min-height:36px;font-size:13px;cursor:pointer}
+.vf-prev.hidden{display:none}
+/* Havaintojen haku ja valinta */
+.olist{display:flex;flex-direction:column;gap:2px;max-height:60vh;overflow:auto}
+.orow{display:flex;align-items:center;gap:6px;border-top:1px solid var(--line)}
+.orow:first-child{border-top:none}
+.orow-main{flex:1;min-width:0;display:flex;align-items:center;gap:10px;padding:8px 2px;background:none;border:none;text-align:left;cursor:pointer;font:inherit;color:inherit}
+.orow .grow{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.orow .t{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.orow .s{font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.orow .snip{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.orow .thumb .warn{position:absolute;left:3px;top:3px;width:18px;height:18px;border-radius:50%;background:#c9771d;color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff}
+.orow .nophoto{display:flex;align-items:center;justify-content:center;width:100%;height:100%;color:#fff;opacity:.8}
+.ohead{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding:10px 2px 4px}
+.orow .icon-btn{margin-right:4px}
+.hv-filter{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+/* Galleriakuvien liittäminen */
+.glist{display:flex;flex-direction:column;gap:10px;max-height:58vh;overflow:auto}
+.grow-row{display:flex;gap:10px;align-items:center}
+.grow-row img{width:64px;height:64px;object-fit:cover;border-radius:8px;flex:0 0 auto}
+.grow-row .g-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.grow-row .s{font-size:12.5px;color:var(--muted)}
+.grow-row select{width:100%;min-height:42px}
+/* Tilojen tunnistus: tarkistus */
+.pin.rv{background:var(--safety,#e8a33d);color:#1c2430;border-color:#fff;cursor:pointer}
+.pin.rv.rv-q{background:#fff;color:#1c2430;border-color:#c9771d;border-style:dashed}
+.rvlist{display:flex;flex-direction:column;gap:6px;max-height:40vh;overflow:auto}
+.rvrow{display:grid;grid-template-columns:auto auto 70px 1fr;gap:6px;align-items:center}
+.rvrow input[type=checkbox]{width:22px;height:22px}
+.rvrow input[type=text]{min-height:40px;padding:6px 8px;min-width:0}
+.rv-no{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;border-radius:12px;background:var(--safety,#e8a33d);font-size:12px;font-weight:700}
+.rv-no.rv-q{background:#fff;border:1.5px dashed #c9771d}
+.rv-info{grid-column:3 / -1;font-size:12px;color:var(--muted);margin-top:-3px}
+.rv-info:empty{display:none}
+.hv-tools{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+.hv-tools .mp-search{flex:1}
 .vf-thumbs{position:absolute;top:8px;right:8px;display:flex;gap:6px}
 .vf-thumbs img{width:40px;height:40px;object-fit:cover;border-radius:6px;border:2px solid #fff}
 .flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .25s}
@@ -355,3 +393,4 @@ input.flag{border:2px solid #c9771d !important;background:#fff4e5}
 
 .todo-img{width:56px;height:56px;object-fit:cover;border-radius:8px;flex:0 0 auto}
 .todo .tt:has(.todo-img)::before{display:none}
+.hv-filter .chip{display:inline-flex;align-items:center;gap:6px}

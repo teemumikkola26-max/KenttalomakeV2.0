@@ -248,22 +248,50 @@
       "</main>" + fab("#/k/" + k.id + "/kuvaus") + bottomnav("kohde");
   }
 
-  /* ---------------- Näkymä: kaikki havainnot ---------------- */
+  /* ---------------- Näkymä: kaikki havainnot ----------------
+     Haku (tunnus, tila, menetelmä, sanelu), ryhmittely tiloittain ja
+     kamerapainike jokaisella rivillä: lisäkuvat aiempaan havaintoon. */
+  let hvState = { q: "", f: "kaikki" };
   async function viewHavainnot() {
     const k = S.kohde;
     await Model.ensureUrls(S.havainnot.map((h) => h.kuvat[0]));
-    let rows = "";
-    for (const h of S.havainnot) {
-      const u = Model.url(h.kuvat[0]);
-      rows += '<button class="row" data-act="openH" data-id="' + h.id + '">' +
-        '<span class="thumb" style="width:56px;height:56px">' + (u ? '<img src="' + u + '" alt="">' : "") + "</span>" +
-        '<div class="grow"><div class="t">' + nro(h.nro) + " · " + esc(Model.sijaintiTeksti(h.sijainti) || "Sijainti puuttuu") + "</div>" +
-        '<div class="s">' + esc(M.menetelma(h.menetelma).nimi + (h.tulos ? " · " + M.TULOKSET[h.tulos] : "")) + "</div>" +
-        '<div class="s" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(h.sanelu || "Ei sanelua") + "</div></div></button>";
-    }
+    const nMiss = S.havainnot.filter((h) => Check.havaintoPuutteet(h).length).length;
     app().innerHTML = topbar({ title: "Havainnot", sub: k.nimi, back: "#/k/" + k.id }) +
-      '<main class="view"><section class="card">' + (rows || '<div class="empty">Ei havaintoja.</div>') + "</section></main>" +
+      '<main class="view"><div class="hv-tools"><label class="mp-search">' + icon("list") +
+      '<input type="search" data-hq value="' + esc(hvState.q) + '" placeholder="Hae: H05, M3, keittiö, lattia…" aria-label="Hae havaintoja" autocomplete="off"></label></div>' +
+      '<div class="hv-filter chips"><button class="chip" data-hf="kaikki">Kaikki ' + S.havainnot.length + '</button>' +
+      '<button class="chip" data-hf="puute">Puutteelliset ' + nMiss + '</button><button class="chip" data-hf="tilat">Tiloittain</button>' +
+      '<button class="chip" data-act="galleria">' + icon("image") + "Liitä kuvia galleriasta</button></div>" +
+      '<section class="card"><div class="card-b" data-hlist></div></section></main>' +
       fab("#/k/" + k.id + "/kuvaus") + bottomnav("kohde");
+    const listEl = app().querySelector("[data-hlist]"), q = app().querySelector("[data-hq]");
+    const paint = () => {
+      app().querySelectorAll("[data-hf]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.hf === hvState.f)));
+      let list = S.havainnot.slice();
+      if (hvState.f === "puute") list = list.filter((h) => Check.havaintoPuutteet(h).length);
+      list = ObsList.filter(list, hvState.q);
+      let html = "";
+      if (hvState.f === "tilat") {
+        const groups = new Map();
+        list.forEach((h) => { const id = (h.sijainti && h.sijainti.tilaId) || ""; if (!groups.has(id)) groups.set(id, []); groups.get(id).push(h); });
+        const keys = Array.from(groups.keys()).sort((a, b) => (a ? Model.tilaNimi(Model.tila(a)) : "\uffff").localeCompare(b ? Model.tilaNimi(Model.tila(b)) : "\uffff", "fi", { numeric: true }));
+        keys.forEach((id) => {
+          const t = id && Model.tila(id);
+          html += '<div class="ohead">' + esc(t ? Model.tilaNimi(t) : "Ei tilaa") + " · " + groups.get(id).length + "</div>";
+          html += groups.get(id).map((h) => ObsList.rowHtml(h, { camera: true })).join("");
+        });
+      } else html = list.slice().reverse().map((h) => ObsList.rowHtml(h, { camera: true })).join("");
+      listEl.innerHTML = html ? '<div class="olist" style="max-height:none">' + html + "</div>" : '<div class="empty">' + (S.havainnot.length ? "Ei osumia." : "Ei havaintoja.") + "</div>";
+    };
+    q.addEventListener("input", () => { hvState.q = q.value; paint(); });
+    app().querySelectorAll("[data-hf]").forEach((b) => b.addEventListener("click", () => { hvState.f = b.dataset.hf; paint(); }));
+    listEl.addEventListener("click", (e) => {
+      const cam = e.target.closest("[data-ocam]");
+      if (cam) { location.hash = "#/k/" + k.id + "/kuvaus/" + cam.dataset.ocam; return; }
+      const o = e.target.closest("[data-oid]");
+      if (o) location.hash = "#/k/" + k.id + "/h/" + o.dataset.oid;
+    });
+    paint();
   }
 
   /* ---------------- Näkymä: kohteen tiedot ---------------- */
@@ -366,6 +394,7 @@
       } catch (e) { toast(e.message || "Palautus epäonnistui", 4000); }
     },
     openH(el) { location.hash = "#/k/" + S.kohde.id + "/h/" + el.dataset.id; },
+    galleria() { Gallery.importPhotos(() => render()); },
     addKohta() { kohtaSheet(null); },
     editKohta(el) { kohtaSheet(Model.kohta(el.dataset.id)); },
     async delKohta(el) {

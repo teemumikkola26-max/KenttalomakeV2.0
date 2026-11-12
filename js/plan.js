@@ -39,7 +39,10 @@
     const ctx = c.getContext("2d");
     ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height);
     await page.render({ canvasContext: ctx, viewport: vp }).promise;
-    return await new Promise((r) => c.toBlob(r, "image/png"));
+    let tokens = [];
+    try { if (window.PlanRooms) tokens = await PlanRooms.pdfTokens(page, vp); } catch (e) { console.warn("PDF-teksti", e); }
+    const blob = await new Promise((r) => c.toBlob(r, "image/png"));
+    return { blob, tokens };
   }
 
   async function imageSize(blob) {
@@ -55,21 +58,113 @@
     const f = files[0];
     toast("Käsitellään pohjakuvaa…", 4000);
     try {
-      let blob;
-      if (f.type === "application/pdf" || /\.pdf$/i.test(f.name)) blob = await pdfToBlob(f);
+      let blob, tokens = [];
+      if (f.type === "application/pdf" || /\.pdf$/i.test(f.name)) ({ blob, tokens } = await pdfToBlob(f));
       else blob = f.size > 4e6 ? await Camera.shrink(f) : f;
       const size = await imageSize(blob);
       const old = kerros.planId;
       kerros.planId = await DB.putFile(S.kohde.id, blob, { kind: "pohja", kerrosId: kerros.id });
       kerros.w = size.w; kerros.h = size.h;
+      kerros.planTexts = tokens.length ? tokens : null;
       if (old) await DB.del("tiedostot", old);
       await Model.saveKohde();
       toast("Pohjakuva lisätty");
       App.render();
+      detectRooms(kerros, blob);
     } catch (e) {
       console.error(e);
       toast("Pohjakuvan lisäys epäonnistui: " + (e.message || e), 5000);
     }
+  }
+
+  /* ---------- Tilojen tunnistus pohjakuvasta ---------- */
+  const normName = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+  let detecting = false;
+
+  async function detectRooms(kerros, blob, manual) {
+    if (!window.PlanRooms || detecting || !kerros.planId) return;
+    detecting = true;
+    try {
+      if (!blob) { const f = await DB.get("tiedostot", kerros.planId); blob = f && f.blob; }
+      if (!blob) return;
+      const hasText = kerros.planTexts && kerros.planTexts.length;
+      toast(hasText ? "Tunnistetaan tiloja…" : "Luetaan tilojen nimiä kuvasta…", 60000);
+      const res = await PlanRooms.detect({
+        pdfTokens: kerros.planTexts, image: blob,
+        progress: (p) => toast("Luetaan tilojen nimiä kuvasta… " + Math.round(p * 100) + " %", 60000)
+      });
+      if (!res.tilat.length) { toast(manual ? "Pohjakuvasta ei löytynyt tilojen nimiä. Lisää tilat käsin." : "Tilojen nimiä ei tunnistettu – lisää tilat käsin", 4000); return; }
+      toast(res.tilat.length + " tilaa tunnistettu", 1500);
+      await reviewRooms(kerros, res);
+    } catch (e) {
+      console.error(e);
+      toast("Tilojen tunnistus epäonnistui: " + (e.message || e), 5000);
+    } finally { detecting = false; }
+  }
+
+  /* Tunnistetut tilat tarkistettavaksi: kuva numeroituine merkkeineen + lista */
+  async function reviewRooms(kerros, res) {
+    await Model.ensureUrls([kerros.planId]);
+    const existing = S.kohde.tilat.filter((t) => t.kerrosId === kerros.id);
+    const match = (c) => existing.find((t) => (c.tunnus && normName(t.tunnus) === normName(c.tunnus)) ||
+      (!t.tunnus && !c.tunnus && normName(t.nimi) === normName(c.nimi)) ||
+      (!c.tunnus && normName(t.nimi) === normName(c.nimi) && !existing.some((o) => o !== t && normName(o.nimi) === normName(c.nimi))));
+    const rows = res.tilat.map((c, i) => Object.assign({}, c, { i: i + 1, olemassa: match(c) }));
+    const pins = rows.map((r) => '<span class="pin rv' + (r.varma ? "" : " rv-q") + '" data-pi="' + r.i + '" style="left:' + (r.x * 100) + "%;top:" + (r.y * 100) + '%">' + r.i + "</span>").join("");
+    sheet(
+      "<h3>Tunnistetut tilat · " + esc(kerros.nimi) + "</h3>" +
+      '<p>' + (res.lahde === "pdf" ? "Luettu PDF:n tekstistä." : "Luettu kuvasta tekstintunnistuksella – tarkista nimet.") +
+      " Korjaa tarvittaessa ja poista valinta väärin tunnistetuilta.</p>" +
+      '<div class="plan-wrap" style="margin-bottom:10px"><img src="' + Model.url(kerros.planId) + '" alt="" draggable="false">' + pins + "</div>" +
+      '<div class="rvlist">' + rows.map((r) =>
+        '<label class="rvrow" data-ri="' + r.i + '"><input type="checkbox" data-c' + (r.varma ? " checked" : "") + '>' +
+        '<span class="rv-no' + (r.varma ? "" : " rv-q") + '">' + r.i + "</span>" +
+        '<input type="text" data-t value="' + esc(r.tunnus) + '" placeholder="Tunnus" aria-label="Tunnus" class="rv-tun">' +
+        '<input type="text" data-n value="' + esc(r.nimi) + '" aria-label="Nimi" class="rv-nimi">' +
+        '<span class="rv-info">' + (r.olemassa ? "päivittää: " + esc(Model.tilaNimi(r.olemassa)) : r.tuntematon ? "tuntematon lyhenne “" + esc(r.raaka) + "”" : r.raaka && normName(r.raaka) !== normName(r.nimi) ? "luettu: " + esc(r.raaka) : "") + "</span></label>").join("") + "</div>" +
+      '<div class="row-btns" style="margin-top:12px"><button class="btn" data-close>Ohita</button><button class="btn btn-primary" data-ok></button></div>',
+      (el, close) => {
+        const okBtn = el.querySelector("[data-ok]");
+        const count = () => {
+          const n = el.querySelectorAll("[data-c]:checked").length;
+          okBtn.textContent = "Lisää valitut (" + n + ")"; okBtn.disabled = !n;
+          el.querySelectorAll("[data-ri]").forEach((row) => {
+            const pin = el.querySelector('[data-pi="' + row.dataset.ri + '"]');
+            if (pin) pin.style.opacity = row.querySelector("[data-c]").checked ? "1" : ".35";
+          });
+        };
+        el.addEventListener("change", count);
+        el.addEventListener("input", (e) => { const row = e.target.closest("[data-ri]"); if (row && e.target.matches("[data-n]") && e.target.value.trim()) row.querySelector("[data-c]").checked = true; count(); });
+        el.querySelectorAll("[data-pi]").forEach((p) => p.addEventListener("click", () => {
+          const row = el.querySelector('[data-ri="' + p.dataset.pi + '"]');
+          if (row) { row.scrollIntoView({ block: "center", behavior: "smooth" }); row.querySelector("[data-n]").focus(); }
+        }));
+        count();
+        okBtn.addEventListener("click", async () => {
+          let nNew = 0, nUpd = 0;
+          el.querySelectorAll("[data-ri]").forEach((row) => {
+            if (!row.querySelector("[data-c]").checked) return;
+            const r = rows[+row.dataset.ri - 1];
+            const nimi = row.querySelector("[data-n]").value.trim(), tunnus = row.querySelector("[data-t]").value.trim();
+            if (!nimi && !tunnus) return;
+            if (nimi && normName(nimi) !== normName(r.nimi) && r.raaka) PlanRooms.learn(r.abbr || r.raaka, nimi);
+            else if (r.tuntematon && nimi) PlanRooms.learn(r.abbr || r.raaka, nimi);
+            const pos = { x: r.x, y: r.y };
+            if (r.olemassa) {
+              const t = r.olemassa;
+              t.pos = pos; if (!t.tunnus && tunnus) t.tunnus = tunnus; if (nimi) t.nimi = nimi; nUpd++;
+            } else {
+              S.kohde.tilat.push({ id: DB.uid("t_"), tunnus, nimi, kerrosId: kerros.id, pos, merkinta: null, lahde: "pohjakuva" });
+              nNew++;
+            }
+          });
+          await Model.saveKohde();
+          close(true);
+          toast([nNew && nNew + " tilaa lisätty", nUpd && nUpd + " päivitetty"].filter(Boolean).join(", ") || "Ei muutoksia", 2500);
+          App.render();
+        });
+      }
+    );
   }
 
   async function addFloor() {
@@ -172,8 +267,11 @@
     sheet("<h3>" + nro(h.nro) + " · " + esc(Model.sijaintiTeksti(h.sijainti)) + "</h3>" +
       "<p>" + esc(M.menetelma(h.menetelma).nimi + (h.tulos ? " · " + M.TULOKSET[h.tulos] : "")) + "</p>" +
       (h.sanelu ? '<p style="color:var(--ink)">' + esc(h.sanelu.length > 220 ? h.sanelu.slice(0, 220) + "…" : h.sanelu) + "</p>" : "") +
-      '<div class="row-btns"><button class="btn" data-close>Sulje</button><button class="btn btn-primary" data-o>Avaa</button></div>',
-      (el, close) => el.querySelector("[data-o]").addEventListener("click", () => { close(); location.hash = "#/k/" + S.kohde.id + "/h/" + h.id; }));
+      '<div class="row-btns"><button class="btn" data-c>' + icon("cam") + 'Lisää kuva</button><button class="btn btn-primary" data-o>Avaa</button></div>',
+      (el, close) => {
+        el.querySelector("[data-o]").addEventListener("click", () => { close(); location.hash = "#/k/" + S.kohde.id + "/h/" + h.id; });
+        el.querySelector("[data-c]").addEventListener("click", () => { close(); location.hash = "#/k/" + S.kohde.id + "/kuvaus/" + h.id; });
+      });
   }
 
   /* Pohjapiirroksen merkit HTML:nä (prosentteina, skaalautuu kuvan mukana) */
@@ -226,6 +324,7 @@
           '<div class="empty">Ei tiloja. Lisää tilat, niin kattavuus näkyy ja lähtötarkistus muistuttaa tutkimatta jääneistä.</div>') +
         '<div class="card-b" style="padding-top:10px"><button class="btn btn-block" data-a="addRoom">' + icon("plus") + "Lisää tila</button></div></section>" +
         '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+        (kerros.planId ? '<button class="btn btn-sm" data-a="detect">' + icon("list") + "Tunnista tilat pohjakuvasta</button>" : "") +
         (kerros.planId ? '<button class="btn btn-sm" data-a="setPlan">' + icon("image") + "Vaihda pohjakuva</button>" : "") +
         '<button class="btn btn-sm" data-a="renameFloor">' + icon("edit") + "Nimeä kerros</button>" +
         '<button class="btn btn-sm btn-danger" data-a="delFloor">' + icon("trash") + "Poista kerros</button></div>";
@@ -256,6 +355,7 @@
         if (kerros.planId && !(await confirmSheet({ title: "Vaihdetaanko pohjakuva?", text: "Havaintojen ja tilojen merkit säilyvät samoissa suhteellisissa kohdissa. Tarkista ne vaihdon jälkeen.", ok: "Valitse uusi kuva" }))) return;
         setPlan(kerros);
       }
+      else if (a === "detect") detectRooms(kerros, null, true);
       else if (a === "addRoom") { const t = await roomSheet(null, kerros.id); if (t) { App.render(); if (kerros.planId) { placingRoom = t.id; App.render(); toast("Napauta tilan kohtaa pohjapiirroksessa, tai peruuta", 3000); } } }
       else if (a === "room") roomActions(Model.tila(b.dataset.id));
       else if (a === "cancelPlace") { placingRoom = null; App.render(); }
@@ -344,5 +444,5 @@
     paint();
   }
 
-  window.Plan = { view, locationSheet, roomActions, pinsHtml };
+  window.Plan = { view, locationSheet, roomActions, pinsHtml, detectRooms, reviewRooms };
 })();
