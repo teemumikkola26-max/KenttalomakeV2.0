@@ -32,7 +32,7 @@
     }
     const page = await pdf.getPage(pageNo);
     const base = page.getViewport({ scale: 1 });
-    const scale = Math.min(4, 2200 / Math.max(base.width, base.height));
+    const scale = Math.min(6, 3200 / Math.max(base.width, base.height));   // pienetkin tekstit luettaviksi
     const vp = page.getViewport({ scale });
     const c = document.createElement("canvas");
     c.width = Math.round(vp.width); c.height = Math.round(vp.height);
@@ -60,7 +60,7 @@
     try {
       let blob, tokens = [];
       if (f.type === "application/pdf" || /\.pdf$/i.test(f.name)) ({ blob, tokens } = await pdfToBlob(f));
-      else blob = f.size > 4e6 ? await Camera.shrink(f) : f;
+      else blob = await Camera.shrink(f, 4096);   // pohjakuvassa pienet tekstit: tarkkuutta enemmän kuin havaintokuvissa
       const size = await imageSize(blob);
       const old = kerros.planId;
       kerros.planId = await DB.putFile(S.kohde.id, blob, { kind: "pohja", kerrosId: kerros.id });
@@ -70,7 +70,7 @@
       await Model.saveKohde();
       toast("Pohjakuva lisätty");
       App.render();
-      detectRooms(kerros, blob);
+      detectRooms(kerros, blob, false, f.type && f.type.startsWith("image/") ? f : null);
     } catch (e) {
       console.error(e);
       toast("Pohjakuvan lisäys epäonnistui: " + (e.message || e), 5000);
@@ -81,7 +81,7 @@
   const normName = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
   let detecting = false;
 
-  async function detectRooms(kerros, blob, manual) {
+  async function detectRooms(kerros, blob, manual, original) {
     if (!window.PlanRooms || detecting || !kerros.planId) return;
     detecting = true;
     try {
@@ -90,8 +90,11 @@
       const hasText = kerros.planTexts && kerros.planTexts.length;
       toast(hasText ? "Tunnistetaan tiloja…" : "Luetaan tilojen nimiä kuvasta…", 60000);
       const res = await PlanRooms.detect({
-        pdfTokens: kerros.planTexts, image: blob,
-        progress: (p) => toast("Luetaan tilojen nimiä kuvasta… " + Math.round(p * 100) + " %", 60000)
+        pdfTokens: kerros.planTexts, image: original || blob,
+        progress: (p) => {
+          const v = typeof p === "number" ? p : p && typeof p.progress === "number" ? p.progress : null;
+          if (v != null) toast("Luetaan tilojen nimiä kuvasta… " + Math.round(v * 100) + " %", 60000);
+        }
       });
       if (!res.tilat.length) { toast(manual ? "Pohjakuvasta ei löytynyt tilojen nimiä. Lisää tilat käsin." : "Tilojen nimiä ei tunnistettu – lisää tilat käsin", 4000); return; }
       toast(res.tilat.length + " tilaa tunnistettu", 1500);
@@ -109,19 +112,26 @@
     const match = (c) => existing.find((t) => (c.tunnus && normName(t.tunnus) === normName(c.tunnus)) ||
       (!t.tunnus && !c.tunnus && normName(t.nimi) === normName(c.nimi)) ||
       (!c.tunnus && normName(t.nimi) === normName(c.nimi) && !existing.some((o) => o !== t && normName(o.nimi) === normName(c.nimi))));
-    const rows = res.tilat.map((c, i) => Object.assign({}, c, { i: i + 1, olemassa: match(c) }));
-    const pins = rows.map((r) => '<span class="pin rv' + (r.varma ? "" : " rv-q") + '" data-pi="' + r.i + '" style="left:' + (r.x * 100) + "%;top:" + (r.y * 100) + '%">' + r.i + "</span>").join("");
+    // Asunnoittain ryhmiteltynä (rivitalot ja kerrostalot), muuten tunnistusjärjestyksessä
+    const sorted = res.tilat.slice().sort((a, b) => (a.asunto || "").localeCompare(b.asunto || "", "fi", { numeric: true }) || (a.tunnus || "").localeCompare(b.tunnus || "", "fi", { numeric: true }));
+    const rows = sorted.map((c, i) => Object.assign({}, c, { i: i + 1, olemassa: match(c) }));
+    const many = rows.length > 20;
+    const pins = rows.map((r) => '<span class="pin rv' + (r.varma ? "" : " rv-q") + (many ? " rv-s" : "") + '" data-pi="' + r.i + '" style="left:' + (r.x * 100) + "%;top:" + (r.y * 100) + '%">' + r.i + "</span>").join("");
     sheet(
       "<h3>Tunnistetut tilat · " + esc(kerros.nimi) + "</h3>" +
       '<p>' + (res.lahde === "pdf" ? "Luettu PDF:n tekstistä." : "Luettu kuvasta tekstintunnistuksella – tarkista nimet.") +
       " Korjaa tarvittaessa ja poista valinta väärin tunnistetuilta.</p>" +
       '<div class="plan-wrap" style="margin-bottom:10px"><img src="' + Model.url(kerros.planId) + '" alt="" draggable="false">' + pins + "</div>" +
-      '<div class="rvlist">' + rows.map((r) =>
-        '<label class="rvrow" data-ri="' + r.i + '"><input type="checkbox" data-c' + (r.varma ? " checked" : "") + '>' +
+      (res.kierto ? '<p class="hint">Piirustus on kuvassa kiertyneenä (' + res.kierto + "°). Tekstit luettiin oikein päin.</p>" : "") +
+      '<div class="rvlist">' + rows.map((r, k) =>
+        (r.asunto && (k === 0 || rows[k - 1].asunto !== r.asunto)
+          ? '<div class="rv-apt"><span>Asunto</span><input type="text" data-apt="' + esc(r.asunto) + '" value="' + esc(r.asunto) + '" aria-label="Asunnon tunnus">' +
+            (r.asuntoTyyppi ? '<span class="rv-info" style="margin:0">' + esc(r.asuntoTyyppi) + "</span>" : "") + "</div>" : "") +
+        '<label class="rvrow" data-ri="' + r.i + '" data-as="' + esc(r.asunto || "") + '"><input type="checkbox" data-c' + (r.varma ? " checked" : "") + '>' +
         '<span class="rv-no' + (r.varma ? "" : " rv-q") + '">' + r.i + "</span>" +
         '<input type="text" data-t value="' + esc(r.tunnus) + '" placeholder="Tunnus" aria-label="Tunnus" class="rv-tun">' +
         '<input type="text" data-n value="' + esc(r.nimi) + '" aria-label="Nimi" class="rv-nimi">' +
-        '<span class="rv-info">' + (r.olemassa ? "päivittää: " + esc(Model.tilaNimi(r.olemassa)) : r.tuntematon ? "tuntematon lyhenne “" + esc(r.raaka) + "”" : r.raaka && normName(r.raaka) !== normName(r.nimi) ? "luettu: " + esc(r.raaka) : "") + "</span></label>").join("") + "</div>" +
+        '<span class="rv-info">' + (r.olemassa ? "päivittää: " + esc(Model.tilaNimi(r.olemassa)) : r.tuntematon ? "tuntematon lyhenne “" + esc(r.raaka) + "”" : r.paatelty ? "päätelty muista samanlaisista asunnoista" : r.pohjasta ? "korjattu muiden asuntojen mukaan" : r.raaka && normName(r.raaka) !== normName(r.nimi) && normName(r.raaka) !== normName(r.abbr) ? "luettu: " + esc(r.raaka) : "") + "</span></label>").join("") + "</div>" +
       '<div class="row-btns" style="margin-top:12px"><button class="btn" data-close>Ohita</button><button class="btn btn-primary" data-ok></button></div>',
       (el, close) => {
         const okBtn = el.querySelector("[data-ok]");
@@ -134,6 +144,16 @@
           });
         };
         el.addEventListener("change", count);
+        // Asunnon tunnuksen muutos päivittää asunnon tilojen tunnukset (As3 MH1 -> B12 MH1)
+        el.querySelectorAll("[data-apt]").forEach((inp) => inp.addEventListener("input", () => {
+          const old = inp.dataset.apt, nw = inp.value.trim();
+          el.querySelectorAll('[data-as="' + CSS.escape(old) + '"] [data-t]').forEach((t) => {
+            const rest = t.value.startsWith(old) ? t.value.slice(old.length).trim() : t.value;
+            t.value = (nw ? nw + " " : "") + rest;
+          });
+          el.querySelectorAll('[data-as="' + CSS.escape(old) + '"]').forEach((row) => { row.dataset.as = nw; });
+          inp.dataset.apt = nw;
+        }));
         el.addEventListener("input", (e) => { const row = e.target.closest("[data-ri]"); if (row && e.target.matches("[data-n]") && e.target.value.trim()) row.querySelector("[data-c]").checked = true; count(); });
         el.querySelectorAll("[data-pi]").forEach((p) => p.addEventListener("click", () => {
           const row = el.querySelector('[data-ri="' + p.dataset.pi + '"]');

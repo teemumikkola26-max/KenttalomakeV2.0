@@ -61,7 +61,7 @@
     },
 
     /* Pienentää kuvan ja kääntää sen EXIF-suunnan mukaan. */
-    async shrink(blob) {
+    async shrink(blob, maxEdge) {
       let bmp;
       try { bmp = await createImageBitmap(blob, { imageOrientation: "from-image" }); }
       catch (e) {
@@ -73,7 +73,7 @@
         });
       }
       const w = bmp.width, h = bmp.height;
-      const s = Math.min(1, MAX_EDGE / Math.max(w, h));
+      const s = Math.min(1, (maxEdge || MAX_EDGE) / Math.max(w, h));
       if (s === 1 && blob.type === "image/jpeg" && blob.size < 3.5e6) return blob;
       const c = document.createElement("canvas");
       c.width = Math.round(w * s); c.height = Math.round(h * s);

@@ -59,9 +59,16 @@ Automaattinen arvo näkyy merkinnällä *sanelusta* eikä koskaan korvaa tutkija
 Kun kerrokseen lisätään pohjakuva, sovellus etsii siitä tilojen nimet ja tunnukset ja ehdottaa tiloja valmiiksi sijoitettuina:
 
 - **PDF, jossa on tekstiä** (CAD-tuloste): nimet luetaan suoraan PDF:n tekstistä. Tämä on nopea (alle sekunti) ja tarkka.
-- **Skannattu pohjakuva** (kuva tai kuvana tallennettu PDF): nimet luetaan tekstintunnistuksella (Tesseract, suomi). Tämä kestää muutamia sekunteja. Ensimmäisellä kerralla ladataan suomen kielidata (noin 1 Mt), ja sen jälkeen tunnistus toimii myös ilman verkkoa.
+- **Skannattu pohjakuva tai valokuva paperipiirustuksesta** (kuva tai kuvana tallennettu PDF): kuvasta etsitään ensin tekstin näköiset kohdat (merkin kokoiset tummat alueet rivissä). Ne leikataan irti, suurennetaan ja luetaan tekstintunnistuksella (Tesseract, suomi). Näin pienetkin tunnukset löytyvät viivojen seasta, eivätkä varjot tai epätasainen valo haittaa. Lyhyet sanat, joita ei tunnisteta, luetaan uudelleen kolmella eri kuvankäsittelyllä, ja tulokset äänestetään. Piirustuksen kierto (0/90/180/270°) päätellään itse. Siisteistä skannauksista luetaan lisäksi koko sivu, ja tulokset yhdistetään. Ensimmäisellä kerralla ladataan suomen kielidata (noin 1 Mt), ja sen jälkeen tunnistus toimii myös ilman verkkoa.
+- **Kierretty PDF**: jos koko piirustus on PDF:ssä kierretty, tekstit luetaan yleisimmän tekstisuunnan mukaan.
 
-Tulkinta tuntee tavalliset lyhenteet (MH, OH, KT, KPH, PH, S, ET, VH, WC, TK, AK, LJ, IV-KH, ...) ja tilannimet, myös kahdelle riville jaetut. Lyhyet ja moniselitteiset lyhenteet (K, S, TK, LH, ...) hyväksytään vain, jos lähellä on pinta-ala tai tilanumero, joten mitat ja nimiöruudun tekstit eivät tulkitu tiloiksi. Lähellä oleva tilanumero (esim. 101, A12) tulee tunnukseksi. Samannimisille tiloille annetaan numerot (MH1, MH2).
+Tulkinta tuntee tavalliset lyhenteet (MH, OH, KT, K, R, KPH, PH, S, ET, VH, WC, TK, AK, LJ, IV-KH, ...) ja tilannimet, myös kahdelle riville jaetut. Numeroitu lyhenne (MH1, MH2) tulee tunnukseksi. Lyhyet ja moniselitteiset lyhenteet (K, S, R, TK, LH, ...) hyväksytään, jos lähellä on pinta-ala tai tilanumero, tai jos pohjassa on muuten selvästi tilalyhenteitä ja lyhenne on tilojen alueella. Näin mitat ja nimiöruudun tekstit eivät tulkitu tiloiksi. Tekstintunnistuksen tyypilliset sekaannukset korjataan (WH2 → MH2, CH → OH, IK → TK). Lähellä oleva tilanumero (esim. 101, A12) tulee tunnukseksi.
+
+**Asunnot.** Jos pohjassa on useita asuntotyyppimerkintöjä (3H+K 73,0 m²), tilat ryhmitellään asunnoittain, ja tunnukseen tulee asunnon numero (As3 MH1). Asunnon rajat päätellään niin, että samat tilat ovat kaikissa asunnoissa samassa kohdassa. Toistuvan pohjan ansiosta:
+- väärin luettu tunnus korjataan muiden asuntojen mukaiseksi
+- asunnosta puuttuva tila lisätään, jos samassa kohdassa on tekstiä, jota ei saatu luettua (merkintä *päätelty muista samanlaisista asunnoista*).
+
+Tarkistusnäkymässä asunnon tunnusta voi muuttaa (As3 → C12), jolloin asunnon kaikkien tilojen tunnukset päivittyvät.
 
 Tunnistetut tilat näytetään **tarkistettavaksi** ennen lisäämistä: pohjakuvassa on numeroidut merkit ja niiden alla lista, jossa tunnuksen ja nimen voi korjata ja väärin tunnistetun tilan voi jättää pois. Tuntemattomat lyhenteet ovat aluksi valitsematta. Kun tutkija korjaa nimen tai nimeää tuntemattoman lyhenteen, sovellus oppii sen (laitteella, `ks_tilasanasto`). Jos kerroksessa on jo samanniminen tai -tunnuksinen tila, se päivitetään eikä siitä tule kaksoiskappaletta. Tunnistuksen voi ajaa uudelleen pohjapiirrosnäkymän painikkeella **Tunnista tilat pohjakuvasta**.
 
@@ -209,7 +216,7 @@ Oletusmenetelmät ovat tiedostossa `js/methods.js` (`OLETUKSET`). Niitä muuteta
 - Ei synkronointia laitteiden välillä. Siirto tehdään ZIP-paketilla.
 - Pohjakuvasta käytetään yhtä PDF-sivua kerrosta kohden.
 - Tiloja ei piirretä alueina: tila merkitään pohjapiirrokseen tunnuksella, ja sen väri kertoo tutkimustilanteen.
-- Tilojen tunnistus vaatii, että nimet ovat pohjakuvassa vaakasuorassa tekstinä. Käsin kirjoitettuja tai pystysuoria nimiä ei tunnisteta, ja heikkolaatuisesta skannauksesta osa nimistä voi jäädä löytymättä. Tulos tarkistetaan aina ennen lisäämistä.
+- Tilojen tunnistus vaatii, että nimet ovat painettua tekstiä samassa suunnassa kuin piirustuksen muu teksti. Käsin kirjoitettuja nimiä ei tunnisteta. Valokuvasta tunnistus onnistuu sitä paremmin, mitä tarkempi kuva on: kuvaa piirustus suoraan yläpuolelta, ja anna sovellukselle alkuperäinen kuva (ei pienennettyä kuvakaappausta). Tulos tarkistetaan aina ennen lisäämistä.
 - Galleriakuvan ottoaika luetaan EXIF-tiedoista. Jos puhelin poistaa ne jaettaessa, käytetään tiedoston aikaleimaa, eikä ehdotus ole silloin luotettava.
 - Jokainen mittauspiste on oma havaintonsa. Saman pisteen kaikki syvyydet ja rinnakkaiset lukemat ovat havainnon taulukossa.
 - Kameraluku tunnistaa Vaisala HM40 -sarjan näytön. Muut mittarit kirjataan käsin, kunnes niille lisätään tunnistus.

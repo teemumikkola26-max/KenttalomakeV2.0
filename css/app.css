@@ -394,3 +394,6 @@ input.flag{border:2px solid #c9771d !important;background:#fff4e5}
 .todo-img{width:56px;height:56px;object-fit:cover;border-radius:8px;flex:0 0 auto}
 .todo .tt:has(.todo-img)::before{display:none}
 .hv-filter .chip{display:inline-flex;align-items:center;gap:6px}
+.pin.rv.rv-s{min-width:18px;height:18px;font-size:9.5px;border-width:1px;padding:0 2px}
+.rv-apt{display:flex;align-items:center;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.rv-apt input{width:90px;min-height:36px;padding:4px 8px;text-transform:none;font-weight:600}
