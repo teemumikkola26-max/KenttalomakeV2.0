@@ -456,3 +456,17 @@ input.flag{border:2px solid #c9771d !important;background:#fff4e5}
 .meta-chip{min-width:84px;flex-shrink:0}
 .cp-meta .chip.autoset,.meta-chip.autoset{border-style:dashed}
 .cam-hint{font-size:11.5px;color:#9aa4b1;margin:-2px 2px 0}
+.rthumb.dict{display:flex;align-items:center;justify-content:center;background:#eef2f7;color:var(--muted);border-radius:6px}
+.rthumb.dict svg.i{width:18px;height:18px}
+/* Vähimmäistiedot: puuttuva tieto näkyy selvästi */
+.cp-need{display:flex;align-items:flex-start;gap:8px;text-align:left;padding:7px 10px;border-radius:10px;border:1px solid #f0b37a;background:rgba(240,179,122,.14);color:#f7d9b9;font:inherit;font-size:13px;cursor:pointer}
+.cp-need.hidden{display:none}
+.cp-need svg.i{width:17px;height:17px;flex:0 0 auto;margin-top:1px}
+.cp-need span{display:flex;flex-direction:column;gap:1px}
+.cp-need small{color:#d9c4ad;font-size:12px}
+.field.need input,.field.need select,.field.need textarea{border-color:#e09a55;background:#fff8f0}
+.need-hint{display:block;font-size:12px;color:#8a4b0f;margin-top:4px}
+.tbl.need{border:1.5px dashed #e09a55;border-radius:12px;padding:10px;background:#fffaf4}
+.need-meta{color:#8a4b0f;font-weight:700}
+.more-fields{margin-top:4px}
+.more-fields .chip{font-size:13px;min-height:34px}

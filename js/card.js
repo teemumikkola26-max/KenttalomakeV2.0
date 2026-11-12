@@ -8,20 +8,26 @@
   const { icon, esc, toast, confirmSheet, nro } = UI;
   const { S, Model } = App;
 
-  function fieldHtml(f, val) {
-    const lbl = '<span>' + esc(f.l) + (f.u ? ' <span class="u">(' + esc(f.u) + ")</span>" : "") + (f.req ? ' <span class="req" aria-label="pakollinen">*</span>' : "") + "</span>";
+  function fieldHtml(f, val, fromDict, need) {
+    const lbl = '<span>' + esc(f.l) + (f.u ? ' <span class="u">(' + esc(f.u) + ")</span>" : "") + (f.req ? ' <span class="req" aria-label="pakollinen">*</span>' : "") +
+      (fromDict ? ' <span class="mp-tag">sanelusta</span>' : "") + "</span>";
+    const nh = need ? '<span class="need-hint">Puuttuu · sano esim. ”' + esc(window.FieldFill ? FieldFill.hint(f) : "") + "”</span>" : "";
+    const cls = need ? "field need" : "field";
+    return fieldInner(f, val, lbl, cls, nh);
+  }
+  function fieldInner(f, val, lbl, cls, nh) {
     if (f.t === "select") {
-      return '<label class="field">' + lbl + '<select data-fk="' + f.k + '"><option value="">Valitse</option>' +
-        f.o.map((o) => '<option' + (o === val ? " selected" : "") + ">" + esc(o) + "</option>").join("") + "</select></label>";
+      return '<label class="' + cls + '">' + lbl + '<select data-fk="' + f.k + '"><option value="">Valitse</option>' +
+        f.o.map((o) => '<option' + (o === val ? " selected" : "") + ">" + esc(o) + "</option>").join("") + "</select>" + nh + "</label>";
     }
     if (f.t === "textarea") {
-      return '<label class="field" style="grid-column:1/-1">' + lbl + '<textarea data-fk="' + f.k + '" style="min-height:72px">' + esc(val || "") + "</textarea></label>";
+      return '<label class="' + cls + '" style="grid-column:1/-1">' + lbl + '<textarea data-fk="' + f.k + '" style="min-height:72px">' + esc(val || "") + "</textarea>" + nh + "</label>";
     }
     if (f.t === "date") {
-      return '<label class="field">' + lbl + '<input type="date" data-fk="' + f.k + '" value="' + esc(val || "") + '"></label>';
+      return '<label class="' + cls + '">' + lbl + '<input type="date" data-fk="' + f.k + '" value="' + esc(val || "") + '">' + nh + '</label>';
     }
     const num = f.t === "num";
-    return '<label class="field">' + lbl + '<input type="text" ' + (num ? 'inputmode="decimal" ' : "") + 'data-fk="' + f.k + '" value="' + esc(val || "") + '"></label>';
+    return '<label class="' + cls + '">' + lbl + '<input type="text" ' + (num ? 'inputmode="decimal" ' : "") + 'data-fk="' + f.k + '" value="' + esc(val || "") + '">' + nh + '</label>';
   }
 
   function hasMittaus(h) { return M.onMittauksia(h); }
@@ -74,11 +80,12 @@
     async function runAuto() {
       const changes = await Auto.apply(h);
       if (!changes.length) return;
-      const shown = changes.filter((c) => ["menetelmä", "tulos", "tila", "rakenneosa"].includes(c.kentta));
-      if (shown.length) toast("Sanelusta: " + shown.map((c) => c.arvo).join(", "), 2600);
+      const shown = changes.filter((c) => ["menetelmä", "tulos", "tila", "rakenneosa", "kenttä", "taulukko"].includes(c.kentta));
+      if (shown.length) toast("Sanelusta: " + shown.slice(0, 3).map((c) => c.arvo).join(", ") + (shown.length > 3 ? " ja " + (shown.length - 3) + " muuta" : ""), 3000);
       save(); paint();
     }
 
+    const extraFields = new Set();
     function suggestions() {
       const m = M.menetelma(h.menetelma);
       const units = new Set(m.kentat.filter((f) => f.u).map((f) => f.u));
@@ -92,14 +99,20 @@
       const thumbs = h.kuvat.map((fid, i) =>
         '<button class="thumb" data-a="view" data-i="' + i + '" aria-label="Kuva ' + (i + 1) + '"><img src="' + Model.url(fid) + '" alt=""></button>').join("");
       const audio = (h.aanitteet || []).map((fid) => '<audio controls preload="none" src="' + Model.url(fid) + '" style="width:100%;margin-top:6px"></audio>').join("");
-      const sug = suggestions();
+      /* Menetelmän kentät syntyvät sanelusta: näkyvissä ovat täytetyt kentät ja vähimmäistiedot.
+         Puuttuva vähimmäistieto näytetään selvästi esimerkkilauseen kanssa. Muut kentät saa
+         esiin napauttamalla (+ kenttä). */
+      const filled = (f) => f.t === "table" ? M.rivit(h, f).length > 0 : h.kentat[f.k] != null && String(h.kentat[f.k]).trim() !== "";
+      const shownF = m.kentat.filter((f) => filled(f) || f.req || extraFields.has(f.k));
+      const hiddenF = m.kentat.filter((f) => !shownF.includes(f));
+      const reqF = m.kentat.filter((f) => f.req), reqOk = reqF.filter(filled).length;
       const mit = m.kentat.length
-        ? '<section class="card"><div class="card-h"><h2>' + esc(m.nimi) + '</h2></div><div class="card-b">' +
-          (sug.length ? '<span class="label">Sanelusta tunnistettu</span><div class="chips" style="margin-bottom:12px">' +
-            sug.map((s, i) => '<button class="chip sugg" data-a="sugg" data-i="' + i + '">' + esc(s.arvo.replace(".", ",") + " " + s.u) + "</button>").join("") + "</div>" : "") +
-          '<div class="grid2">' + m.kentat.map((f) => f.t === "table" ? tableHtml(f) : fieldHtml(f, h.kentat[f.k] != null ? h.kentat[f.k] : "")).join("") + "</div>" +
+        ? '<section class="card"><div class="card-h"><h2>' + esc(m.nimi) + "</h2>" +
+          (reqF.length ? '<span class="meta' + (reqOk < reqF.length ? " need-meta" : "") + '">Vähimmäistiedot ' + reqOk + "/" + reqF.length + "</span>" : "") + '</div><div class="card-b">' +
+          '<div class="grid2">' + shownF.map((f) => f.t === "table" ? tableHtml(f, f.req && !filled(f)) : fieldHtml(f, h.kentat[f.k] != null ? h.kentat[f.k] : "", !!(h.auto && h.auto["k:" + f.k] === "sanelu"), f.req && !filled(f))).join("") + "</div>" +
+          (hiddenF.length ? '<div class="chips more-fields">' + hiddenF.map((f) => '<button class="chip" data-a="addfield" data-k="' + f.k + '">+ ' + esc(f.l) + "</button>").join("") + "</div>" : "") +
           (m.kentat.some((f) => f.mittaus || (f.t === "table" && (f.sarakkeet || []).some((c) => c.mittaus)))
-            ? '<p class="hint">Varmat kameraluvut ja itse kirjoitetut arvot ovat vahvistettuja. Oranssilla merkityt lukemat tarkistetaan napauttamalla riviä.</p>'
+            ? '<p class="hint">Varmat kameraluvut ja itse kirjoitetut arvot ovat vahvistettuja. Oranssilla merkityt lukemat tarkistetaan napauttamalla riviä. Mikrofonilla merkityt rivit tulivat sanelusta: tarkista luvut, puheentunnistus voi kuulla numeron väärin.</p>'
             : "") +
           "</div></section>"
         : "";
@@ -164,6 +177,12 @@
       Model.saveKohde();
     }
 
+    // Tutkija muokkasi sanelusta tehtyä riviä: taulukko on nyt hänen, sanelu ei enää muuta sitä
+    function ownTable(f) {
+      M.rivit(h, f).forEach((r) => { if (r._sanelu) { delete r._sanelu; r._saneltu = true; } });
+      Auto.manual(h, "t:" + f.k);
+    }
+
     function allCols(f) { return f.sarakkeet || []; }
     function cols(f) { return allCols(f).filter((c) => c.t !== "date"); }       // ruudukon sarakkeet
     function dateCols(f) { return allCols(f).filter((c) => c.t === "date"); }  // lukupäivä rivin alle
@@ -183,7 +202,7 @@
       else action = '<button class="icon-btn" data-a="tdel" ' + att + ' aria-label="Poista rivi">' + icon("trash") + "</button>";
       const thumb = o && o.rajaus
         ? '<button class="rthumb" data-a="trev" ' + att + ' aria-label="Näytä kuva"><img src="' + Model.url(o.rajaus) + '" alt=""></button>'
-        : '<span class="rthumb empty"></span>';
+        : row._sanelu || row._saneltu ? '<span class="rthumb dict" title="Sanelusta">' + icon("mic") + "</span>" : '<span class="rthumb empty"></span>';
       const ocrCol = (c) => map.RH === c.k || map.T === c.k || map.a === c.k;
       const dates = dateCols(f).map((c) =>
         '<label class="tdate">' + esc(c.l) + ' <input type="date" data-tf="' + f.k + '" data-tr="' + row.id + '" data-tc="' + esc(c.k) + '" value="' + esc(row[c.k] || "") + '"></label>').join("");
@@ -234,8 +253,9 @@
           : '<p class="hint" style="margin:0 0 8px">' + (f.ocr ? (g ? "Valitse " + esc(g.l.toLowerCase()) + " ja kuvaa mittarin näyttö. Jokaisesta kuvasta tulee oma rivinsä. Rinnakkaiset mittaukset kuvataan samalla valinnalla." : "Kuvaa mittarin näyttö. Jokaisesta kuvasta tulee oma rivinsä.") : "Lisää rivi jokaiselle mittaukselle.") + "</p>");
     }
 
-    function tableHtml(f) {
-      return '<div class="tbl" data-tbl="' + f.k + '" style="grid-column:1/-1;margin-bottom:12px">' + tableInner(f) + "</div>";
+    function tableHtml(f, need) {
+      return '<div class="tbl' + (need ? " need" : "") + '" data-tbl="' + f.k + '" style="grid-column:1/-1;margin-bottom:12px">' + tableInner(f) +
+        (need ? '<span class="need-hint">Puuttuu · sano esim. ”' + esc(window.FieldFill ? FieldFill.hint(f) : "") + "” tai kuvaa mittarin näyttö</span>" : "") + "</div>";
     }
 
     function tableField(fk) { return M.menetelma(h.menetelma).kentat.find((x) => x.k === fk && x.t === "table"); }
@@ -356,6 +376,7 @@
         const row = f && M.rivit(h, f).find((r) => r.id === t.dataset.tr);
         if (!row) return;
         row[t.dataset.tc] = t.value;
+        if (row._sanelu) ownTable(f);
         if (row._ocr) {
           row._ocr.edited = row._ocr.edited || {};
           row._ocr.edited[t.dataset.tc] = true;
@@ -374,6 +395,7 @@
       else if (t.matches("[data-fk]") && t.type !== "date") {
         const f = M.menetelma(h.menetelma).kentat.find((x) => x.k === t.dataset.fk);
         h.kentat[t.dataset.fk] = t.value;
+        Auto.manual(h, "k:" + t.dataset.fk);
         if (t.dataset.fk === "tunnus") Auto.manual(h, "tunnus");
         if (f && f.mittaus && h.vahvistettu) { h.vahvistettu = false; const cb = root.querySelector('[data-a="vahv"]'); if (cb) cb.checked = false; }
         if (f && f.muista) Model.muistiSet(h.menetelma + "." + f.k, t.value);
@@ -392,6 +414,7 @@
       }
       else if (t.matches("[data-fk]") && (t.tagName === "SELECT" || t.type === "date")) {
         h.kentat[t.dataset.fk] = t.value;
+        Auto.manual(h, "k:" + t.dataset.fk);
         const f = M.menetelma(h.menetelma).kentat.find((x) => x.k === t.dataset.fk);
         if (f && f.muista) Model.muistiSet(h.menetelma + "." + f.k, t.value);
         save();
@@ -426,6 +449,7 @@
         const f = tableField(b.dataset.f);
         const row = M.rivit(h, f).find((r) => r.id === b.dataset.r);
         if (!row) return;
+        if (row._sanelu) ownTable(f);
         await Meter.removeRow(h, f, row); unconfirm(); repaintTable(f); return;
       }
       if (a === "trev") {
@@ -461,6 +485,7 @@
         if (cur && cur.menetelma !== h.menetelma) h.suunnitelmaId = null;
         save(); paint();
       }
+      else if (a === "addfield") { extraFields.add(b.dataset.k); paint(); const el2 = root.querySelector('[data-fk="' + b.dataset.k + '"]'); if (el2) el2.focus(); }
       else if (a === "sugg") {
         const s = suggestions()[+b.dataset.i];
         const fields = M.menetelma(h.menetelma).kentat.filter((f) => f.u === s.u);

@@ -38,11 +38,17 @@
     JH: "Jätehuone", JÄTEH: "Jätehuone", SK: "Siivouskomero", SIIV: "Siivous", SIIVK: "Siivouskomero",
     KUIV: "Kuivaushuone", KUH: "Kuivaushuone", KUIVH: "Kuivaushuone", PESUT: "Pesutupa", MANK: "Mankelihuone",
     // kulku ja ulkotilat
-    PRH: "Porrashuone", PRSH: "Porrashuone", PORR: "Porrashuone", PORRASH: "Porrashuone", LJKH: "Lämmönjakohuone", SPK: "Siivouspistekomero", NT: "Nuorisotila", KÄYT: "Käytävä", KAYT: "Käytävä", AULA: "Aula",
+    PRH: "Porrashuone", PRSH: "Porrashuone", PORR: "Porrashuone", PORRASH: "Porrashuone", LJKH: "Lämmönjakohuone", PANNUH: "Pannuhuone", KÄYT: "Käytävä", KAYT: "Käytävä", AULA: "Aula",
     PARV: "Parveke", P: "Parveke", TER: "Terassi", TERASSI: "Terassi", KUISTI: "Kuisti", LASIK: "Lasikuisti", ULL: "Ullakko", KELL: "Kellari",
     // muut rakennukset
     KHUONE: "Kerhohuone", KERHOH: "Kerhohuone", NEUV: "Neuvotteluhuone", ARK: "Arkisto", TSTO: "Toimisto", TOIM: "Toimisto",
-    SOS: "Sosiaalitila", HLÖK: "Henkilökunnan tila", TAUKO: "Taukotila", LK: "Luokka", OPH: "Opettajainhuone", RUOKAS: "Ruokasali"
+    SOS: "Sosiaalitila", HLÖK: "Henkilökunnan tila", TAUKO: "Taukotila", LK: "Luokka", OPH: "Opettajainhuone", RUOKAS: "Ruokasali",
+    SIIVH: "Siivoushuone", SIIVOUSH: "Siivoushuone", LEPOH: "Lepohuone", KOKH: "Kokoushuone", KOKOUSH: "Kokoushuone", VAST: "Vastaanotto", ODOT: "Odotustila",
+    TYÖT: "Työtila", TYÖTILA: "Työtila", RYHMÄH: "Ryhmähuone", RYHMÄT: "Ryhmätila", OPETT: "Opettajainhuone", OPETUST: "Opetustila", LUOKKA: "Luokka", LIIKS: "Liikuntasali",
+    KEITTIÖ: "Keittiö", VALMK: "Valmistuskeittiö", JAKOK: "Jakelukeittiö", ASTH: "Astianpesuhuone", ATK: "ATK-tila", SERV: "Palvelintila", PALV: "Palvelintila",
+    HUOLTO: "Huoltotila", PESULA: "Pesula", KUIVH: "Kuivaushuone", MANKELI: "Mankelihuone", SAUNA: "Sauna", PESUHUONE: "Pesuhuone", WCI: "Inva-WC", INVAWC: "Inva-WC", IWC: "Inva-WC",
+    SUIHKU: "Suihku", PUKUHUONE: "Pukuhuone", TEKNTILA: "Tekninen tila", IVKONEH: "IV-konehuone", VESIK: "Vesikattotila", ULLAKKO: "Ullakko", KELLARI: "Kellari",
+    VARASTO: "Varasto", VAATEH: "Vaatehuone", MAKUUH: "Makuuhuone", OLOH: "Olohuone", ETEINEN: "Eteinen", TUULIK: "Tuulikaappi", KYLPYH: "Kylpyhuone", KODINH: "Kodinhoitohuone"
   };
   /* Lyhyet ja monimerkityksiset lyhenteet (K = keittiö tai kaappi, S = sauna tai kaapin tunnus):
      hyväksytään vain pinta-alan tai tilanumeron vierestä tai kun ne ovat tilojen nimien kokoisia. */

@@ -52,6 +52,20 @@ Jos tila pitää valita itse, sijaintinäkymässä on ensin viimeksi käytetyt t
 | Lukupäivä | Kuvauspäivä. |
 | Mittausten vahvistus | Varmat kameraluvut ja itse kirjoitetut arvot ovat vahvistettuja. Vain epävarmat lukemat tarkistetaan. |
 
+**Sanelusta menetelmän kenttiin (`js/fieldfill.js`).** Sanelusta täyttyvät myös menetelmän omat kentät. Esimerkiksi sanelu *"RH-mittaus porareiästä, Vaisala HM40, tasaantumisaika kolme vuorokautta. 30 millissä 78 prosenttia 21,5 astetta, rinnakkainen 79 prosenttia. 70 millissä 84 prosenttia 21,3 astetta. Huoneilma 32 prosenttia 22 astetta."* tuottaa:
+
+- mittalaitteeksi Vaisala HM40 (muistetaan seuraavaan havaintoon) ja tasaantumisajaksi 72 h (vuorokaudet muunnetaan tunneiksi)
+- mittausrivit syvyyksittäin: 30 mm 78 % 21,5 °C, 30 mm 79 % ja 70 mm 84 % 21,3 °C. Rinnakkainen lukema tulee omaksi rivikseen samalle syvyydelle.
+- ympäröiviin olosuhteisiin 32 % 22 °C (sanat *huoneilma*, *olosuhteet*, *sisäilma* tai *ympäröivä* ohjaavat arvot olosuhdetaulukkoon seuraavaan syvyyteen asti).
+
+Muut menetelmät toimivat samoin: pintakosteus (laite, lukema, vertailuarvo, asteikko), rakenneavaus (tunnus RA3, rakennekerrokset paksuuksineen, esim. "muovimatto, tasoite 5 mm, betoni 80 mm, eps 100 mm"), materiaalinäyte (tunnus, tyyppi, materiaali), merkkiainekoe (aine, injektointikohta, painesuhde, tulos), lämpökuvaus (kamera, sisä- ja ulkolämpötila, paine-ero) ja painesuhde. Itse lisätyt menetelmät saavat avainsanansa kentän nimestä ja yksiköstä. Numerot tunnistetaan myös sanoina ("kolme", "kaksikymmentäyksi pilkku viisi", "miinus 12").
+
+Sanelusta tullut arvo näkyy kortissa merkinnällä *sanelusta*, ja rivi on merkitty mikrofonilla. ZIP-paketissa ne lukevat kohdassa *tunnistettu sanelusta*, ja taulukon rivien lähde on *sanelu*. Tutkijan itse kirjoittamaa arvoa sanelu ei muuta. Kun tutkija muokkaa tai poistaa yhdenkin sanelusta tehdyn rivin, taulukko on hänen, eikä sanelu enää muuta sitä. Puheentunnistus voi kuulla numeron väärin, joten sanelusta tulleet lukemat kannattaa vilkaista kortissa.
+
+**Vähimmäistiedot ja kentät sanelun mukaan.** Menetelmän kentät eivät ole valmiiksi tyhjinä lomakkeena, vaan ne syntyvät sanelusta. Kortissa näkyvät täytetyt kentät ja menetelmän vähimmäistiedot. Vähimmäistiedot ovat Menetelmät-sivulla *pakolliseksi* merkityt kentät, ja niitä voi muokata. Puuttuva vähimmäistieto on korostettu, ja sen kohdalla on esimerkkilause, esim. *Puuttuu · sano esim. "tasaantumisaika 3 vrk"*. Muut kentät saa esiin napauttamalla (+ Ympäröivät olosuhteet). Kortin otsikossa näkyy *Vähimmäistiedot 3/4*. Kameranäkymässä puuttuvat vähimmäistiedot näkyvät tekstikentän alla heti sanelun jälkeen, esim. *RH · puuttuu: mittalaite, tasaantumisaika – Sano esim. "mittalaite Vaisala HM40"*, joten tutkija voi sanoa puuttuvan tiedon saman tien. Puute poistuu, kun tieto on saatu. Lähtötarkistus muistuttaa vielä puuttuvista ennen lähtöä.
+
+**Sanasto.** Valmiina on laaja sanasto: menetelmien avainsanat (mm. porareikä, tasaantumisaika, Gann, Tramex, mikrobinäyte, typpivety, lämpökamera, paine-ero), poikkeamaa ja kunnossa olevaa kuvaavat sanat (mm. homekasvu, kondenssi, lahonnut, vastakaato, kylmäsilta / kuiva, tiivis, ei todettu), noin 70 rakenneosasanaa, yli 80 tilannimeä, yleiset mittalaitteet (Vaisala, Gann, Tramex, Protimeter, Testo, Flir ...) ja noin 60 materiaalia rakennekerroksia varten. Kaikkea ei siis tarvitse opettaa. Sanalistat ovat tiedostojen `js/autofill.js` ja `js/fieldfill.js` alussa.
+
 **Oppiminen (`js/learn.js`).** Kun avainsanat eivät tunnista menetelmää, sovellus ehdottaa sitä oppimansa perusteella (merkintä *opittu*). Malli oppii valmiista havainnoista, millainen sanelu kuuluu millekin menetelmälle: tutkijan itse valitsema tai korjaama menetelmä painaa enemmän (2) kuin automaattisesti tunnistettu ja hyväksytty (0,5), jottei malli vahvista omia virheitään. Malli on naiivi Bayes -luokittelija, joka toimii kokonaan laitteella. Piirteinä ovat sanojen alut (taivutusmuodot), yhdyssanojen osat, numerot ja yksiköt sekä rakenneosa, ja jokainen sana antaa yhden äänen. Tilojen nimet jätetään pois. Ehdotus tehdään vasta, kun esimerkkejä on vähintään 6 ja todennäköisyys on vähintään 0,85 (`RAJAT`). Menetelmät-sivulla näkyy esimerkkien määrä menetelmittäin, ja oppimisen voi nollata. Malli kulkee Vie menetelmät -tiedostossa, ja tuotaessa se yhdistetään laitteen malliin, joten tiimi voi kerätä yhteisen mallin.
 
 Automaattinen arvo näkyy merkinnällä *sanelusta* eikä koskaan korvaa tutkijan itse valitsemaa arvoa. Yksi napautus muuttaa sen. ZIP-paketti kertoo, mitkä tiedot on tunnistettu sanelusta. Tunnistus on tarkoituksella varovainen: epäselvässä tapauksessa arvo jää tyhjäksi ja lähtötarkistus muistuttaa siitä. Sanalistoja voi täydentää tiedostossa `js/autofill.js`.
@@ -228,6 +242,7 @@ js/editor.js           menetelmien muokkaus
 js/methodpicker.js     menetelmän valinta: ehdotukset, haku ja uusi menetelmä
 js/autofill.js         tietojen tunnistus sanelusta ja automaattinen täyttö
 js/learn.js            oppiva menetelmän tunnistus (naiivi Bayes, laitteella)
+js/fieldfill.js        sanelusta menetelmän kenttiin (laite, lukemat, taulukon rivit)
 js/meter.js            mittarin näytön kameraluku ja lukemien tarkistus
 js/lukulaite-ocr.js    tunnistusydin (kopio PBM Kenttälomakkeista)
 js/dictation.js        sanelu (puheentunnistus tai äänite)

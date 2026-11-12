@@ -85,7 +85,7 @@
       const rivit = rows.map((r) => {
         const o = {};
         cols.forEach((c) => { o[c.l + (c.u ? " (" + c.u + ")" : "")] = r[c.k] == null ? "" : (c.t === "date" && r[c.k] ? UI.pvm(r[c.k]) : String(r[c.k])); });
-        o.lahde = r._ocr ? "kameraluku" + (r._ocr.edited && Object.keys(r._ocr.edited).length ? ", korjattu käsin" : "") : "käsin";
+        o.lahde = r._ocr ? "kameraluku" + (r._ocr.edited && Object.keys(r._ocr.edited).length ? ", korjattu käsin" : "") : r._sanelu ? "sanelu" : r._saneltu ? "sanelu, tarkistettu käsin" : "käsin";
         if (r._ocr) o.tarkistettu = Meter.rowState(r) === "ok";
         if (paths.lukemat[r.id]) o.kuva = paths.lukemat[r.id];
         return o;
@@ -147,8 +147,12 @@
           tiedot: rivit.filter((r) => !r.mittaus).map((r) => ({ kentta: r.kentta, arvo: r.arvo, yksikko: r.yksikko })),
           mittaustulokset: rivit.filter((r) => r.mittaus).map((r) => ({ kentta: r.kentta, arvo: r.arvo, yksikko: r.yksikko })),
           mittaustaulukot: taulukot(h, paths),
-          tunnistettu_sanelusta: Object.keys(h.auto || {}).filter((x) => h.auto[x] === "sanelu" || h.auto[x] === "opittu")
-            .map((x) => x + (h.auto[x] === "opittu" ? " (opittu malli)" : "")),
+          tunnistettu_sanelusta: Object.keys(h.auto || {}).filter((x) => h.auto[x] === "sanelu" || h.auto[x] === "opittu" || h.auto[x] === "kuva")
+            .map((x) => {
+              const f = /^[kt]:/.test(x) ? M.menetelma(h.menetelma).kentat.find((y) => y.k === x.slice(2)) : null;
+              const nm = f ? f.l + (x[0] === "t" ? " (rivit)" : "") : x;
+              return nm + (h.auto[x] === "opittu" ? " (opittu malli)" : h.auto[x] === "kuva" ? " (kuvasta)" : "");
+            }),
           mittaustulokset_vahvistettu: !!h.vahvistettu,
           tutkijan_alustava_tulkinta: h.tulkinta || "",
           kuvat: paths.kuvat[h.id] || [],

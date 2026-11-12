@@ -65,6 +65,7 @@
       "</div>" +
       '<div class="cam-panel">' +
       '<textarea data-text rows="2" aria-label="Havainto" placeholder="Kirjoita havainto tai pidä mikrofonia pohjassa"></textarea>' +
+      '<button class="cp-need hidden" data-c="need" data-need></button>' +
       '<div class="cp-meta">' +
       '<button class="meta-chip" data-c="more" aria-label="Vaihda menetelmä"><span data-mname></span>' + icon("back", "down") + "</button>" +
       '<div class="chips" data-tulos><button class="chip c-note" data-t="poikkeama">Poikkeama</button><button class="chip c-ok" data-t="ok">Ei huom.</button></div>' +
@@ -121,8 +122,8 @@
       if (!changes.length) return;
       if (h.menetelma !== before) applyMemory(h);
       paintLoc(); paintMethods(); paintTulos(); paintStatus();
-      const shown = changes.filter((c) => ["menetelmä", "tulos", "tila", "rakenneosa"].includes(c.kentta));
-      if (shown.length) toast("Sanelusta: " + shown.map((c) => c.arvo).join(", "), 2600);
+      const shown = changes.filter((c) => ["menetelmä", "tulos", "tila", "rakenneosa", "kenttä", "taulukko"].includes(c.kentta));
+      if (shown.length) toast("Sanelusta: " + shown.slice(0, 3).map((c) => c.arvo).join(", ") + (shown.length > 3 ? " ja " + (shown.length - 3) + " muuta" : ""), 3000);
       if (saved) persist();
     }
     const autoSoon = UI.debounce(runAuto, 900);
@@ -140,6 +141,16 @@
       $("[data-cl]").innerHTML = (fields ? "Mittaukset" : "Lisää") + (warn ? ' <span class="cl-n" aria-label="' + miss.length + ' puuttuu">' + miss.length + "</span>" : "");
       $(".card-link").classList.toggle("warn", warn);
       $(".card-link").setAttribute("aria-label", "Avaa havaintokortti" + (warn ? ", puuttuu: " + miss.join(", ") : "") + (fields ? ", " + fields + " kenttää" : ""));
+      // Menetelmän vähimmäistiedot: mitä puuttuu ja mitä sanoa
+      const m = M.menetelma(h.menetelma);
+      const needF = m.kentat.filter((f) => f.req && (f.t === "table" ? !M.rivit(h, f).length : h.kentat[f.k] == null || String(h.kentat[f.k]).trim() === ""));
+      const nb = $("[data-need]");
+      nb.classList.toggle("hidden", !(hasContent() && needF.length));
+      if (hasContent() && needF.length) { const n = $("[data-cl] .cl-n"); if (n) n.remove(); }   // puute näkyy jo selkeämmin
+      if (hasContent() && needF.length) {
+        nb.innerHTML = icon("alert") + '<span><b>' + esc(m.lyhyt || m.nimi) + " · puuttuu: " + esc(needF.map((f) => f.l.toLowerCase()).join(", ")) + "</b>" +
+          '<small>Sano esim. ”' + esc(window.FieldFill ? FieldFill.hint(needF[0]) : "") + "”</small></span>";
+      }
       paintReq();
     }
     async function paintThumbs() {
@@ -330,7 +341,7 @@
         ObsList.pick({ title: "Kuvat havaintoon", tilaId: h.sijainti.tilaId, exclude: h.id, allowNew: saved,
           current: h.id, onSelect: (id) => { if (id !== h.id) switchTo(id); } });
       }
-      else if (c === "card") finish(true);
+      else if (c === "card" || c === "need") finish(true);
       else if (c === "close") finish(false);
       else if (c === "more") MethodPicker.openSheet({ selected: h.menetelma, excludeHavainto: h.id, onSelect: selectMethod });
       else if (c === "loc") {

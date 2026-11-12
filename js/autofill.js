@@ -24,13 +24,14 @@
 
   /* ---------- Menetelmät ---------- */
   const METHOD_WORDS = {
-    rh: ["rh mittau", "rh mitta", "suhteellinen kosteus", "suhteellisen kostey", "porareiä", "porarei", "rakennekosteu", "viiltomittau", "rh anturi", "rh "],
-    pintakosteus: ["pintakostey", "pintakosteu", "kosteudenosoitin", "pintakosteusmittar"],
-    avaus: ["rakenneavau", "avaus", "avaukse", "avattiin", "avasimme", "avattu"],
-    nayte: ["näyte", "näytte", "materiaalinäyte"],
-    merkkiaine: ["merkkiain", "merkkikaasu", "tiiviyskoe", "tiiviysmittau"],
-    lampokuvaus: ["lämpökuva", "lämpökamer", "termografi"],
-    paine: ["painesuhte", "paine ero", "paine-ero", "ilmavirta", "ilmavirra"]
+    rh: ["rh mittau", "rh mitta", "rh piste", "rh anturi", "rh ", "suhteellinen kosteus", "suhteellisen kostey", "suhteellista kosteutta", "porareiä", "porarei", "porareik",
+      "rakennekosteu", "rakenteen kostey", "viiltomittau", "putkimittau", "mittausputk", "kosteusmittaus rakenteesta", "tasaantumisaik", "mittaussyvyy", "mittauspiste", "vaisala", "hm40", "hm42"],
+    pintakosteus: ["pintakostey", "pintakosteu", "kosteudenosoitin", "pintakosteusmittar", "kosteuskartoitu", "gann", "hydromette", "tramex", "protimeter", "pintakosteusosoitin", "vertailukoh", "vertailuarv"],
+    avaus: ["rakenneavau", "avaus", "avaukse", "avattiin", "avasimme", "avattu", "purettiin", "tarkastusaukko", "kurkistusaukko", "kurkistusreik", "rakennekerrokse", "kerrokset sisältä"],
+    nayte: ["näyte", "näytte", "materiaalinäyte", "mikrobinäyte", "asbestinäyte", "haitta-ainenäyte", "näytepala", "näytteenot", "otettiin näyte", "kuitunäyte", "pah näyte", "voc näyte"],
+    merkkiaine: ["merkkiain", "merkkikaasu", "typpived", "tiiviyskoe", "tiiviysmittau", "tiiviystarkastelu", "injektoi", "vuotoilmaa", "ilmavuoto"],
+    lampokuvaus: ["lämpökuva", "lämpökamer", "termografi", "pintalämpötil", "lämpötilaindeksi", "flir", "hikmicro", "kylmäsilta", "kylmävuoto"],
+    paine: ["painesuhte", "paine ero", "paine-ero", "paineero", "alipain", "ylipain", "ilmavirta", "ilmavirra", "ilmamäärä", "tuloilmamäär", "poistoilmamäär", "painesuhdeseuran"]
   };
   function detectMethod(t) {
     const hits = [];
@@ -50,8 +51,12 @@
   }
 
   /* ---------- Tulos ---------- */
-  const OK_PHRASES = ["ei huomautettava", "ei poikkeam", "ei vaurio", "ei merkkejä", "ei viitteitä", "ei havaittu", "kunnossa", "ehjä", "ehjät", "normaali", "moitteeton", "hyväkuntoi", "hyvässä kunnossa", "tavanomai"];
-  const BAD_STEMS = ["vaurio", "vaurioitu", "kosteusvaurio", "vesivaurio", "mikrobi", "home", "hilseil", "halkea", "halkeil", "irtoa", "irronnut", "irti", "kupru", "kuplii", "tummu", "värjäy", "kopo", "laho", "lahoa", "ruoste", "ruostu", "haju", "vuoto", "vuota", "märkä", "märkiä", "kostea", "kosteita", "koholla", "kohonnut", "puutteel", "rikkoutu", "rikki", "rako", "painum", "poikkeama", "korjattava", "huono", "heikko", "pullistu", "turpoa", "kastunut", "kastuu", "tippuu", "tiivistyy", "jäätyy", "vetää", "kosteusjälk", "vesijälk", "vuotojälk", "jälki", "jälkiä", "läikk", "laikk", "valum", "sammal", "levä"];
+  const OK_PHRASES = ["ei huomautettava", "ei poikkeam", "ei poikkeav", "ei vaurio", "ei merkkejä", "ei viitteitä", "ei havaittu", "ei todettu", "ei havaintoja", "ei kosteutta", "ei kohonnei", "ei mikrobi",
+    "kunnossa", "ehjä", "ehjät", "normaali", "normaaleja", "normaalit", "moitteeton", "hyväkuntoi", "hyvässä kunnossa", "tavanomai", "kuiva", "kuivat", "kuivia", "tiivis", "tiiviit", "asianmukai", "vaatimusten mukai", "tasaantun hyvin"];
+  const BAD_STEMS = ["vaurio", "vaurioitu", "kosteusvaurio", "vesivaurio", "mikrobi", "home", "hilseil", "halkea", "halkeil", "irtoa", "irronnut", "irti", "kupru", "kuplii", "tummu", "värjäy", "kopo", "laho", "lahoa", "ruoste", "ruostu", "haju", "vuoto", "vuota", "märkä", "märkiä", "kostea", "kosteita", "koholla", "kohonnut", "puutteel", "rikkoutu", "rikki", "rako", "painum", "poikkeama", "korjattava", "huono", "heikko", "pullistu", "turpoa", "kastunut", "kastuu", "tippuu", "tiivistyy", "jäätyy", "vetää", "kosteusjälk", "vesijälk", "vuotojälk", "jälki", "jälkiä", "läikk", "laikk", "valum", "sammal", "levä",
+    "mikrobikasvu", "homekasvu", "hometta", "homeinen", "kosteusrasit", "kondens", "huurre", "huurtee", "korroosi", "ruosteinen", "murtunut", "murtuma", "rapautu", "lohkeil", "lohkea", "haljen",
+    "lahonnut", "lahovauri", "vesivahin", "vuotanut", "tummentum", "värimuuto", "kuplii", "kuplia", "irtoill", "ummehtun", "tunkkai", "maakellari", "tiivistym", "virheellin", "riittämät",
+    "puuttuu", "puuttuva", "vajaa", "vanhentun", "elinkaaren", "käyttöikä", "ylittän", "läpivientivuoto", "vuotokoh", "ilmavuoto", "vuotoilma", "kylmäsilta", "kylmävuoto", "painunut", "kallistus väärä", "vastakaato"];
   function detectTulos(t) {
     let bad = false, ok = false, negated = false;
     for (const p of OK_PHRASES) if (has(t, p)) { ok = true; break; }
@@ -79,7 +84,15 @@
     ["ikkuna", "Ikkuna / ovi"], ["karmi", "Ikkuna / ovi"], ["ovi", "Ikkuna / ovi"], ["oven", "Ikkuna / ovi"], ["ovea", "Ikkuna / ovi"],
     ["lattiakaivo", "Märkätila"], ["suihku", "Märkätila"], ["vedeneriste", "Märkätila"],
     ["nurkka", "Liittymä"], ["nurkassa", "Liittymä"], ["liittymä", "Liittymä"], ["rajassa", "Liittymä"],
-    ["ilmanvaihto", "IV / tekniikka"], ["venttiili", "IV / tekniikka"], ["putki", "IV / tekniikka"], ["viemäri", "IV / tekniikka"], ["patteri", "IV / tekniikka"]
+    ["ilmanvaihto", "IV / tekniikka"], ["venttiili", "IV / tekniikka"], ["putki", "IV / tekniikka"], ["viemäri", "IV / tekniikka"], ["patteri", "IV / tekniikka"],
+    // lisää rakenneosia
+    ["vesikatto", "Yläpohja / katto"], ["kattorakenne", "Yläpohja / katto"], ["räystä", "Yläpohja / katto"], ["ullakko", "Yläpohja / katto"], ["kattoikkuna", "Yläpohja / katto"], ["aluskate", "Yläpohja / katto"],
+    ["lattiarakenne", "Alapohja / lattia"], ["maanvastai", "Alapohja / lattia"], ["ryömintätila", "Alapohja / lattia"], ["lattiapinnoite", "Alapohja / lattia"], ["muovimatto", "Alapohja / lattia"], ["parketti", "Alapohja / lattia"], ["pintalaatta", "Alapohja / lattia"],
+    ["ulkoverhous", "Ulkoseinä"], ["julkisivu", "Ulkoseinä"], ["rappaus", "Ulkoseinä"], ["kellarinseinä", "Ulkoseinä"], ["maanvastainen seinä", "Ulkoseinä"], ["seinärunko", "Ulkoseinä"],
+    ["ikkunapenk", "Ikkuna / ovi"], ["ikkunalau", "Ikkuna / ovi"], ["vesipelti", "Ikkuna / ovi"], ["kynny", "Ikkuna / ovi"], ["ulko-ovi", "Ikkuna / ovi"], ["parvekeovi", "Ikkuna / ovi"],
+    ["kaivo", "Märkätila"], ["vedeneristy", "Märkätila"], ["laatoitu", "Märkätila"], ["silikonisauma", "Märkätila"], ["suihkunurk", "Märkätila"], ["kylpyamme", "Märkätila"],
+    ["alaohjauspuu", "Liittymä"], ["alajuoksu", "Liittymä"], ["perusmuuri", "Liittymä"], ["sokkelin", "Liittymä"], ["läpivien", "Liittymä"], ["saumaus", "Liittymä"],
+    ["ilmanvaihtokone", "IV / tekniikka"], ["tuloilma", "IV / tekniikka"], ["poistoilma", "IV / tekniikka"], ["kanava", "IV / tekniikka"], ["lattialämmity", "IV / tekniikka"], ["vesijohto", "IV / tekniikka"], ["lämminvesivaraaja", "IV / tekniikka"], ["kiuas", "IV / tekniikka"]
   ];
   function detectPart(t) {
     // "lattian rajassa" on lattian ja seinän liittymä: lattia mainitaan ensin -> Alapohja / lattia.
@@ -101,7 +114,14 @@
     ["lämmönjakohuone", "Lämmönjakohuone"], ["pannuhuone", "Pannuhuone"], ["käytävä", "Käytävä"], ["käytävä", "Käytävä"], ["porrashuone", "Porrashuone"],
     ["autotalli", "Autotalli"], ["ruokailutila", "Ruokailutila"], ["työhuone", "Työhuone"],
     ["luokkahuone", "Luokkahuone"], ["toimisto", "Toimisto"], ["aula", "Aula"], ["ryömintätila", "Ryömintätila"], ["pukuhuone", "Pukuhuone"],
-    ["kerhohuone", "Kerhohuone"], ["kuivaushuone", "Kuivaushuone"], ["siivouskomero", "Siivouskomero"], ["komero", "Komero"], ["parveke", "Parveke"], ["terassi", "Terassi"]
+    ["kerhohuone", "Kerhohuone"], ["kuivaushuone", "Kuivaushuone"], ["siivouskomero", "Siivouskomero"], ["komero", "Komero"], ["parveke", "Parveke"], ["terassi", "Terassi"],
+    ["apukeittiö", "Apukeittiö"], ["ruokakomero", "Ruokakomero"], ["keittokomero", "Keittokomero"], ["kylmiö", "Kylmiö"], ["ullakko", "Ullakko"], ["ullako", "Ullakko"], ["kellari", "Kellari"],
+    ["kattilahuone", "Kattilahuone"], ["öljysäiliöhuone", "Öljysäiliöhuone"], ["väestönsuoja", "Väestönsuoja"], ["jätehuone", "Jätehuone"], ["kuisti", "Kuisti"], ["lasikuisti", "Lasikuisti"],
+    ["irtaimistovarasto", "Irtaimistovarasto"], ["ulkovarasto", "Ulkovarasto"], ["puuvarasto", "Puuvarasto"], ["autokatos", "Autokatos"], ["askarteluhuone", "Askarteluhuone"],
+    ["takkahuone", "Takkahuone"], ["harrastehuone", "Harrastehuone"], ["pukeutumishuone", "Pukeutumishuone"], ["lastenhuone", "Makuuhuone"], ["vierashuone", "Makuuhuone"],
+    ["sähköpääkeskus", "Sähköpääkeskus"], ["sähkötila", "Sähkötila"], ["iv konehuone", "IV-konehuone"], ["iv-konehuone", "IV-konehuone"], ["konehuone", "Konehuone"], ["hissi", "Hissi"],
+    ["luokka", "Luokka"], ["opettajainhuone", "Opettajainhuone"], ["liikuntasali", "Liikuntasali"], ["ruokasali", "Ruokasali"], ["neuvotteluhuone", "Neuvotteluhuone"], ["taukotila", "Taukotila"],
+    ["sosiaalitila", "Sosiaalitila"], ["arkisto", "Arkisto"], ["kirjasto", "Kirjasto"], ["lepohuone", "Lepohuone"], ["vastaanotto", "Vastaanotto"], ["odotustila", "Odotustila"], ["suihkutila", "Pesuhuone"], ["inva wc", "Inva-WC"]
   ];
   function detectRoom(t, kerrosId) {
     const k = S.kohde;
@@ -236,6 +256,8 @@
     }
     if (autoKohta(h)) changes.push({ kentta: "suunnitelma", arvo: h.suunnitelmaId === "ei" ? "ei suunnitelmassa" : Model.kohtaNimi(Model.kohta(h.suunnitelmaId)) });
     if (autoTunnus(h)) changes.push({ kentta: "tunnus", arvo: h.kentat.tunnus });
+    // Menetelmän kentät sanelusta (mittalaite, lukemat, kerrokset ...)
+    if (window.FieldFill && h.menetelma) FieldFill.apply(h).forEach((c) => changes.push(c));
     return changes;
   }
 
