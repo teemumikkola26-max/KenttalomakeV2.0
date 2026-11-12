@@ -104,6 +104,7 @@
       const items = list.filter((x) => x.tyyppi === t);
       if (!items.length) return;
       body += '<h2 style="font-size:15px;margin:16px 2px 8px">' + title + " (" + items.length + ")</h2>";
+      if (t === "tila" && items.length > 3) body += '<button class="btn btn-sm btn-block" data-a="eipAll" style="margin-bottom:8px">Merkitse kaikki ' + items.length + " rajauksiksi + yhteinen syy</button>";
       items.forEach((x) => {
         const hv = t === "havainto" ? Model.havainto(x.id) : null;
         const needTulos = hv && !hv.tulos;
@@ -152,6 +153,12 @@
         const syy = await promptSheet({ title: "Miksi tilaan ei päässyt?", label: "Syy (näkyy raportissa rajauksena)", required: true });
         if (syy == null) return;
         Model.tila(id).merkinta = { tila: "ei_paasya", syy, aika: Date.now() };
+        await Model.saveKohde(); App.render();
+      } else if (a === "eipAll") {
+        const ids = list.filter((x) => x.tyyppi === "tila").map((x) => x.id);
+        const syy = await promptSheet({ title: "Tutkimatta jääneet tilat (" + ids.length + ")", label: "Syy (näkyy raportissa rajauksena), esim. Ei kuulu tutkimukseen", required: true });
+        if (syy == null) return;
+        ids.forEach((tid) => { const tt = Model.tila(tid); if (tt) tt.merkinta = { tila: "ei_paasya", syy, aika: Date.now() }; });
         await Model.saveKohde(); App.render();
       } else if (a === "export") {
         await Export.run(false);

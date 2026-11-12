@@ -97,7 +97,7 @@
         }
       });
       if (!res.tilat.length) { toast(manual ? "Pohjakuvasta ei löytynyt tilojen nimiä. Lisää tilat käsin." : "Tilojen nimiä ei tunnistettu – lisää tilat käsin", 4000); return; }
-      toast(res.tilat.length + " tilaa tunnistettu", 1500);
+      const te = document.getElementById("toast"); if (te) te.classList.remove("on");
       await reviewRooms(kerros, res);
     } catch (e) {
       console.error(e);
@@ -105,86 +105,155 @@
     } finally { detecting = false; }
   }
 
-  /* Tunnistetut tilat tarkistettavaksi: kuva numeroituine merkkeineen + lista */
+  /* ---------- Tunnistettujen tilojen lisäys ----------
+     Varmat tunnistukset lisätään suoraan. Tarkistettavaksi näytetään vain epävarmat, ja
+     kustakin näytetään pohjakuvan kohta, josta nimi luettiin: vertailu on silmäyksen asia.
+     Suoraan lisätyt tilat ovat "tunnistettuja" siihen asti, kunnes ne vahvistuvat käytössä:
+     kun tila valitaan havainnon sijainniksi tai sitä muokataan, tutkija on nähnyt sen nimen. */
+  async function loadImg(url) { const im = new Image(); im.src = url; await im.decode(); return im; }
+  function cropCanvas(img, r, kierto, W, H) {
+    const outW = 132, outH = 52;
+    const th = Math.max(6, (r.h || 0.01) * (kierto % 180 ? img.naturalWidth : img.naturalHeight));
+    const cw = th * 7, ch = cw * outH / outW;
+    const sw = kierto % 180 ? ch : cw, sh = kierto % 180 ? cw : ch;
+    const cx = r.x * img.naturalWidth, cy = r.y * img.naturalHeight;
+    const c = document.createElement("canvas"); c.width = outW * 2; c.height = outH * 2;
+    c.className = "rv-crop";
+    const g = c.getContext("2d");
+    g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height);
+    g.translate(c.width / 2, c.height / 2); g.rotate((kierto || 0) * Math.PI / 180); g.scale(c.width / cw, c.width / cw);
+    g.drawImage(img, cx - sw / 2, cy - sh / 2, sw, sh, -sw / 2, -sh / 2, sw, sh);
+    return c;
+  }
+
+  function addRooms(kerros, list, lahde) {
+    const existing = S.kohde.tilat.filter((t) => t.kerrosId === kerros.id);
+    let nNew = 0, nUpd = 0;
+    list.forEach((r) => {
+      const nimi = (r.nimi || "").trim(), tunnus = (r.tunnus || "").trim();
+      if (!nimi && !tunnus) return;
+      const tunnistus = { lahde, raaka: r.raaka || "", avain: r.avain || "", vahvistettu: !!r.tarkistettu, aika: Date.now() };
+      const pos = { x: r.x, y: r.y };
+      const old = r.olemassa && existing.includes(r.olemassa) ? r.olemassa : null;
+      if (old) {
+        old.pos = pos; if (!old.tunnus && tunnus) old.tunnus = tunnus; if (nimi && !(old.tunnistus && old.tunnistus.vahvistettu && old.nimi)) old.nimi = nimi;
+        if (!old.tunnistus) old.tunnistus = Object.assign(tunnistus, { vahvistettu: true });   // tutkijan itse luoma tila
+        nUpd++;
+      } else {
+        S.kohde.tilat.push({ id: DB.uid("t_"), tunnus, nimi, kerrosId: kerros.id, pos, merkinta: null, tunnistus });
+        nNew++;
+      }
+    });
+    return { nNew, nUpd };
+  }
+
   async function reviewRooms(kerros, res) {
     await Model.ensureUrls([kerros.planId]);
     const existing = S.kohde.tilat.filter((t) => t.kerrosId === kerros.id);
     const match = (c) => existing.find((t) => (c.tunnus && normName(t.tunnus) === normName(c.tunnus)) ||
       (!t.tunnus && !c.tunnus && normName(t.nimi) === normName(c.nimi)) ||
       (!c.tunnus && normName(t.nimi) === normName(c.nimi) && !existing.some((o) => o !== t && normName(o.nimi) === normName(c.nimi))));
-    // Asunnoittain ryhmiteltynä (rivitalot ja kerrostalot), muuten tunnistusjärjestyksessä
     const sorted = res.tilat.slice().sort((a, b) => (a.asunto || "").localeCompare(b.asunto || "", "fi", { numeric: true }) || (a.tunnus || "").localeCompare(b.tunnus || "", "fi", { numeric: true }));
-    const rows = sorted.map((c, i) => Object.assign({}, c, { i: i + 1, olemassa: match(c) }));
-    const many = rows.length > 20;
-    const pins = rows.map((r) => '<span class="pin rv' + (r.varma ? "" : " rv-q") + (many ? " rv-s" : "") + '" data-pi="' + r.i + '" style="left:' + (r.x * 100) + "%;top:" + (r.y * 100) + '%">' + r.i + "</span>").join("");
+    const rows = sorted.map((c, i) => Object.assign({}, c, { i, olemassa: match(c) }));
+    const auto = rows.filter((r) => r.varma), check = rows.filter((r) => !r.varma);
+    const lahde = res.lahde === "pdf" ? "pohjakuva (PDF:n teksti)" : "pohjakuva (tekstintunnistus)";
+
+    // Ei epävarmoja: lisätään suoraan
+    if (!check.length) {
+      const n = addRooms(kerros, auto, lahde);
+      await Model.saveKohde();
+      App.render();
+      toast(roomsMsg(n) + " pohjakuvasta. Nimet vahvistuvat, kun käytät tiloja kentällä.", 4500);
+      return;
+    }
+
+    let img = null;
+    try { img = await loadImg(Model.url(kerros.planId)); } catch (e) { img = null; }
+    const rowHtml = (r, on) =>
+      '<div class="rvrow2' + (on === true ? " on" : on === false ? " off" : "") + '" data-ri="' + r.i + '">' +
+      '<div class="rv-img" data-crop="' + r.i + '"></div>' +
+      '<div class="rv-fields"><div class="rv-inp"><input type="text" data-t value="' + esc(r.tunnus) + '" placeholder="Tunnus" aria-label="Tunnus" class="rv-tun">' +
+      '<input type="text" data-n value="' + esc(r.nimi) + '" aria-label="Nimi"></div>' +
+      '<div class="rv-info">' + esc(r.olemassa ? "päivittää: " + Model.tilaNimi(r.olemassa) : r.syy || (r.paatelty ? "päätelty muista samanlaisista asunnoista" : r.raaka ? "luettu: " + r.raaka : "")) + "</div></div>" +
+      '<div class="rv-yn"><button class="rv-y" data-y aria-label="Tila, lisätään">' + icon("ok") + '</button><button class="rv-x" data-x aria-label="Ei tila">' + icon("close") + "</button></div></div>";
+    const state = {};                         // i -> true (lisätään) / false (ei)
+    auto.forEach((r) => { state[r.i] = true; });
+    check.forEach((r) => { state[r.i] = r.paatelty || r.pohjasta ? true : undefined; });
+
     sheet(
-      "<h3>Tunnistetut tilat · " + esc(kerros.nimi) + "</h3>" +
-      '<p>' + (res.lahde === "pdf" ? "Luettu PDF:n tekstistä." : "Luettu kuvasta tekstintunnistuksella – tarkista nimet.") +
-      " Korjaa tarvittaessa ja poista valinta väärin tunnistetuilta.</p>" +
-      '<div class="plan-wrap" style="margin-bottom:10px"><img src="' + Model.url(kerros.planId) + '" alt="" draggable="false">' + pins + "</div>" +
-      (res.kierto ? '<p class="hint">Piirustus on kuvassa kiertyneenä (' + res.kierto + "°). Tekstit luettiin oikein päin.</p>" : "") +
-      '<div class="rvlist">' + rows.map((r, k) =>
-        (r.asunto && (k === 0 || rows[k - 1].asunto !== r.asunto)
-          ? '<div class="rv-apt"><span>Asunto</span><input type="text" data-apt="' + esc(r.asunto) + '" value="' + esc(r.asunto) + '" aria-label="Asunnon tunnus">' +
-            (r.asuntoTyyppi ? '<span class="rv-info" style="margin:0">' + esc(r.asuntoTyyppi) + "</span>" : "") + "</div>" : "") +
-        '<label class="rvrow" data-ri="' + r.i + '" data-as="' + esc(r.asunto || "") + '"><input type="checkbox" data-c' + (r.varma ? " checked" : "") + '>' +
-        '<span class="rv-no' + (r.varma ? "" : " rv-q") + '">' + r.i + "</span>" +
-        '<input type="text" data-t value="' + esc(r.tunnus) + '" placeholder="Tunnus" aria-label="Tunnus" class="rv-tun">' +
-        '<input type="text" data-n value="' + esc(r.nimi) + '" aria-label="Nimi" class="rv-nimi">' +
-        '<span class="rv-info">' + (r.olemassa ? "päivittää: " + esc(Model.tilaNimi(r.olemassa)) : r.tuntematon ? "tuntematon lyhenne “" + esc(r.raaka) + "”" : r.paatelty ? "päätelty muista samanlaisista asunnoista" : r.pohjasta ? "korjattu muiden asuntojen mukaan" : r.raaka && normName(r.raaka) !== normName(r.nimi) && normName(r.raaka) !== normName(r.abbr) ? "luettu: " + esc(r.raaka) : "") + "</span></label>").join("") + "</div>" +
-      '<div class="row-btns" style="margin-top:12px"><button class="btn" data-close>Ohita</button><button class="btn btn-primary" data-ok></button></div>',
+      "<h3>" + rows.length + " tilaa tunnistettu · " + esc(kerros.nimi) + "</h3>" +
+      '<p><b>' + auto.length + "</b> lisätään suoraan. Tarkista <b>" + check.length + "</b> epävarmaa: onko kuvassa tilan nimi, ja onko se luettu oikein?</p>" +
+      (res.kierto ? '<p class="hint">Piirustus on kuvassa kiertyneenä (' + res.kierto + "°). Leikkeet näytetään oikein päin.</p>" : "") +
+      '<div class="rvlist2" data-check>' + check.map((r) => rowHtml(r, state[r.i])).join("") + "</div>" +
+      '<button class="link" data-showall style="margin:10px 0 2px">Näytä myös suoraan lisättävät (' + auto.length + ")</button>" +
+      '<div class="rvlist2 hidden" data-auto></div>' +
+      '<div class="row-btns" style="margin-top:12px"><button class="btn" data-close>Peruuta</button><button class="btn btn-primary" data-ok></button></div>',
       (el, close) => {
         const okBtn = el.querySelector("[data-ok]");
-        const count = () => {
-          const n = el.querySelectorAll("[data-c]:checked").length;
-          okBtn.textContent = "Lisää valitut (" + n + ")"; okBtn.disabled = !n;
-          el.querySelectorAll("[data-ri]").forEach((row) => {
-            const pin = el.querySelector('[data-pi="' + row.dataset.ri + '"]');
-            if (pin) pin.style.opacity = row.querySelector("[data-c]").checked ? "1" : ".35";
-          });
+        const paintCrops = (root) => {
+          if (!img) return;
+          root.querySelectorAll("[data-crop]:empty").forEach((d) => d.appendChild(cropCanvas(img, rows[+d.dataset.crop], res.kierto || 0)));
         };
-        el.addEventListener("change", count);
-        // Asunnon tunnuksen muutos päivittää asunnon tilojen tunnukset (As3 MH1 -> B12 MH1)
-        el.querySelectorAll("[data-apt]").forEach((inp) => inp.addEventListener("input", () => {
-          const old = inp.dataset.apt, nw = inp.value.trim();
-          el.querySelectorAll('[data-as="' + CSS.escape(old) + '"] [data-t]').forEach((t) => {
-            const rest = t.value.startsWith(old) ? t.value.slice(old.length).trim() : t.value;
-            t.value = (nw ? nw + " " : "") + rest;
-          });
-          el.querySelectorAll('[data-as="' + CSS.escape(old) + '"]').forEach((row) => { row.dataset.as = nw; });
-          inp.dataset.apt = nw;
-        }));
-        el.addEventListener("input", (e) => { const row = e.target.closest("[data-ri]"); if (row && e.target.matches("[data-n]") && e.target.value.trim()) row.querySelector("[data-c]").checked = true; count(); });
-        el.querySelectorAll("[data-pi]").forEach((p) => p.addEventListener("click", () => {
-          const row = el.querySelector('[data-ri="' + p.dataset.pi + '"]');
-          if (row) { row.scrollIntoView({ block: "center", behavior: "smooth" }); row.querySelector("[data-n]").focus(); }
-        }));
+        const count = () => {
+          const n = rows.filter((r) => state[r.i] === true).length, open = check.filter((r) => state[r.i] === undefined).length;
+          okBtn.textContent = "Lisää " + n + " tilaa";
+          okBtn.title = open ? open + " epävarmaa ratkaisematta: niitä ei lisätä" : "";
+        };
+        el.addEventListener("click", (e) => {
+          const row = e.target.closest("[data-ri]");
+          if (!row) return;
+          const i = +row.dataset.ri;
+          if (e.target.closest("[data-y]")) state[i] = true;
+          else if (e.target.closest("[data-x]")) state[i] = false;
+          else return;
+          row.classList.toggle("on", state[i] === true); row.classList.toggle("off", state[i] === false);
+          count();
+        });
+        el.addEventListener("input", (e) => {
+          const row = e.target.closest("[data-ri]");
+          if (row && e.target.matches("[data-n],[data-t]") && e.target.value.trim()) { state[+row.dataset.ri] = true; row.classList.add("on"); row.classList.remove("off"); count(); }
+        });
+        el.querySelector("[data-showall]").addEventListener("click", (e) => {
+          const box = el.querySelector("[data-auto]");
+          if (!box.innerHTML) { box.innerHTML = auto.map((r) => rowHtml(r, true)).join(""); paintCrops(box); }
+          box.classList.toggle("hidden");
+          e.target.textContent = box.classList.contains("hidden") ? "Näytä myös suoraan lisättävät (" + auto.length + ")" : "Piilota suoraan lisättävät";
+        });
+        paintCrops(el.querySelector("[data-check]"));
         count();
         okBtn.addEventListener("click", async () => {
-          let nNew = 0, nUpd = 0;
-          el.querySelectorAll("[data-ri]").forEach((row) => {
-            if (!row.querySelector("[data-c]").checked) return;
-            const r = rows[+row.dataset.ri - 1];
-            const nimi = row.querySelector("[data-n]").value.trim(), tunnus = row.querySelector("[data-t]").value.trim();
-            if (!nimi && !tunnus) return;
-            if (nimi && normName(nimi) !== normName(r.nimi) && r.raaka) PlanRooms.learn(r.abbr || r.raaka, nimi);
-            else if (r.tuntematon && nimi) PlanRooms.learn(r.abbr || r.raaka, nimi);
-            const pos = { x: r.x, y: r.y };
-            if (r.olemassa) {
-              const t = r.olemassa;
-              t.pos = pos; if (!t.tunnus && tunnus) t.tunnus = tunnus; if (nimi) t.nimi = nimi; nUpd++;
-            } else {
-              S.kohde.tilat.push({ id: DB.uid("t_"), tunnus, nimi, kerrosId: kerros.id, pos, merkinta: null, lahde: "pohjakuva" });
-              nNew++;
+          const add = [];
+          rows.forEach((r) => {
+            const row = el.querySelector('[data-ri="' + r.i + '"]');
+            const nimi = row ? row.querySelector("[data-n]").value.trim() : r.nimi;
+            const tunnus = row ? row.querySelector("[data-t]").value.trim() : r.tunnus;
+            const shown = !!row, decided = state[r.i];
+            const changed = nimi !== r.nimi;
+            // Oppiminen: vain tutkijan nähtävillä olleista päätöksistä
+            if (shown && r.avain) {
+              if (decided === false) PlanRooms.reject(r.avain);
+              else if (decided === true && changed && nimi) PlanRooms.learn(r.avain, nimi);
+              else if (decided === true && !r.varma) PlanRooms.confirm(r.avain, nimi);
             }
+            if (decided === true) add.push(Object.assign({}, r, { nimi, tunnus, tarkistettu: shown && (!r.varma || changed) }));
           });
+          const n = addRooms(kerros, add, lahde);
           await Model.saveKohde();
           close(true);
-          toast([nNew && nNew + " tilaa lisätty", nUpd && nUpd + " päivitetty"].filter(Boolean).join(", ") || "Ei muutoksia", 2500);
+          toast(roomsMsg(n) + ". Nimet vahvistuvat, kun käytät tiloja kentällä.", 4000);
           App.render();
         });
       }
     );
+  }
+  const roomsMsg = (n) => [n.nNew && n.nNew + " tilaa lisätty", n.nUpd && n.nUpd + " päivitetty"].filter(Boolean).join(", ") || "Ei muutoksia";
+
+  /* Tunnistettu tila vahvistuu: tutkija valitsi sen, nimesi sen tai kuittasi sen */
+  function confirmRoom(t, how) {
+    if (!t || !t.tunnistus || t.tunnistus.vahvistettu) return false;
+    t.tunnistus.vahvistettu = true; t.tunnistus.vahvistus = how; t.tunnistus.vahvistettuAika = Date.now();
+    if (window.PlanRooms && t.tunnistus.avain) PlanRooms.confirm(t.tunnistus.avain, t.nimi);
+    return true;
   }
 
   async function addFloor() {
@@ -225,6 +294,8 @@
             if (!tunnus && !nimi) { toast("Anna tunnus tai nimi"); return; }
             const kid = el.querySelector('[data-f="kerros"]').value;
             if (kid !== t.kerrosId) t.pos = null;
+            if (!isNew && t.tunnistus && nimi && nimi !== t.nimi && t.tunnistus.avain && window.PlanRooms) PlanRooms.learn(t.tunnistus.avain, nimi);
+            if (!isNew && t.tunnistus && !t.tunnistus.vahvistettu) { t.tunnistus.vahvistettu = true; t.tunnistus.vahvistus = "muokattu"; t.tunnistus.vahvistettuAika = Date.now(); }
             t.tunnus = tunnus; t.nimi = nimi; t.kerrosId = kid;
             if (isNew) S.kohde.tilat.push(t);
             await Model.saveKohde();
@@ -234,6 +305,9 @@
         { onClose: (v) => resolve(v || null) });
     });
   }
+
+  // Pohjakuvasta tunnistetun asunnon tunnus tilan tunnuksen alussa: "As3 MH1" -> "As3"
+  const aptOf = (t) => { const m = String(t.tunnus || "").match(/^(\S+)\s+\S/); return m && t.tunnistus ? m[1] : ""; };
 
   function statusChip(st) {
     const d = M.TILASTATUS[st];
@@ -245,13 +319,18 @@
     const st = Model.tilaStatus(t);
     const kerros = Model.kerros(t.kerrosId);
     const obs = S.havainnot.filter((h) => h.sijainti && h.sijainti.tilaId === t.id);
-    sheet("<h3>" + esc(Model.tilaNimi(t)) + "</h3><p>" + statusChip(st) +
+    const unconf = t.tunnistus && !t.tunnistus.vahvistettu;
+    sheet("<h3>" + esc(Model.tilaNimi(t)) + "</h3>" +
+      (unconf ? '<p class="hint" style="margin-top:-4px">Tunnistettu pohjakuvasta' + (t.tunnistus.raaka ? " (luettu: " + esc(t.tunnistus.raaka) + ")" : "") + ", nimeä ei ole vielä vahvistettu.</p>" : "") +
+      "<p>" + statusChip(st) +
       (t.merkinta && t.merkinta.syy ? " " + esc(t.merkinta.syy) : "") + (obs.length ? " · " + obs.length + " havaintoa" : "") + "</p>" +
       '<div style="display:flex;flex-direction:column;gap:8px">' +
       '<button class="btn btn-primary" data-a="kuva">' + icon("cam") + "Kuva + sanelu tässä tilassa</button>" +
       (!obs.length && !t.merkinta ? '<button class="btn" data-a="ok">Tarkastettu, ei huomautettavaa</button><button class="btn" data-a="eip">Ei pääsyä + syy</button>' : "") +
       (t.merkinta ? '<button class="btn" data-a="clear">Poista merkintä (' + esc(M.TILASTATUS[t.merkinta.tila].l.toLowerCase()) + ")</button>" : "") +
       (kerros && kerros.planId ? '<button class="btn" data-a="place">' + icon("pin") + (t.pos ? "Siirrä merkki pohjapiirroksessa" : "Sijoita pohjapiirrokseen") + "</button>" : "") +
+      (unconf ? '<button class="btn" data-a="conf">' + icon("ok") + "Nimi on oikein</button>" : "") +
+      (aptOf(t) ? '<button class="btn" data-a="apt">' + icon("edit") + "Vaihda asunnon tunnus (" + esc(aptOf(t)) + ")</button>" : "") +
       '<button class="btn" data-a="edit">' + icon("edit") + "Muokkaa</button>" +
       (!obs.length ? '<button class="btn btn-danger" data-a="del">' + icon("trash") + "Poista tila</button>" : "") +
       "</div>",
@@ -273,9 +352,19 @@
           toast("Napauta tilan kohtaa pohjapiirroksessa", 3000);
         });
         on("edit", async () => { close(); await roomSheet(t); App.render(); });
+        on("apt", async () => {
+          close();
+          const old = aptOf(t);
+          const nw = await promptSheet({ title: "Asunnon tunnus", label: "Kaikkien " + old + "-alkuisten tilojen tunnus vaihtuu (esim. C12)", value: old, required: true });
+          if (!nw || nw === old) return;
+          k.tilat.filter((x) => x.kerrosId === t.kerrosId && aptOf(x) === old).forEach((x) => { x.tunnus = nw + x.tunnus.slice(old.length); });
+          await Model.saveKohde(); App.render(); toast("Asunnon tunnus vaihdettu");
+        });
+        on("conf", async () => { confirmRoom(t, "kuitattu"); await Model.saveKohde(); close(); App.render(); toast("Vahvistettu"); });
         on("del", async () => {
           close();
           if (!(await confirmSheet({ title: "Poistetaanko tila " + Model.tilaNimi(t) + "?", ok: "Poista tila", danger: true }))) return;
+          if (t.tunnistus && !t.tunnistus.vahvistettu && t.tunnistus.avain && window.PlanRooms) PlanRooms.reject(t.tunnistus.avain);   // väärä tunnistus
           k.tilat = k.tilat.filter((x) => x.id !== t.id);
           k.suunnitelma.forEach((p) => { if (p.tilaId === t.id) p.tilaId = null; });
           await Model.saveKohde(); App.render();
@@ -299,9 +388,11 @@
     opts = opts || {};
     let out = "";
     if (!opts.noRooms) {
-      S.kohde.tilat.filter((t) => t.kerrosId === kerrosId && t.pos).forEach((t) => {
+      const fr = S.kohde.tilat.filter((t) => t.kerrosId === kerrosId && t.pos), many = fr.length > 20;
+      fr.forEach((t) => {
+        const lbl = aptOf(t) ? t.tunnus.slice(aptOf(t).length).trim() : (t.tunnus || t.nimi);
         const st = M.TILASTATUS[Model.tilaStatus(t)];
-        out += '<button class="pin room ' + st.cls + '" data-room="' + t.id + '" style="left:' + (t.pos.x * 100) + "%;top:" + (t.pos.y * 100) + '%" aria-label="' + esc(Model.tilaNimi(t) + ", " + st.l) + '">' + esc(t.tunnus || t.nimi) + "</button>";
+        out += '<button class="pin room ' + st.cls + (many ? " sm" : "") + (t.tunnistus && !t.tunnistus.vahvistettu ? " unconf" : "") + '" data-room="' + t.id + '" style="left:' + (t.pos.x * 100) + "%;top:" + (t.pos.y * 100) + '%" aria-label="' + esc(Model.tilaNimi(t) + ", " + st.l) + '">' + esc(lbl) + "</button>";
       });
     }
     S.havainnot.filter((h) => h.sijainti && h.sijainti.piste && h.sijainti.kerrosId === kerrosId && h.id !== opts.except).forEach((h) => {
@@ -339,7 +430,8 @@
           : '<section class="card"><div class="empty">Ei pohjakuvaa.<br><br><button class="btn" data-a="setPlan">' + icon("image") + "Lisää pohjakuva (kuva tai PDF)</button></div></section>") +
         '<div class="legend">' + Object.keys(M.TILASTATUS).map((s) => '<div><span class="st ' + M.TILASTATUS[s].cls + '" style="width:22px;height:16px;padding:0;border-radius:3px"></span>' + M.TILASTATUS[s].l + "</div>").join("") + "</div>" +
         '<section class="card"><div class="card-h"><h2>Tilat · ' + esc(kerros.nimi) + '</h2><span class="meta">' + rooms.length + "</span></div>" +
-        (rooms.map((t) => '<button class="row" data-a="room" data-id="' + t.id + '"><div class="grow"><div class="t">' + esc(Model.tilaNimi(t)) + "</div>" +
+        (rooms.some((t) => t.tunnistus && !t.tunnistus.vahvistettu) ? '<div class="card-b hint" style="padding-top:8px;margin:0">Katkoviivalla merkityt tilat on tunnistettu pohjakuvasta. Ne vahvistuvat, kun valitset tilan havainnon sijainniksi, muokkaat sitä tai kuittaat nimen. Vahvistamattomia: ' + rooms.filter((t) => t.tunnistus && !t.tunnistus.vahvistettu).length + ".</div>" : "") +
+        (rooms.map((t) => '<button class="row" data-a="room" data-id="' + t.id + '"><div class="grow"><div class="t">' + esc(Model.tilaNimi(t)) + (t.tunnistus && !t.tunnistus.vahvistettu ? ' <span class="mp-tag">tunnistettu</span>' : "") + "</div>" +
           (t.merkinta && t.merkinta.syy ? '<div class="s">' + esc(t.merkinta.syy) + "</div>" : "") + "</div>" + statusChip(Model.tilaStatus(t)) + "</button>").join("") ||
           '<div class="empty">Ei tiloja. Lisää tilat, niin kattavuus näkyy ja lähtötarkistus muistuttaa tutkimatta jääneistä.</div>') +
         '<div class="card-b" style="padding-top:10px"><button class="btn btn-block" data-a="addRoom">' + icon("plus") + "Lisää tila</button></div></section>" +
@@ -354,6 +446,8 @@
     root.innerHTML = App.topbar({ title: "Pohjapiirros", sub: k.nimi, back: "#/k/" + k.id }) +
       '<main class="view"><div class="floor-tabs chips scroll">' + tabs + "</div>" + body + "</main>" +
       App.fab("#/k/" + k.id + "/kuvaus" + (kerros ? "?kerros=" + kerros.id : "")) + App.bottomnav("pohja");
+
+    if (kerros && kerros.planId) Zoom.attach(root.querySelector("[data-plan]"), "plan:" + kerros.id, { fullscreen: true });
 
     root.onclick = async (e) => {
       const room = e.target.closest("[data-room]");
@@ -428,6 +522,7 @@
             : '<button class="btn btn-block" data-a="showPlan">' + icon("pin") + (s.piste ? "Kohta merkitty pohjapiirrokseen · muuta" : "Merkitse kohta pohjapiirrokseen") + "</button>") + "</div>"
           : "") +
         '<div class="row-btns"><button class="btn" data-a="cancel">Peruuta</button><button class="btn btn-primary" data-a="ok">Valmis</button></div>';
+      if (kerros && kerros.planId) Zoom.attach(el.querySelector("[data-plan]"), "loc:" + kerros.id);
     }
 
     el.addEventListener("click", async (e) => {
@@ -435,6 +530,15 @@
       if (plan) {
         const p = relPos(e, plan.querySelector("img"));
         s.piste = { x: p.x, y: p.y };
+        // Tilan merkin napautus valitsee myös tilan
+        const rp = e.target.closest("[data-room]");
+        if (rp) s.tilaId = rp.dataset.room;
+        else {
+          // muuten lähin tilamerkki, jos kohta on selvästi sen lähellä
+          const kk = Model.kerros(s.kerrosId), near = k.tilat.filter((t) => t.kerrosId === s.kerrosId && t.pos)
+            .map((t) => ({ t, d: Math.hypot(t.pos.x - p.x, (t.pos.y - p.y) * ((kk && kk.h && kk.w) ? kk.h / kk.w : 1)) })).sort((a, b) => a.d - b.d)[0];
+          if (near && near.d < 0.04 && !s.tilaId) s.tilaId = near.t.id;
+        }
         paint(); return;
       }
       const b = e.target.closest("button");
@@ -464,5 +568,5 @@
     paint();
   }
 
-  window.Plan = { view, locationSheet, roomActions, pinsHtml, detectRooms, reviewRooms };
+  window.Plan = { view, locationSheet, roomActions, pinsHtml, detectRooms, reviewRooms, confirmRoom };
 })();

@@ -18,36 +18,108 @@
 (function () {
   "use strict";
 
-  /* ---------- Sanasto ---------- */
+  /* ---------- Sanasto ----------
+     Suomalaisten pohjapiirustusten tavalliset tilalyhenteet. Suunnittelijoiden
+     omat lyhenteet (esim. KE = keittiö, PP = puuvarasto) opitaan käytöstä. */
   const ABBR = {
-    MH: "Makuuhuone", OH: "Olohuone", KT: "Keittiö", K: "Keittiö", KK: "Keittokomero", RT: "Ruokailutila",
-    ET: "Eteinen", TK: "Tuulikaappi", KPH: "Kylpyhuone", PH: "Pesuhuone", PESUH: "Pesuhuone", S: "Sauna", LH: "Löylyhuone",
-    WC: "WC", KHH: "Kodinhoitohuone", VH: "Vaatehuone", VAR: "Varasto", AT: "Autotalli", AK: "Autokatos",
-    TEKN: "Tekninen tila", TEK: "Tekninen tila", LJH: "Lämmönjakohuone", LJ: "Lämmönjakohuone", PRH: "Porrashuone", PORR: "Porrashuone",
-    SK: "Siivouskomero", SIIV: "Siivous", TH: "Työhuone", PKH: "Pukuhuone", PUKU: "Pukuhuone", KUIV: "Kuivaushuone", KUH: "Kuivaushuone",
-    IVKH: "IV-konehuone", IVK: "IV-konehuone", PARV: "Parveke", TERASSI: "Terassi", ULL: "Ullakko", KELL: "Kellari", AULA: "Aula",
-    KÄYT: "Käytävä", KAYT: "Käytävä", KHUONE: "Kerhohuone", NEUV: "Neuvotteluhuone", ARK: "Arkisto", SÄHKÖ: "Sähkötila", SAHKO: "Sähkötila",
-    R: "Ruokailutila", RT: "Ruokailutila", OH: "Olohuone", MHH: "Makuuhuone", VAR: "Varasto", KH: "Kylpyhuone", PS: "Pesuhuone", SH: "Saunatilat"
+    // asunnot
+    MH: "Makuuhuone", MHH: "Makuuhuone", OH: "Olohuone", K: "Keittiö", KT: "Keittiö", KE: "Keittiö", KEITT: "Keittiö", KK: "Keittokomero",
+    RT: "Ruokailutila", R: "Ruokailutila", RH: "Ruokailuhuone", RK: "Ruokakomero", ET: "Eteinen", E: "Eteinen", TK: "Tuulikaappi",
+    KPH: "Kylpyhuone", PH: "Pesuhuone", PESUH: "Pesuhuone", PS: "Pesuhuone", S: "Sauna", SA: "Sauna", LH: "Löylyhuone", SH: "Saunatilat",
+    WC: "WC", KHH: "Kodinhoitohuone", KODH: "Kodinhoitohuone", VH: "Vaatehuone", PUKH: "Pukeutumishuone", TH: "Työhuone", TYÖH: "Työhuone",
+    ASK: "Askarteluhuone", ASKH: "Askarteluhuone", HH: "Harrastehuone", TAKKAH: "Takkahuone", AH: "Aputila", AT: "Autotalli", AUTOT: "Autotalli",
+    AK: "Autokatos", AUTOK: "Autokatos", PKH: "Pukuhuone", PUKU: "Pukuhuone", PUKUH: "Pukuhuone",
+    // varastot ja tekniset tilat
+    VAR: "Varasto", V: "Varasto", UV: "Ulkovarasto", KV: "Kellarivarasto", IRT: "Irtaimistovarasto", IRTV: "Irtaimistovarasto",
+    KYLM: "Kylmävarasto", KYLMIÖ: "Kylmiö", PUUV: "Puuvarasto", PPV: "Polkupyörävarasto", UVV: "Ulkoiluvälinevarasto",
+    TEKN: "Tekninen tila", TEK: "Tekninen tila", LJH: "Lämmönjakohuone", LJ: "Lämmönjakohuone",
+    KATT: "Kattilahuone", KATTILAH: "Kattilahuone", ÖLJY: "Öljysäiliöhuone", ÖLJYS: "Öljysäiliöhuone", SÄHKÖ: "Sähkötila", SAHKO: "Sähkötila", SPK: "Sähköpääkeskus",
+    IVKH: "IV-konehuone", IVK: "IV-konehuone", IVKONEH: "IV-konehuone", KONEH: "Konehuone", HISSI: "Hissi", VSS: "Väestönsuoja", VS: "Väestönsuoja",
+    JH: "Jätehuone", JÄTEH: "Jätehuone", SK: "Siivouskomero", SIIV: "Siivous", SIIVK: "Siivouskomero",
+    KUIV: "Kuivaushuone", KUH: "Kuivaushuone", KUIVH: "Kuivaushuone", PESUT: "Pesutupa", MANK: "Mankelihuone",
+    // kulku ja ulkotilat
+    PRH: "Porrashuone", PRSH: "Porrashuone", PORR: "Porrashuone", PORRASH: "Porrashuone", LJKH: "Lämmönjakohuone", SPK: "Siivouspistekomero", NT: "Nuorisotila", KÄYT: "Käytävä", KAYT: "Käytävä", AULA: "Aula",
+    PARV: "Parveke", P: "Parveke", TER: "Terassi", TERASSI: "Terassi", KUISTI: "Kuisti", LASIK: "Lasikuisti", ULL: "Ullakko", KELL: "Kellari",
+    // muut rakennukset
+    KHUONE: "Kerhohuone", KERHOH: "Kerhohuone", NEUV: "Neuvotteluhuone", ARK: "Arkisto", TSTO: "Toimisto", TOIM: "Toimisto",
+    SOS: "Sosiaalitila", HLÖK: "Henkilökunnan tila", TAUKO: "Taukotila", LK: "Luokka", OPH: "Opettajainhuone", RUOKAS: "Ruokasali"
   };
-  // Yksikirjaimiset ja muut helposti sekaantuvat lyhenteet hyväksytään vain pinta-alan tai tilanumeron vierestä
-  const WEAK = new Set(["K", "S", "R", "LH", "TK", "AK", "LJ", "TH", "ARK", "ULL", "KH", "PS", "SH"]);
+  /* Lyhyet ja monimerkityksiset lyhenteet (K = keittiö tai kaappi, S = sauna tai kaapin tunnus):
+     hyväksytään vain pinta-alan tai tilanumeron vierestä tai kun ne ovat tilojen nimien kokoisia. */
+  const WEAK = new Set(["K", "S", "R", "E", "V", "P", "LH", "TK", "AK", "LJ", "TH", "ARK", "ULL", "PS", "SH", "SA", "AH", "HH", "KV", "LK", "VS", "KK", "RK", "UV"]);
   const NAMES = [
-    "Makuuhuone", "Olohuone", "Keittiö", "Keittokomero", "Ruokailutila", "Eteinen", "Tuulikaappi", "Kylpyhuone", "Pesuhuone", "Sauna",
-    "Löylyhuone", "Kodinhoitohuone", "Vaatehuone", "Varasto", "Autotalli", "Autokatos", "Tekninen tila", "Lämmönjakohuone", "Porrashuone",
-    "Siivouskomero", "Siivous", "Työhuone", "Pukuhuone", "Kuivaushuone", "IV-konehuone", "Konehuone", "Parveke", "Terassi", "Ullakko",
-    "Kellari", "Aula", "Käytävä", "Kerhohuone", "Neuvotteluhuone", "Neuvottelu", "Arkisto", "Sähkötila", "Toimisto", "Taukotila",
-    "Luokka", "Luokkahuone", "Opettajainhuone", "Ruokasali", "Liikuntasali", "Sali", "Odotustila", "Vastaanotto", "Henkilökunta",
-    "Jätehuone", "Kylmiö", "Wc", "Inva-wc", "Suihku", "Askarteluhuone", "Väestönsuoja", "Hissi", "Kirjasto", "Lepohuone", "Tuotantotila", "Halli"
+    "Makuuhuone", "Olohuone", "Keittiö", "Keittokomero", "Ruokailutila", "Ruokailuhuone", "Ruokakomero", "Eteinen", "Tuulikaappi", "Kylpyhuone",
+    "Pesuhuone", "Sauna", "Löylyhuone", "Kodinhoitohuone", "Vaatehuone", "Pukeutumishuone", "Varasto", "Ulkovarasto", "Kellarivarasto",
+    "Irtaimistovarasto", "Kylmävarasto", "Puuvarasto", "Lastenvaunuvarasto", "Polkupyörävarasto", "Ulkoiluvälinevarasto", "Autotalli", "Autokatos",
+    "Tekninen tila", "Lämmönjakohuone", "Kattilahuone", "Öljysäiliöhuone", "Porrashuone", "Siivouskomero", "Siivous", "Työhuone", "Pukuhuone",
+    "Kuivaushuone", "Pesutupa", "Mankelihuone", "IV-konehuone", "Konehuone", "Parveke", "Terassi", "Kuisti", "Lasikuisti", "Ullakko",
+    "Kellari", "Ryömintätila", "Aula", "Käytävä", "Kerhohuone", "Neuvotteluhuone", "Neuvottelu", "Arkisto", "Sähkötila", "Sähköpääkeskus",
+    "Toimisto", "Taukotila", "Sosiaalitila", "Luokka", "Luokkahuone", "Opettajainhuone", "Ruokasali", "Liikuntasali", "Sali", "Odotustila",
+    "Vastaanotto", "Henkilökunta", "Jätehuone", "Jätekatos", "Kylmiö", "Wc", "Inva-wc", "Suihku", "Askarteluhuone", "Harrastehuone",
+    "Takkahuone", "Aputila", "Väestönsuoja", "Hissi", "Kirjasto", "Lepohuone", "Tuotantotila", "Halli", "Verstas", "Kerho"
   ];
 
-  const LEARN_KEY = "ks_tilasanasto";
-  function learned() { try { return JSON.parse(localStorage.getItem(LEARN_KEY) || "{}"); } catch (e) { return {}; } }
-  function learn(token, name) {
+  /* ---------- Oppiminen ----------
+     Jokaisesta pohjakuvan merkinnästä (raaka teksti, esim. "KE" tai "AK/PKH") pidetään kirjaa:
+       nimi  tutkijan hyväksymä tai korjaama nimi
+       ok    vahvistukset: hyväksytty tarkistuksessa, korjattu (2) tai käytetty kentällä havainnon tilana
+       ei    hylkäykset: poistettu tarkistuksessa tai tunnistettu tila poistettu myöhemmin
+     Usein vahvistettu merkintä lisätään jatkossa ilman tarkistusta; usein hylätty ohitetaan. */
+  const LEARN_KEY = "ks_tilaoppi";
+  function model() {
+    let m = null;
+    try { m = JSON.parse(localStorage.getItem(LEARN_KEY) || "null"); } catch (e) { m = null; }
+    if (!m || !m.sanat) {
+      m = { v: 2, sanat: {} };
+      try {   // aiempi versio: pelkät korjaukset
+        const old = JSON.parse(localStorage.getItem("ks_tilasanasto") || "{}");
+        Object.keys(old).forEach((k) => { m.sanat[k] = { nimi: old[k], ok: 2, ei: 0 }; });
+      } catch (e) { /* ei vanhaa */ }
+    }
+    return m;
+  }
+  function saveModel(m) { try { localStorage.setItem(LEARN_KEY, JSON.stringify(m)); } catch (e) { /* täynnä */ } }
+  const keyOf = (token) => up(String(token || "").replace(/\s*\/\s*/g, "/")).replace(/^(\p{Lu}{1,5})\d{1,2}$/u, "$1");
+  // Yksittäistä kirjainta (E, K, S) ei opita: sama kirjain on piirustuksissa myös kalusteissa ja viivoissa
+  function entry(m, token) { const k = keyOf(token); if (!k || k.length > 12 || k.length < 2) return null; return (m.sanat[k] = m.sanat[k] || { nimi: "", ok: 0, ei: 0 }); }
+  function learn(token, name) {        // tutkija korjasi nimen: vahva signaali
     if (!token || !name) return;
-    const t = up(token);
-    if (t.length > 8 || ABBR[t] === name) return;
-    const m = learned(); m[t] = name;
-    try { localStorage.setItem(LEARN_KEY, JSON.stringify(m)); } catch (e) { /* ohita */ }
+    const m = model(), e = entry(m, token); if (!e) return;
+    if (e.nimi && e.nimi !== name) { e.ok = 0; }
+    e.nimi = name; e.ok += 2; e.ei = Math.max(0, e.ei - 1); saveModel(m);
+  }
+  function confirm(token, name) {      // tunnistus oli oikein
+    if (!token || !name) return;
+    const m = model(), e = entry(m, token); if (!e) return;
+    if (!e.nimi) e.nimi = name;
+    if (e.nimi === name) e.ok += 1;
+    saveModel(m);
+  }
+  function reject(token) {              // ei tila (kaapin merkintä, mitta tms.)
+    if (!token) return;
+    const m = model(), e = entry(m, token); if (!e) return;
+    e.ei += 1; saveModel(m);
+  }
+  function learned() {
+    const out = {}, m = model();
+    Object.keys(m.sanat).forEach((k) => { out[k] = m.sanat[k]; });
+    return out;
+  }
+  function stats() {
+    const m = model(), v = Object.values(m.sanat);
+    return { merkintoja: v.length, luotettuja: v.filter((e) => e.nimi && e.ok >= 3 && !e.ei).length, ohitettavia: v.filter((e) => e.ei >= 2 && e.ei > e.ok).length };
+  }
+  function resetModel() { try { localStorage.removeItem(LEARN_KEY); localStorage.removeItem("ks_tilasanasto"); } catch (e) { /* ohita */ } }
+  function exportModel() { return model(); }
+  function importModel(x) {
+    if (!x || !x.sanat) return;
+    const m = model();
+    Object.keys(x.sanat).forEach((k) => {
+      const a = m.sanat[k], b = x.sanat[k];
+      if (!a) m.sanat[k] = Object.assign({}, b);
+      else { if (!a.nimi || (b.ok > a.ok && b.nimi)) a.nimi = b.nimi; a.ok += b.ok || 0; a.ei += b.ei || 0; }
+    });
+    saveModel(m);
   }
 
   const strip = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "");
@@ -76,12 +148,16 @@
   }
   function matchAbbr(token) {
     const t = up(token);
-    const L = learned();
-    if (L[t]) return { nimi: L[t], abbr: t, weak: false };
+    const L = learned(), e = L[keyOf(token)];
     const p = upPlain(token);
     const hit = ABBR[t] || ABBR[p];
-    return hit ? { nimi: hit, abbr: t, weak: WEAK.has(t) || WEAK.has(p) } : null;
+    if (e && e.nimi && e.ok > e.ei && e.nimi !== hit) return { nimi: e.nimi, abbr: t, weak: false, opittu: e };
+    if (!hit && !(e && e.ei)) return null;
+    return { nimi: hit || "", abbr: t, weak: WEAK.has(t) || WEAK.has(p), opittu: e || null };
   }
+  // Opittu luottamus: vahvistettu useasti eikä hylätty -> lisätään tarkistamatta; usein hylätty -> ohitetaan
+  const trusted = (e) => e && e.nimi && e.ok >= 3 && e.ei === 0;
+  const rejected = (e) => e && e.ei >= 2 && e.ei > e.ok;
 
   /* Tekstintunnistuksen tyypilliset sekaannukset pienissä lyhenteissä:
      CH/0H -> OH, NH2/WH2 -> MH2, IK -> TK, MHz -> MH2, MHl -> MH1.
@@ -113,7 +189,7 @@
   // Asuntotyyppi: 3H+K, 2H+KK, 1H+KT (OCR: 3H3K, 3HK)
   const APT_RE = /^(\d)\s?H\s?[+3t]?\s?(KK|KT|K|TK)\b/i;
   // Tunnistuksen sotkema asuntomerkintä pinta-aloineen: 3H4K73,0M2, 34K730M2
-  const APT_LOOSE = /^[\dM]?[\dH]?[H+43]{0,2}K{1,2}T?\d{2,3}([,.]\d)?M?(2|²)?$/;
+  const APT_LOOSE = /^[\dMIL]?[\dHI]?[H+43\/]{0,2}[KX]{1,2}T?\d{2,3}([,.]\d)?M?(2|²)?$/;
   const isAptText = (s) => APT_RE.test(String(s).trim()) || APT_LOOSE.test(String(s).toUpperCase().replace(/\s/g, ""));
 
   const UNIT_RE = /^m(2|²|\?|z|:)?$/i;                       // tunnistus lukee m² usein "m?"
@@ -135,21 +211,134 @@
 
   /* ---------- Tulkinta ----------
      tokens: [{ text, x, y, h, conf }] keskipiste normalisoituna (0..1), h = tekstin korkeus (0..1) */
+  /* ---------- Huonekortit (ArchiCAD, Revit, AutoCAD) ----------
+     Suunnitteluohjelmien huonekortti on muotoa "A101 aula" ja sen alla pinta-ala "139,0".
+     Kun pohjassa on useita tällaisia kortteja, tilat luetaan niistä: tilanumero on tunnus ja
+     sen perässä oleva teksti nimi, olipa se sanastossa tai ei. Muut tekstit (ovien ja seinien
+     tyyppitunnukset AK7, O1, VS3, kalusteet) jätetään huomiotta. Ovimerkinnöissä toistuva
+     tilanumero ilman nimeä ei ole tila. */
+  const STAMP_NO = /^([A-ZÅÄÖ]{1,2}\d{3,4}[A-Z]?|[A-ZÅÄÖ]\d{2}[A-Z]?|\d{3,4}[A-Z]?)$/;
+  const CODE_RE = /^(h=|[A-ZÅÄÖ]{1,4}\d{1,2}[a-z]?|[A-Z]\d?\/.*|.*\/\/.*|\*.*|-+|\d.*|[A-Z]{1,3}-?\d.*|EI\d+|db\d+|KAL|[A-Z])$/;
+  function stampRooms(tokens) {
+    const isNo = (t) => STAMP_NO.test(t.text.trim()) && !/^\d+$/.test(t.text.trim());
+    const isNameWord = (t) => /\p{L}{2}/u.test(t.text) && !CODE_RE.test(t.text.trim()) && !isNo(t);
+    const sameLine = (a, b) => Math.abs(a.y - b.y) < Math.max(a.h, b.h) * 0.45 && Math.abs(a.h - b.h) < Math.max(a.h, b.h) * 0.3;
+    const wOf = (t) => t.w || t.h * 0.6 * t.text.length;
+    const out = [];
+    tokens.forEach((n) => {
+      if (!isNo(n)) return;
+      // nimi samalla rivillä numeron perässä
+      let name = [], last = n;
+      const row = tokens.filter((t) => t !== n && sameLine(n, t) && t.x > n.x).sort((a, b) => a.x - b.x);
+      for (const t of row) {
+        const gap = (t.x - wOf(t) / 2) - (last.x + wOf(last) / 2);
+        if (gap > n.h * 1.6) break;
+        if (isNameWord(t) || (name.length && /^[A-ZÅÄÖ]{1,2}\d?$/.test(t.text.trim()))) { name.push(t); last = t; }   // "prsh A1", "käytävä A"
+        else break;
+      }
+      // tai seuraavalla rivillä numeron alla
+      if (!name.length && row.length && /^\p{Ll}$/u.test(row[0].text.trim()) && (row[0].x - n.x) < n.h * 3) name = [row[0]];   // "A133 s"
+      if (!name.length) {
+        const below = tokens.filter((t) => t !== n && t.y - n.y > n.h * 0.6 && t.y - n.y < n.h * 1.9 && Math.abs(t.h - n.h) < n.h * 0.3 &&
+          (t.x - wOf(t) / 2) > n.x - wOf(n) && (t.x - wOf(t) / 2) < n.x + wOf(n)).sort((a, b) => a.x - b.x);
+        if (below.length && isNameWord(below[0])) name = [below[0]];
+      }
+      if (!name.length) return;
+      const nameTxt = name.map((t) => t.text.trim()).join(" ");
+      // pinta-ala nimen tai numeron alla
+      const area = tokens.find((t) => /^\d{1,4}[,.]\d$/.test(t.text.trim()) && t.y > n.y && t.y - n.y < n.h * 3 && t.x > n.x - wOf(n) && t.x < last.x + wOf(last) * 1.5);
+      out.push({ n, name, nameTxt, area });
+    });
+    return out;
+  }
+  /* Huonekortin nimi: suunnittelijan teksti on ensisijainen. Vain yksiselitteiset lyhenteet
+     avataan (wc, pkh, prsh A1, tk, VSS); monimerkityksiset (rk, s, k) jätetään sellaisinaan,
+     ja tutkija voi nimetä ne (opitaan). */
+  function stampName(txt) {
+    const words = txt.split(/\s+/), first = words[0], k1 = up(first);
+    const L = learned()[keyOf(txt)] || learned()[keyOf(first)];
+    if (L && L.nimi && L.ok > L.ei) return { nimi: L.nimi + (words.length > 1 && L === learned()[keyOf(first)] ? " " + words.slice(1).join(" ") : ""), opittu: true };
+    const ab = ABBR[k1] && !["RK", "SPK", "NT", "S", "K", "R", "E", "V", "P", "KK", "SH", "PS", "AH"].includes(k1) ? ABBR[k1] : null;
+    if (ab && words.slice(1).every((w) => /^[A-ZÅÄÖ]{1,2}\d?$/.test(w))) return { nimi: ab + (words.length > 1 ? " " + words.slice(1).join(" ") : "") };
+    if (first.length <= 3 && words.length === 1) return { nimi: first, oma: true, lyhenne: true };
+    const t = /^[\p{Lu}\s.-]+$/u.test(txt) && txt.length > 3 ? txt.charAt(0) + txt.slice(1).toLowerCase() : txt;
+    return { nimi: t.charAt(0).toUpperCase() + t.slice(1), oma: true };
+  }
+
   function interpret(tokens, source, opts) {
     tokens = tokens.filter((t) => t.text && t.text.trim());
+    // Huonekortit: jos pohjassa on vähintään viisi korttia pinta-aloineen, tilat luetaan vain niistä
+    const stamps = stampRooms(tokens);
+    if (stamps.filter((s2) => s2.area).length >= 5) {
+      const byNo = {};
+      stamps.forEach((s2) => {
+        const k = up(s2.n.text), cur = byNo[k];
+        const score = (x) => (x.area ? 2 : 0) + (x.name[0].y === x.n.y || Math.abs(x.name[0].y - x.n.y) < x.n.h * 0.45 ? 1 : 0);
+        if (!cur || score(s2) > score(cur)) byNo[k] = s2;
+      });
+      return Object.keys(byNo).map((k) => {
+        const s2 = byNo[k], nm = stampName(s2.nameTxt), all = [s2.n].concat(s2.name);
+        const avg = (f) => all.reduce((a2, t) => a2 + (t[f] != null ? t[f] : 0), 0) / all.length;
+        const hasP = s2.n.px != null;
+        const varma = !!s2.area && !/\/\//.test(s2.nameTxt);
+        return { nimi: nm.nimi, tunnus: up(s2.n.text), x: hasP ? avg("px") : avg("x"), y: hasP ? avg("py") : avg("y"), varma,
+          tuntematon: false, raaka: s2.n.text + " " + s2.nameTxt, abbr: "", asunto: "", asuntoTyyppi: "", korjattu: false, paatelty: false, pohjasta: false,
+          syy: varma ? "" : "huonekortista puuttuu pinta-ala", avain: keyOf(s2.nameTxt), h: s2.n.h, opittu: !!nm.opittu, kortti: true, ala: s2.area ? s2.area.text.trim() : "",
+          lyhenne: !!nm.lyhenne };
+      }).sort((a, b) => a.tunnus.localeCompare(b.tunnus, "fi", { numeric: true }));
+    }
     const areas = areaTokens(tokens);
     const near = (a, b, k) => Math.abs(a.x - b.x) < Math.max(a.h, b.h) * (k * 1.6) && Math.abs(a.y - b.y) < Math.max(a.h, b.h) * k;
     const isApt = (t) => isAptText(t.text);
-    const hasAreaNear = (t) => areas.some((a) => near(t, a, 2.8) && !tokens.some((u) => isApt(u) && near(u, a, 1.2)));
+    // Pinta-ala ilman yksikköä (11.9) suoraan nimen alla on myös pinta-ala
+    const NUM_RE = /^\d{1,3}[,.]\d{1,2}$/;
+    const numBelow = (t) => tokens.some((u) => u !== t && NUM_RE.test(u.text.trim()) && Math.abs(u.x - t.x) < t.h * 2.5 && u.y - t.y > t.h * 0.5 && u.y - t.y < t.h * 2.3);
+    const hasAreaNear = (t) => areas.some((a) => near(t, a, 2.8) && !tokens.some((u) => isApt(u) && near(u, a, 1.2))) || numBelow(t);
     const roomNoNear = (t) => {
-      const c = tokens.filter((u) => u !== t && ROOMNO_RE.test(u.text.trim().toUpperCase()) && !splitNumbered(u.text) && !areas.includes(u) && near(t, u, 2.2));
+      const c = tokens.filter((u) => u !== t && ROOMNO_RE.test(u.text.trim().toUpperCase()) && !splitNumbered(u.text) && !areas.includes(u) && near(t, u, 2.2) &&
+        !(/^\d+$/.test(u.text.trim()) && Math.abs(u.x - t.x) < t.h * 2.5 && u.y - t.y > t.h * 0.3) && !(source === "ocr" && u.conf < 70));   // suoraan alla oleva luku on pinta-ala (pilkku jäänyt lukematta)
       c.sort((a, b) => Math.hypot(a.x - t.x, a.y - t.y) - Math.hypot(b.x - t.x, b.y - t.y));
       return c[0] || null;
     };
 
-    // Kahden sanan nimet samalta riviltä ("TEKNINEN TILA")
     const used = new Set();
     const cands = [];
+    const clean = (x) => String(x || "").trim().replace(/^[^\p{L}\p{N}]+/u, "").replace(/[^\p{L}\p{N}\/.]+$/u, "");
+    const mk = (t, o) => Object.assign({ raaka: t.text.trim(), x: t.x, y: t.y, h: t.h, conf: t.conf, tok: t, varma: true, px: t.px, py: t.py }, o);
+
+    // Vinoviivalla yhdistetyt nimet ("AK / PKH", "KHH/VAR"): yksi tila
+    tokens.forEach((t) => {
+      if (used.has(t)) return;
+      const s = clean(t.text);
+      let parts = null, toks = [t];
+      if (/^[\p{L}.]{1,8}\s*\/\s*[\p{L}.]{1,8}$/u.test(s)) parts = s.split("/");
+      else if (/^[\p{L}.]{1,8}\s*\/$/u.test(s) || tokens.some((u) => u.text.trim() === "/" && Math.abs(u.y - t.y) < t.h * 0.6 && u.x > t.x && u.x - t.x < t.h * 3)) {
+        const slash = tokens.find((u) => u.text.trim() === "/" && Math.abs(u.y - t.y) < t.h * 0.6 && u.x > t.x && u.x - t.x < t.h * 3);
+        const nb = tokens.find((u) => u !== t && !used.has(u) && /^[\p{L}.]{1,8}$/u.test(clean(u.text)) && (
+          (Math.abs(u.y - t.y) < t.h * 0.6 && u.x > t.x && u.x - t.x < t.h * 6) || (Math.abs(u.x - t.x) < t.h * 3 && u.y > t.y && u.y - t.y < t.h * 2)));
+        if (nb) { parts = [s.replace("/", ""), clean(nb.text)]; toks = [t, nb].concat(slash ? [slash] : []); }
+      } else if (ABBR[up(s)] && up(s).length >= 2) {
+        // Kaksi lyhennettä päällekkäin ilman luettua vinoviivaa ("AK /" + "PKH"): sama tila
+        const nb = tokens.find((u) => u !== t && !used.has(u) && ABBR[up(clean(u.text))] && up(clean(u.text)).length >= 2 &&
+          Math.abs(u.x - t.x) < t.h * 2 && u.y > t.y && u.y - t.y < t.h * 1.9 && Math.abs(u.h - t.h) < t.h * 0.35);
+        if (nb) { parts = [s, clean(nb.text)]; toks = [t, nb]; }
+      }
+      if (!parts) return;
+      parts = parts.map((x) => x.replace(/\./g, "").trim()).filter(Boolean);
+      if (parts.length !== 2) return;
+      const pa = matchAbbr(parts[0]) || (matchName(parts[0]) && { nimi: matchName(parts[0]) }), pb = matchAbbr(parts[1]) || (matchName(parts[1]) && { nimi: matchName(parts[1]) });
+      if (!pa && !pb) return;
+      toks.forEach((u) => used.add(u));
+      const raw = parts.join("/"), e = learned()[keyOf(raw)];
+      const n = toks.length, cx = toks.slice(0, 2).reduce((a2, u) => a2 + u.x, 0) / Math.min(2, n), cy = toks.slice(0, 2).reduce((a2, u) => a2 + u.y, 0) / Math.min(2, n);
+      const px = t.px != null ? toks.slice(0, 2).reduce((a2, u) => a2 + u.px, 0) / Math.min(2, n) : undefined, py = t.py != null ? toks.slice(0, 2).reduce((a2, u) => a2 + u.py, 0) / Math.min(2, n) : undefined;
+      if (rejected(e)) return;
+      const nimi = e && e.nimi && e.ok > e.ei ? e.nimi : [pa, pb].filter((x) => x && x.nimi).map((x) => x.nimi).join(" / ");
+      cands.push(mk(t, { nimi, abbr: raw, raaka: parts.join(" / "), tunnus: raw, x: cx, y: cy, px, py, conf: Math.min.apply(null, toks.map((u) => u.conf)),
+        varma: !!trusted(e), syy: trusted(e) ? "" : "kaksi nimeä samassa merkinnässä", avain: raw, opittu: !!(e && e.nimi) }));
+    });
+
+    // Kahden sanan nimet samalta tai seuraavalta riviltä ("TEKNINEN TILA")
     tokens.forEach((t) => {
       if (used.has(t)) return;
       const nb = tokens.find((u) => u !== t && !used.has(u) && /\p{L}{2}/u.test(u.text) && (
@@ -159,59 +348,105 @@
         const two = matchName(t.text + nb.text);
         if (two && !matchName(t.text)) {
           used.add(t); used.add(nb);
-          cands.push({ nimi: two, raaka: t.text + " " + nb.text, x: (t.x + nb.x) / 2, y: (t.y + nb.y) / 2, h: t.h, conf: Math.min(t.conf, nb.conf), tok: t, varma: true,
-            px: t.px != null ? (t.px + nb.px) / 2 : undefined, py: t.py != null ? (t.py + nb.py) / 2 : undefined });
+          cands.push(mk(t, { nimi: two, raaka: t.text + " " + nb.text, x: (t.x + nb.x) / 2, y: (t.y + nb.y) / 2, conf: Math.min(t.conf, nb.conf), nimiSana: true,
+            px: t.px != null ? (t.px + nb.px) / 2 : undefined, py: t.py != null ? (t.py + nb.py) / 2 : undefined }));
         }
       }
     });
+    // Erillinen numero lyhenteen perässä: "MH 2" -> MH2
+    const numAfter = (t) => tokens.find((u) => u !== t && !used.has(u) && /^\d{1,2}$/.test(u.text.trim()) && Math.abs(u.y - t.y) < t.h * 0.5 && u.x > t.x && u.x - t.x < t.h * 2.2);
     const weakLater = [];
     tokens.forEach((t) => {
       if (used.has(t) || isApt(t)) return;
-      const s = t.text.trim();
+      let s = t.text.trim().replace(/^[^\p{L}\p{N}]+/u, "").replace(/[^\p{L}\p{N}\/]+$/u, "");
       if (!/\p{L}/u.test(s) || s.length > 24) return;
       const area = hasAreaNear(t), rno = roomNoNear(t);
+      if (/^\p{Lu}{1,4}$/u.test(s) && ABBR[s]) { const na = numAfter(t); if (na) { s = s + na.text.trim(); used.add(na); } }
       let ab = matchAbbr(s), num = splitNumbered(s), fixed = null;
+      if (ab && !ab.nimi) {                       // opittu: ei tila
+        if (rejected(ab.opittu)) return;
+        ab = null;
+      }
       if (!ab && !num && source === "ocr") {
         fixed = fixAbbr(s);
-        if (fixed) { num = splitNumbered(fixed); ab = num ? null : matchAbbr(fixed); }
+        if (fixed) { num = splitNumbered(fixed); ab = num ? null : matchAbbr(fixed); if (ab && !ab.nimi) ab = null; }
       }
-      if (num) { ab = { nimi: ABBR[num.abbr], abbr: num.abbr, weak: false }; }
+      if (num) {
+        const e = learned()[num.abbr];
+        ab = { nimi: e && e.nimi && e.ok > e.ei ? e.nimi : ABBR[num.abbr], abbr: num.abbr, weak: num.abbr.length === 1, opittu: e || null };
+      }
+      let hylatty = false;
       if (ab) {
-        const c = { nimi: ab.nimi, abbr: ab.abbr, raaka: s, x: t.x, y: t.y, h: t.h, conf: t.conf, tok: t, varma: true, korjattu: !!fixed, numero: num && num.tunnus, px: t.px, py: t.py };
-        if (ab.weak && !area && !rno) { weakLater.push(c); return; }
-        if (s.length <= 3 && s !== s.toUpperCase() && !area && !rno && !fixed) return;   // pienet kirjaimet vain pinta-alan tai numeron vieressä
+        // Hylätty aiemmin: oma lyhenne ohitetaan; sanaston lyhenne (WC, MH) näytetään tarkistettavaksi
+        if (rejected(ab.opittu)) { if (!ABBR[ab.abbr]) return; hylatty = true; }
+        // Yksittäinen kirjain viivojen keskellä (kaapin ovi, katkoviiva) ei ole tilan nimi
+        if (source === "ocr" && (s.length === 1 || (num && num.abbr.length === 1)) && t.ring != null && t.ring > 0.06) return;
+        const c = mk(t, { nimi: ab.nimi, abbr: ab.abbr, raaka: s, korjattu: !!fixed, numero: num && num.tunnus, alue: area, avain: fixed ? "" : keyOf(s), opittu: !!(ab.opittu && ab.opittu.nimi && ab.opittu.nimi !== ABBR[ab.abbr]), luotettu: !!trusted(ab.opittu) });
+        if (hylatty) { c.varma = false; c.syy = "hylätty aiemmin " + ab.opittu.ei + " kertaa"; c.luotettu = false; }
+        if (ab.weak && !area && !rno && !c.luotettu) { weakLater.push(c); return; }
+        if (s.length <= 3 && s !== s.toUpperCase() && !area && !rno && !fixed && !c.luotettu) return;   // pienet kirjaimet vain pinta-alan tai numeron vieressä
         cands.push(c);
         return;
       }
       const nm = matchName(s);
-      if (nm) { cands.push({ nimi: nm, raaka: s, x: t.x, y: t.y, h: t.h, conf: t.conf, tok: t, varma: true, px: t.px, py: t.py }); return; }
+      if (nm) { cands.push(mk(t, { nimi: nm, raaka: s, nimiSana: true, alue: area, avain: keyOf(s) })); return; }
       // Tuntematon isokirjaiminen sana pinta-alan vieressä: ehdotus, ei valittuna
       if (area && /^[\p{Lu}][\p{Lu}-]{1,11}$/u.test(s) && !ROOMNO_RE.test(s) && !/^[IOLl1|]+$/.test(s) && !/^(KERROS|POHJA|ASUNTO|MITTAKAAVA)/.test(s)) {
-        cands.push({ nimi: s.charAt(0) + s.slice(1).toLowerCase(), abbr: up(s), raaka: s, x: t.x, y: t.y, h: t.h, conf: t.conf, tok: t, varma: false, tuntematon: true, px: t.px, py: t.py });
+        cands.push(mk(t, { nimi: s.charAt(0) + s.slice(1).toLowerCase(), abbr: up(s), raaka: s, varma: false, tuntematon: true, syy: "tuntematon lyhenne", avain: keyOf(s) }));
       }
     });
-    /* Lyhyet lyhenteet (K, R, TK) ilman pinta-alaa hyväksytään, kun pohjakuvassa on muuten
-       selvästi tilalyhenteitä (vähintään 4 varmaa). Ne ovat silloin tilojen merkintöjä. */
-    const strong = cands.filter((c) => c.abbr && !c.korjattu).length;
-    if (strong >= 4) {
-      // vain muiden tilojen alueelta (ei reunojen mittoja tai nimiöruutua)
-      const st = cands.filter((c) => c.abbr && !c.korjattu);
-      const bx = { x0: Math.min.apply(null, st.map((c) => c.x)), x1: Math.max.apply(null, st.map((c) => c.x)), y0: Math.min.apply(null, st.map((c) => c.y)), y1: Math.max.apply(null, st.map((c) => c.y)) };
+
+    /* Tekstin koko: tilojen nimet ovat piirustuksessa samankokoisia, kalusteiden ja
+       laitteiden merkinnät (JK, LVV, VAR kaapissa) selvästi pienempiä. Viitekoko lasketaan
+       varmimmista osumista (pinta-ala, numero tai kokonainen nimi). */
+    const anchors = cands.filter((c) => c.alue || c.numero || c.nimiSana || c.luotettu);
+    const refH = anchors.length >= 3 ? anchors.map((c) => c.h).sort((p2, q) => p2 - q)[Math.floor(anchors.length / 2)] : 0;
+    const small = (c) => refH && c.h < refH * 0.72;
+    for (let i = cands.length - 1; i >= 0; i--) {
+      const c = cands[i];
+      if (small(c) && !c.alue && !c.numero && !c.luotettu) cands.splice(i, 1);
+    }
+
+    /* Tuntemattomat lyhenteet, jotka ovat tilojen nimien kokoisia ja tyhjällä lattia-alalla (esim. PP):
+       ehdotetaan tarkistettavaksi. Kun tutkija nimeää ne, sovellus oppii lyhenteen. */
+    if (refH && source === "ocr") {
+      const ref = cands.filter((c) => c.varma);
+      const inPlan = (c) => ref.length >= 3 && c.x >= Math.min.apply(null, ref.map((a2) => a2.x)) - 0.03 && c.x <= Math.max.apply(null, ref.map((a2) => a2.x)) + 0.03 &&
+        c.y >= Math.min.apply(null, ref.map((a2) => a2.y)) - 0.03 && c.y <= Math.max.apply(null, ref.map((a2) => a2.y)) + 0.03;
+      const unk = tokens.filter((t) => !used.has(t) && !isApt(t) && /^\p{Lu}{2,4}$/u.test(clean(t.text)) && !ABBR[up(clean(t.text))] && t.conf >= 70 &&
+        t.ring != null && t.ring < 0.05 && t.h > refH * 0.85 && t.h < refH * 1.3 && !cands.some((c) => Math.hypot(c.x - t.x, c.y - t.y) < refH * 2))
+        .map((t) => ({ t, e: learned()[keyOf(clean(t.text))] }))
+        .filter((o) => !rejected(o.e))
+        .map((o) => mk(o.t, { nimi: "", abbr: up(clean(o.t.text)), raaka: clean(o.t.text), varma: false, tuntematon: true, syy: "tuntematon lyhenne: anna nimi tai hylkää", avain: keyOf(clean(o.t.text)) }))
+        .filter(inPlan).sort((a2, b2) => a2.tok.ring - b2.tok.ring).slice(0, 8);
+      unk.forEach((c) => cands.push(c));
+    }
+    /* Lyhyet lyhenteet (K, R, E, TK) ilman pinta-alaa hyväksytään, kun pohjakuvassa on muuten
+       selvästi tilalyhenteitä ja ne ovat tilojen nimien kokoisia ja niiden alueella. */
+    const strongC = cands.filter((c) => c.abbr && !c.korjattu);
+    if (strongC.length >= 4) {
+      const bx = { x0: Math.min.apply(null, strongC.map((c) => c.x)), x1: Math.max.apply(null, strongC.map((c) => c.x)), y0: Math.min.apply(null, strongC.map((c) => c.y)), y1: Math.max.apply(null, strongC.map((c) => c.y)) };
       const mx = (bx.x1 - bx.x0) * 0.08, my = (bx.y1 - bx.y0) * 0.08;
       weakLater.forEach((c) => {
         if (c.x < bx.x0 - mx || c.x > bx.x1 + mx || c.y < bx.y0 - my || c.y > bx.y1 + my) return;
-        if (c.raaka === c.raaka.toUpperCase() && c.raaka.replace(/[^\p{L}]/gu, "").length <= 3 && (source !== "ocr" || c.conf >= 55)) cands.push(c);
+        if (small(c)) return;
+        if (source === "ocr" && c.raaka.length === 1 && c.tok.ring != null && c.tok.ring > 0.06) return;   // yksittäinen kirjain viivojen keskellä: ei tilan nimi
+        if (c.raaka === c.raaka.toUpperCase() && c.raaka.replace(/[^\p{L}]/gu, "").length <= 3 && (source !== "ocr" || c.conf >= 55)) {
+          if (!refH) { c.varma = false; c.syy = "lyhyt lyhenne ilman pinta-alaa"; }
+          cands.push(c);
+        }
       });
     }
     // Korjattu lukema on varma vain, jos sama lyhenne löytyy pohjasta myös suoraan luettuna
     const seen = new Set(cands.filter((c) => !c.korjattu).map((c) => c.abbr));
-    cands.forEach((c) => { if (c.korjattu && !seen.has(c.abbr)) c.varma = false; });
+    cands.forEach((c) => { if (c.korjattu && !seen.has(c.abbr)) { c.varma = false; c.syy = "epäselvä lukema"; } });
     // Tilanumerot ja varmuus
     cands.forEach((c) => {
       const rno = c.numero ? null : roomNoNear(c.tok);
-      if (c.numero) c.tunnus = c.numero;
-      else if (rno) c.tunnus = rno.text.trim().toUpperCase();
-      if (source === "ocr" && c.conf < 45 && !hasAreaNear(c.tok) && !rno && !c.korjattu) c.varma = false;
+      if (c.numero && !c.tunnus) c.tunnus = c.numero;
+      else if (rno && !c.tunnus) c.tunnus = rno.text.trim().toUpperCase();
+      if (source === "ocr" && c.conf < 60 && !c.alue && !rno && !c.korjattu && !c.luotettu && c.varma) { c.varma = false; c.syy = "epäselvä lukema"; }
+      if (c.opittu && !c.luotettu && c.varma && !c.alue) { c.varma = false; c.syy = "opittu nimi, vahvistuksia vielä vähän"; }
     });
 
     /* Asunnot: jos pohjassa on useita asuntotyyppimerkintöjä (3H+K), tilat ryhmitellään
@@ -310,6 +545,22 @@
           cl.dx = cl.m.reduce((s2, x) => s2 + off(x).dx, 0) / cl.m.length; cl.dy = cl.m.reduce((s2, x) => s2 + off(x).dy, 0) / cl.m.length;
         });
         const boxes = (opts && opts.boxes) || [], usedBox = new Set();
+        /* Päätyasunto, jonka merkintää eikä yhtään tilaa saatu luettua: kokeillaan asuntoa
+           kummankin pään jatkeeksi, ja se hyväksytään, jos vähintään kolmessa tutussa kohdassa on tekstiä. */
+        const autoIds = ord.every((a, i) => a._as === "As" + (i + 1));
+        const dA = ord.length >= 2 ? { x: (ord[ord.length - 1].x - ord[0].x) / (ord.length - 1), y: (ord[ord.length - 1].y - ord[0].y) / (ord.length - 1) } : null;
+        if (dA && boxes.length) {
+          const fits = (P) => clusters.filter((cl) => cl.m.length >= 2 && boxes.some((b) => Math.abs(b.x - (P.x + cl.dx / asp)) * asp < cl.m[0].h * 2.2 && Math.abs(b.y - (P.y + cl.dy)) < cl.m[0].h * 2.2)).length;
+          const last = ord[ord.length - 1], first = ord[0];
+          const pl = ord[ord.length - 2], sf = ord[1];
+          const pEnd = { x: 2 * last.x - pl.x, y: 2 * last.y - pl.y, text: "", h: last.h, virtual: true };
+          const pStart = { x: 2 * first.x - sf.x, y: 2 * first.y - sf.y, text: "", h: first.h, virtual: true };
+          if (pEnd.x <= 1 && pEnd.y <= 1 && fits(pEnd) >= 3) ord.push(pEnd);
+          if (pStart.x >= 0 && pStart.y >= 0 && fits(pStart) >= 3) { ord.unshift(pStart); cands.forEach((c) => { if (c._apt != null) c._apt++; }); }
+          if (autoIds) ord.forEach((a, i) => { a._as = "As" + (i + 1); });
+          else ord.forEach((a, i) => { if (!a._as) a._as = "As" + (i + 1); });
+          cands.forEach((c) => { if (c._apt != null) c.asunto = ord[c._apt]._as; });
+        }
         clusters.forEach((cl) => {
           const cnt = {};
           cl.m.forEach((c) => { cnt[key(c)] = (cnt[key(c)] || 0) + (c.korjattu ? 0.6 : 1); });
@@ -359,6 +610,13 @@
       const mnn = nn.slice().sort((u, v) => u - v)[Math.floor(nn.length / 2)];
       for (let i = cands.length - 1; i >= 0; i--) if (nn[i] > mnn * 5) cands.splice(i, 1);
     }
+    // Samasta kohdasta kaksi eri lukemaa (sama teksti luettu kahdesti): vahvempi jää
+    const rank = (c) => (c.alue ? 4 : 0) + (c.numero && c.abbr && c.abbr.length > 1 ? 3 : 0) + (c.nimiSana ? 3 : 0) + (c.luotettu ? 3 : 0) + (c.varma ? 2 : 0) + (c.korjattu || c.paatelty ? -1 : 0) + (c.abbr && c.abbr.length === 1 ? -2 : 0) + (c.conf || 0) / 100;
+    for (let i = cands.length - 1; i >= 0; i--) {
+      const c = cands[i];
+      const o = cands.find((d) => d !== c && Math.hypot(d.x - c.x, d.y - c.y) < Math.max(c.h, d.h) * 1.3);
+      if (o && rank(o) >= rank(c)) cands.splice(i, 1);
+    }
     // Päällekkäiset (sama nimi lähes samassa kohdassa) pois
     const out = [];
     cands.forEach((c) => {
@@ -377,7 +635,8 @@
     return out.map((c) => ({
       nimi: c.nimi, tunnus: c.tunnus || "", x: c.px != null ? c.px : c.x, y: c.py != null ? c.py : c.y,
       varma: c.varma !== false, tuntematon: !!c.tuntematon, raaka: c.raaka, abbr: c.abbr || "",
-      asunto: c.asunto || "", asuntoTyyppi: c.asuntoTyyppi || "", korjattu: !!c.korjattu, paatelty: !!c.paatelty, pohjasta: !!c.pohjasta
+      asunto: c.asunto || "", asuntoTyyppi: c.asuntoTyyppi || "", korjattu: !!c.korjattu, paatelty: !!c.paatelty, pohjasta: !!c.pohjasta,
+      syy: c.varma === false ? (c.syy || (c.paatelty ? "päätelty muista asunnoista" : "epäselvä lukema")) : "", avain: c.avain || "", h: c.h, opittu: !!c.opittu
     }));
   }
 
@@ -415,7 +674,7 @@
         const a = t.w * ((i + wd.length / 2) / Math.max(1, t.str.length));
         const cx = t.m[4] + t.d.x * a + t.d.y * t.fh * 0.35, cy = t.m[5] + t.d.y * a - t.d.x * t.fh * 0.35;
         const px = cx / vp.width, py = cy / vp.height, f = fwd(px, py);
-        out.push({ text: wd, x: f.x, y: f.y, h: t.fh / fH, conf: 100, px, py });
+        out.push({ text: wd, x: f.x, y: f.y, h: t.fh / fH, w: t.w * wd.length / Math.max(1, t.str.length) / (rot % 180 ? vp.height : vp.width), conf: 100, px, py, r: rot });
       });
     });
     return out;
@@ -538,7 +797,7 @@
     const r = Math.max(15, Math.round(Math.max(W, H) / 80));
     const ii = new Float64Array((W + 1) * (H + 1));
     for (let y = 0; y < H; y++) { let row = 0; for (let x = 0; x < W; x++) { row += g[y * W + x]; ii[(y + 1) * (W + 1) + x + 1] = ii[y * (W + 1) + x + 1] + row; } }
-    const ink = new Uint8Array(N);
+    const ink = new Uint8Array(N), inkArr = ink;
     for (let y = 0; y < H; y++) {
       const y0 = Math.max(0, y - r), y1 = Math.min(H, y + r + 1);
       for (let x = 0; x < W; x++) {
@@ -598,6 +857,16 @@
       const w = { x: wd.x0, y: wd.y0, w: wd.x1 - wd.x0, h: wd.y1 - wd.y0, n: wd.n };
       if (w.h <= wd.h * 1.6 && w.w <= w.h * 25) words.push(w);
     }
+    // Ympäristön väljyys: tilan nimi on tyhjällä lattia-alalla, viivojen palaset ja kalustemerkinnät eivät
+    words.forEach((w) => {
+      const m = Math.round(w.h * 0.9), x0 = Math.max(0, w.x - m), y0 = Math.max(0, w.y - m), x1 = Math.min(W, w.x + w.w + m), y1 = Math.min(H, w.y + w.h + m);
+      let ink = 0, n = 0;
+      for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+        if (x >= w.x - 1 && x <= w.x + w.w + 1 && y >= w.y - 1 && y <= w.y + w.h + 1) continue;
+        n++; ink += inkArr[y * W + x];
+      }
+      w.ring = n ? ink / n : 0;
+    });
     return { hc, words };
   }
 
@@ -691,7 +960,7 @@
     words.sort((a, b) => (Math.round(a.y / 40) - Math.round(b.y / 40)) || a.x - b.x);
     if (words.length > 600) words = words.slice(0, 600);
     const wk = await worker();
-    await wk.setParameters({ tessedit_pageseg_mode: "6", tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZÅÄÖ0123456789+-,.m" });
+    await wk.setParameters({ tessedit_pageseg_mode: "6", tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZÅÄÖ0123456789+-,./m" });
     try {
       const PER = 50, TH = 0.5;
       // Oikein päin vai ylösalaisin: luetaan ensimmäinen arkki molemmin päin
@@ -704,7 +973,7 @@
       /* Lyhyet sanat, joita ei tunnistettu, luetaan uudelleen kolmella eri kuvankäsittelyllä
          ja tulokset äänestetään (pienet ja sumeat tunnukset: MH1 luetaan helposti WH1 tai M). */
       const redo = [];
-      words.forEach((w, i) => { if (w.n <= 6 && !canon(rows[i] && rows[i].text)) redo.push(i); });
+      words.forEach((w, i) => { const c = canon(rows[i] && rows[i].text); if (w.n <= 6 && (!c || rows[i].conf < 60)) redo.push(i); });   // lukematta jääneet ja epävarmasti luetut
       if (redo.length) {
         const ws = redo.map((i) => words[i]);
         const variants = [];
@@ -725,7 +994,7 @@
         let fx = (w.x + w.w / 2) / G.W, fy = (w.y + w.h / 2) / G.H;
         if (flip) { fx = 1 - fx; fy = 1 - fy; }
         const o = unrot(fx, fy, rot);
-        const t = { text: r && r.text || "", conf: r ? r.conf : 0, x: fx, y: fy, h: w.h / G.H, px: o.x, py: o.y };
+        const t = { text: r && r.text || "", conf: r ? r.conf : 0, x: fx, y: fy, h: w.h / G.H, px: o.x, py: o.y, ring: w.ring, n: w.n };
         if (t.text && canon(t.text)) tokens.push(t);
         else { if (t.text) tokens.push(t); if (w.n >= 1 && w.n <= 4) boxes.push(t); }
       });
@@ -739,7 +1008,7 @@
   async function detect(opts) {
     if (opts.pdfTokens && opts.pdfTokens.length) {
       const r = interpret(opts.pdfTokens, "pdf");
-      if (r.length) return { lahde: "pdf", tilat: r };
+      if (r.length) return { lahde: "pdf", tilat: r, kierto: opts.pdfTokens[0].r || 0 };
     }
     let img = opts.image;
     if (img instanceof Blob) img = await createImageBitmap(img, { imageOrientation: "from-image" });
@@ -754,12 +1023,12 @@
       const same = (a, b) => a.nimi === b.nimi && Math.hypot(a.x - b.x, a.y - b.y) < 0.04;
       r.forEach((t) => {
         const m = best.tilat.find((b) => same(b, t));
-        if (m) { if (!m.tunnus && t.tunnus) m.tunnus = t.tunnus; if (t.varma) m.varma = true; }
-        else if (t.varma || !best.tilat.length) best.tilat.push(t);
+        if (m) { if (!m.tunnus && t.tunnus) m.tunnus = t.tunnus; }
+        else if (t.varma && String(t.raaka || "").replace(/[^\p{L}]/gu, "").length >= 2) best.tilat.push(t);
       });
     }
     return best;
   }
 
-  window.PlanRooms = { detect, interpret, pdfTokens, learn, matchAbbr, ABBR, _ocrTokens: ocrTokens, _photoTokens: photoTokens, _textBoxes: textBoxes, _grayOf: grayOf, _rotGray: rotGray, _sheets: sheets };
+  window.PlanRooms = { detect, interpret, pdfTokens, learn, confirm, reject, stats, resetModel, exportModel, importModel, keyOf, matchAbbr, ABBR, _ocrTokens: ocrTokens, _photoTokens: photoTokens, _textBoxes: textBoxes, _grayOf: grayOf, _rotGray: rotGray, _sheets: sheets };
 })();

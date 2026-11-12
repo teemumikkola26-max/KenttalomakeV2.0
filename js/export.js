@@ -129,7 +129,9 @@
       })),
       tilat: k.tilat.map((t) => {
         const e = Model.kerros(t.kerrosId);
-        return { tunnus: t.tunnus, nimi: t.nimi, kerros: e ? e.nimi : "", tila: M.TILASTATUS[Model.tilaStatus(t)].l, syy: t.merkinta && t.merkinta.syy ? t.merkinta.syy : null };
+        return { tunnus: t.tunnus, nimi: t.nimi, kerros: e ? e.nimi : "", tila: M.TILASTATUS[Model.tilaStatus(t)].l, syy: t.merkinta && t.merkinta.syy ? t.merkinta.syy : null,
+          nimen_lahde: t.tunnistus ? t.tunnistus.lahde : "tutkija",
+          nimi_vahvistettu: t.tunnistus ? !!t.tunnistus.vahvistettu : true };
       }),
       havainnot: S.havainnot.map((h) => {
         const e = Model.kerros(h.sijainti.kerrosId), t = Model.tila(h.sijainti.tilaId), p = Model.kohta(h.suunnitelmaId);
@@ -181,7 +183,7 @@
     if (j.tilat.length) {
       L.push("## Tilat ja tutkimuksen kattavuus");
       L.push("");
-      j.tilat.forEach((t) => L.push("- " + [t.kerros, [t.tunnus, t.nimi].filter(Boolean).join(" ")].filter(Boolean).join(" / ") + ": " + t.tila + (t.syy ? " (syy: " + t.syy + ")" : "")));
+      j.tilat.forEach((t) => L.push("- " + [t.kerros, [t.tunnus, t.nimi].filter(Boolean).join(" ")].filter(Boolean).join(" / ") + ": " + t.tila + (t.syy ? " (syy: " + t.syy + ")" : "") + (t.nimi_vahvistettu ? "" : " (nimi luettu pohjakuvasta, vahvistamatta)")));
       L.push("");
     }
     L.push("## Havainnot");
@@ -263,7 +265,11 @@
     "   päätelty tutkijan sanelusta eikä tutkija ole muuttanut niitä. Tarkista\n" +
     "   ne sanelua vasten, jos ne vaikuttavat johtopäätöksiin.\n" +
     "7. Johtopäätökset ja korjaussuositukset tarkistaa ja hyväksyy raportin\n" +
-    "   allekirjoittava tutkija.\n";
+    "   allekirjoittava tutkija.\n" +
+    "8. Tilojen nimet on osin luettu pohjakuvasta automaattisesti. Nimi on\n" +
+    "   vahvistettu (nimi_vahvistettu), kun tutkija on käyttänyt tilaa havainnon\n" +
+    "   sijaintina, muokannut tai kuitannut sen. Vahvistamattoman tilan nimeä ei\n" +
+    "   esitetä tutkijan toteamana; se merkitään tarvittaessa tarkistettavaksi.\n";
 
   async function run(keskenerainen) {
     const k = S.kohde;

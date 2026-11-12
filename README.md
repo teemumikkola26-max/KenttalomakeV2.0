@@ -60,6 +60,7 @@ Kun kerrokseen lisätään pohjakuva, sovellus etsii siitä tilojen nimet ja tun
 
 - **PDF, jossa on tekstiä** (CAD-tuloste): nimet luetaan suoraan PDF:n tekstistä. Tämä on nopea (alle sekunti) ja tarkka.
 - **Skannattu pohjakuva tai valokuva paperipiirustuksesta** (kuva tai kuvana tallennettu PDF): kuvasta etsitään ensin tekstin näköiset kohdat (merkin kokoiset tummat alueet rivissä). Ne leikataan irti, suurennetaan ja luetaan tekstintunnistuksella (Tesseract, suomi). Näin pienetkin tunnukset löytyvät viivojen seasta, eivätkä varjot tai epätasainen valo haittaa. Lyhyet sanat, joita ei tunnisteta, luetaan uudelleen kolmella eri kuvankäsittelyllä, ja tulokset äänestetään. Piirustuksen kierto (0/90/180/270°) päätellään itse. Siisteistä skannauksista luetaan lisäksi koko sivu, ja tulokset yhdistetään. Ensimmäisellä kerralla ladataan suomen kielidata (noin 1 Mt), ja sen jälkeen tunnistus toimii myös ilman verkkoa.
+- **Huonekortit (ArchiCAD, Revit, AutoCAD)**: suunnitteluohjelman huonekortti on muotoa "A101 aula" ja sen alla pinta-ala "139,0". Kun PDF:ssä tai kuvassa on vähintään viisi korttia pinta-aloineen, tilat luetaan vain korteista. Tilanumero tulee tunnukseksi ja kortin teksti nimeksi, olipa se sanastossa tai ei. Vain yksiselitteiset lyhenteet avataan (wc, pkh, prsh A1 → Porrashuone A1, tk, VSS). Monimerkityksiset (rk, s, spk) jätetään sellaisinaan, ja ne voi nimetä (opitaan). Ovien, seinien ja alakattojen tyyppitunnuksia (O1, VS3, AK7, K7) ei tulkita tiloiksi, eikä ovimerkintöjen tilanumero ilman nimeä tee tilaa.
 - **Kierretty PDF**: jos koko piirustus on PDF:ssä kierretty, tekstit luetaan yleisimmän tekstisuunnan mukaan.
 
 Tulkinta tuntee tavalliset lyhenteet (MH, OH, KT, K, R, KPH, PH, S, ET, VH, WC, TK, AK, LJ, IV-KH, ...) ja tilannimet, myös kahdelle riville jaetut. Numeroitu lyhenne (MH1, MH2) tulee tunnukseksi. Lyhyet ja moniselitteiset lyhenteet (K, S, R, TK, LH, ...) hyväksytään, jos lähellä on pinta-ala tai tilanumero, tai jos pohjassa on muuten selvästi tilalyhenteitä ja lyhenne on tilojen alueella. Näin mitat ja nimiöruudun tekstit eivät tulkitu tiloiksi. Tekstintunnistuksen tyypilliset sekaannukset korjataan (WH2 → MH2, CH → OH, IK → TK). Lähellä oleva tilanumero (esim. 101, A12) tulee tunnukseksi.
@@ -68,11 +69,48 @@ Tulkinta tuntee tavalliset lyhenteet (MH, OH, KT, K, R, KPH, PH, S, ET, VH, WC, 
 - väärin luettu tunnus korjataan muiden asuntojen mukaiseksi
 - asunnosta puuttuva tila lisätään, jos samassa kohdassa on tekstiä, jota ei saatu luettua (merkintä *päätelty muista samanlaisista asunnoista*).
 
-Tarkistusnäkymässä asunnon tunnusta voi muuttaa (As3 → C12), jolloin asunnon kaikkien tilojen tunnukset päivittyvät.
+Asunnon tunnuksen voi vaihtaa (As3 → C12) minkä tahansa sen tilan valikosta, jolloin asunnon kaikkien tilojen tunnukset päivittyvät.
 
-Tunnistetut tilat näytetään **tarkistettavaksi** ennen lisäämistä: pohjakuvassa on numeroidut merkit ja niiden alla lista, jossa tunnuksen ja nimen voi korjata ja väärin tunnistetun tilan voi jättää pois. Tuntemattomat lyhenteet ovat aluksi valitsematta. Kun tutkija korjaa nimen tai nimeää tuntemattoman lyhenteen, sovellus oppii sen (laitteella, `ks_tilasanasto`). Jos kerroksessa on jo samanniminen tai -tunnuksinen tila, se päivitetään eikä siitä tule kaksoiskappaletta. Tunnistuksen voi ajaa uudelleen pohjapiirrosnäkymän painikkeella **Tunnista tilat pohjakuvasta**.
+**Sanasto ja suodatus.** Sanastossa on asuntojen, varastojen, teknisten tilojen ja julkisten rakennusten tavalliset lyhenteet (KE, E, KUISTI, LASIK, IRTV, VSS ...). Pinta-ala tunnistetaan myös ilman yksikköä, kun luku (11.9) on suoraan nimen alla. Kalusteiden ja laitteiden merkinnät (JK, LVV, VAR kaapissa) erotetaan tekstin koon perusteella: tilojen nimet ovat piirustuksessa samankokoisia, kalustemerkinnät pienempiä. Yksittäinen kirjain (E, K, S) hyväksytään vain, jos sen ympärillä on tyhjää lattia-alaa. Vinoviivalla tai päällekkäin merkitty tila (AK / PKH) on yksi tila.
+
+### Tarkistus vain epävarmoille
+
+Kymmenien tai satojen tilojen tarkistaminen yksitellen ei ole järkevää, joten tunnistus jakaa tilat kahteen ryhmään:
+
+- **Varmat lisätään suoraan.** Varma on esimerkiksi PDF:n tekstistä luettu nimi, nimi pinta-alan tai tilanumeron vieressä, selvästi luettu tunnettu lyhenne tai tila, joka on samassa kohdassa vähintään kolmessa samanlaisessa asunnossa. Ehdot ovat tarkoituksella tiukat: on parempi kysyä kuin lisätä väärin.
+- **Epävarmat näytetään tarkistettavaksi.** Kunkin vieressä on leike pohjakuvan siitä kohdasta, josta nimi luettiin (kierretyssä kuvassa oikein päin), ja syy, miksi tila on epävarma. Päätös on yksi napautus: ✓ tila tai ✕ ei tila. Nimen voi korjata samalla.
+
+Jos epävarmoja ei ole, tilat lisätään ilman tarkistusnäkymää. Suoraan lisätyt tilat voi halutessaan avata tarkistettavaksi (Näytä myös suoraan lisättävät).
+
+**Luottamus säilyy, koska suoraan lisätty tila on merkitty.** Pohjakuvasta luettu tila on *tunnistettu* (katkoviivareunus pohjapiirroksessa), kunnes tutkija on nähnyt sen nimen. Tila vahvistuu, kun se valitaan havainnon sijainniksi, kun sitä muokataan tai kun tilan valikosta kuitataan *Nimi on oikein*. Tarkistus tehdään siis kentällä samalla, kun tilaa käytetään, eikä erillistä tarkistusvaihetta tarvita. ZIP-paketissa jokaisella tilalla on `nimen_lahde` ja `nimi_vahvistettu`. LUE_MINUT ohjeistaa raportin laatijaa, ettei vahvistamatonta nimeä esitetä tutkijan toteamana. Tilat, joissa ei käyty, voi lähtötarkistuksessa merkitä kerralla rajauksiksi yhteisellä syyllä.
+
+### Oppiminen
+
+Sovellus oppii laitteella (`ks_tilaoppi`), mitä kunkin pohjakuvamerkinnän lyhenne tarkoittaa:
+
+| Tapahtuma | Vaikutus |
+|---|---|
+| Epävarma tila hyväksytään (✓) | +1 vahvistus |
+| Nimi korjataan tai tuntematon lyhenne nimetään | opittu nimi, +2 |
+| Tila käytetään havainnon sijaintina, sitä muokataan tai se kuitataan | +1 vahvistus |
+| Epävarma tila hylätään (✕) tai vahvistamaton tila poistetaan | +1 hylkäys |
+
+Kun merkinnällä on vähintään kolme vahvistusta eikä yhtään hylkäystä, se lisätään jatkossa suoraan. Esimerkiksi tuntematon "PP" nimetään kerran *Puuvarastoksi* ja hyväksytään kerran, ja siitä eteenpäin se lisätään ilman kysymistä. Usein hylätty oma merkintä ohitetaan. Sanaston lyhenne (WC, MH) ei katoa hylkäyksistä vaan siirtyy tarkistettavaksi. Yksittäisiä kirjaimia ei opita, koska samaa kirjainta käytetään piirustuksissa myös kalusteissa. Opitut lyhenteet näkyvät Menetelmät-sivulla, ne voi nollata, ja ne kulkevat Vie menetelmät -tiedostossa, joten tiimi voi koota yhteisen sanaston.
+
+Rajoitus: lyhenne opitaan ilman asiayhteyttä. Jos sama lyhenne tarkoittaa eri piirustuksissa eri asiaa (AK = autokatos tai apukeittiö), se kannattaa jättää vahvistamatta, jolloin se pysyy tarkistettavana.
 
 Tilojen rajoja ei tunnisteta: tila on pohjapiirroksessa merkki nimen kohdalla.
+
+## Pohjapiirroksen zoomaus (`js/zoom.js`)
+
+Pohjapiirrosta voi zoomata sekä pohjapiirrosnäkymässä että sijaintia valittaessa:
+
+- kahden sormen nipistys zoomaa (jopa 10-kertaiseksi) ja yhden sormen veto siirtää kuvaa
+- kaksoisnapautus zoomaa kohtaan, ja toinen kaksoisnapautus palauttaa koko kuvan
+- painikkeet: + ja − zoomaavat, kuvakepainike palauttaa koko kuvan ja ⤢ avaa pohjan koko näytölle (pohjapiirrosnäkymässä)
+- tietokoneella hiiren rulla zoomaa
+
+Tilamerkit pysyvät samankokoisina zoomattaessa, joten tiheäkin pohja, jossa on kymmeniä tiloja, aukeaa luettavaksi. Napautus toimii zoomattuna normaalisti, mutta veto ei laukaise napautusta. Zoomaus ja kohta säilyvät, kun näkymä päivittyy (esimerkiksi tilan merkinnän jälkeen). Sijaintia valittaessa tilamerkin napautus valitsee samalla tilan, joten pitkää tilaluetteloa ei tarvitse selata.
 
 ## Kuvien lisääminen aiempaan havaintoon
 
@@ -189,6 +227,7 @@ js/capture.js          Kuva + sanelu
 js/card.js             havaintokortti
 js/plan.js             pohjapiirros, kerrokset, tilat, sijainnin valinta
 js/planrooms.js        tilojen nimien tunnistus pohjakuvasta (PDF-teksti tai OCR)
+js/zoom.js             pohjapiirroksen zoomaus, siirto ja koko näyttö
 js/obslist.js          havaintojen haku ja valinta
 js/gallery.js          galleriakuvien liittäminen ottoajan perusteella
 js/check.js            lähtötarkistus
@@ -216,7 +255,7 @@ Oletusmenetelmät ovat tiedostossa `js/methods.js` (`OLETUKSET`). Niitä muuteta
 - Ei synkronointia laitteiden välillä. Siirto tehdään ZIP-paketilla.
 - Pohjakuvasta käytetään yhtä PDF-sivua kerrosta kohden.
 - Tiloja ei piirretä alueina: tila merkitään pohjapiirrokseen tunnuksella, ja sen väri kertoo tutkimustilanteen.
-- Tilojen tunnistus vaatii, että nimet ovat painettua tekstiä samassa suunnassa kuin piirustuksen muu teksti. Käsin kirjoitettuja nimiä ei tunnisteta. Valokuvasta tunnistus onnistuu sitä paremmin, mitä tarkempi kuva on: kuvaa piirustus suoraan yläpuolelta, ja anna sovellukselle alkuperäinen kuva (ei pienennettyä kuvakaappausta). Tulos tarkistetaan aina ennen lisäämistä.
+- Tilojen tunnistus vaatii, että nimet ovat painettua tekstiä samassa suunnassa kuin piirustuksen muu teksti. Viivaan tai symboliin kiinni oleva nimi (esim. ovenkaaren vieressä) jää usein löytymättä. Käsin kirjoitettuja nimiä ei tunnisteta. Valokuvasta tunnistus onnistuu sitä paremmin, mitä tarkempi kuva on: kuvaa piirustus suoraan yläpuolelta, ja anna sovellukselle alkuperäinen kuva (ei pienennettyä kuvakaappausta). Tulos tarkistetaan aina ennen lisäämistä.
 - Galleriakuvan ottoaika luetaan EXIF-tiedoista. Jos puhelin poistaa ne jaettaessa, käytetään tiedoston aikaleimaa, eikä ehdotus ole silloin luotettava.
 - Jokainen mittauspiste on oma havaintonsa. Saman pisteen kaikki syvyydet ja rinnakkaiset lukemat ovat havainnon taulukossa.
 - Kameraluku tunnistaa Vaisala HM40 -sarjan näytön. Muut mittarit kirjataan käsin, kunnes niille lisätään tunnistus.

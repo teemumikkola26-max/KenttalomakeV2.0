@@ -65,6 +65,9 @@
       await DB.put("havainnot", h);
       const i = S.havainnot.findIndex((x) => x.id === h.id);
       if (i >= 0) S.havainnot[i] = h; else S.havainnot.push(h);
+      // Pohjakuvasta tunnistettu tila vahvistuu, kun se on havainnon sijaintina (tutkija on paikalla ja näkee nimen)
+      const tt = h.sijainti && h.sijainti.tilaId && Model.tila(h.sijainti.tilaId);
+      if (tt && window.Plan && Plan.confirmRoom(tt, "havainto")) await Model.saveKohde();
       S.havainnot.sort((a, b) => a.nro - b.nro);
     },
     async deleteHavainto(h) {
