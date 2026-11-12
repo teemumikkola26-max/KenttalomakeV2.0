@@ -18,12 +18,26 @@
   /* Puheentunnistuksen tila (config.js: puheentunnistus) */
   const MODE = ((window.KS_CONFIG || {}).puheentunnistus) || "palvelin";
   let PAIKALLINEN = "tuntematon";   // available | downloadable | downloading | unavailable | ei-tukea
+  /* Puhelimessa tapahtuva tunnistus on selaimissa uusi ominaisuus, ja se voi kaataa välilehden.
+     Kutsun ajaksi asetetaan merkki; jos merkki on jäljellä seuraavalla käynnistyksellä, välilehti
+     kaatui kesken, eikä ominaisuutta enää käytetä tällä laitteella (sanelu tallennetaan äänitteinä). */
+  const LS = { get: (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set: (k, v) => { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { /* ohita */ } } };
+  if (LS.get("ks.sr.kesken")) { LS.set("ks.sr.kaatui", LS.get("ks.sr.kesken")); LS.set("ks.sr.kesken", null); }
+  const kaatui = () => !!LS.get("ks.sr.kaatui");
+  async function suojattu(vaihe, fn) {
+    LS.set("ks.sr.kesken", vaihe);
+    try { return await fn(); } finally { setTimeout(() => LS.set("ks.sr.kesken", null), 1500); }
+  }
   async function tarkistaPaikallinen() {
-    if (!SR || typeof SR.available !== "function") { PAIKALLINEN = "ei-tukea"; return PAIKALLINEN; }
-    try { PAIKALLINEN = await SR.available({ langs: ["fi-FI"], processLocally: true }); } catch (e) { PAIKALLINEN = "ei-tukea"; }
+    if (!SR || typeof SR.available !== "function" || kaatui()) { PAIKALLINEN = "ei-tukea"; return PAIKALLINEN; }
+    try { PAIKALLINEN = await suojattu("tarkistus", () => SR.available({ langs: ["fi-FI"], processLocally: true })); } catch (e) { PAIKALLINEN = "ei-tukea"; }
     return PAIKALLINEN;
   }
-  const valmis = MODE === "laite" ? tarkistaPaikallinen() : Promise.resolve();
+  // Tarkistus vasta, kun sovellus on käynnistynyt (ei käynnistyksen aikana)
+  let valmisP = null;
+  const valmis = () => valmisP || (valmisP = MODE === "laite" ? tarkistaPaikallinen() : Promise.resolve());
+  if (MODE === "laite") setTimeout(valmis, 2500);
 
   const norm = (s) => String(s || "").toLowerCase().replace(/[^\p{L}\p{N} ]/gu, "").replace(/\s+/g, " ").trim();
 
@@ -84,7 +98,7 @@
       const online = navigator.onLine !== false;
       // Tietosuoja: "laite" = tunnistus vain puhelimessa; jos se ei ole käytettävissä, äänite (ääni ei lähde minnekään)
       if (MODE === "laite") {
-        if (SR && PAIKALLINEN === "available") { this.mode = "speech"; this._startSpeech(); }
+        if (SR && PAIKALLINEN === "available" && !kaatui()) { this.mode = "speech"; this._startSpeech(); }
         else if (window.MediaRecorder) { this.mode = "audio"; this._startAudio("Puheentunnistus puhelimessa ei ole käytössä: sanelu tallennetaan äänitteenä."); }
         else { this.active = false; this.onState("error", "Sanelu ei ole käytettävissä. Kirjoita teksti."); }
         return;
@@ -144,7 +158,7 @@
     _startSpeech(restart) {
       const rec = new SR();
       rec.lang = "fi-FI";
-      if (MODE === "laite") rec.processLocally = true;      // ääni ei lähde puhelimesta
+      if (MODE === "laite") { rec.processLocally = true; LS.set("ks.sr.kesken", "sanelu"); setTimeout(() => LS.set("ks.sr.kesken", null), 4000); }   // ääni ei lähde puhelimesta
       rec.continuous = true;
       rec.interimResults = true;
       rec.maxAlternatives = 1;
@@ -267,18 +281,21 @@
   /* Etusivun kortti: miten sanelu käsitellään ja suomen kielipaketin lataus puhelimeen */
   Dictation.puheKortti = async function (el) {
     if (!el) return;
-    await valmis;
+    await valmis();
     const esc = UI.esc;
     let t, btn = "";
-    if (MODE === "palvelin") t = "Sanelun ääni lähetetään selaimen puheentunnistuspalveluun (Chrome: Google). Asetus on ylläpitäjän valinta (config.js).";
+    if (MODE === "laite" && kaatui()) { t = "Puhelimessa tapahtuva puheentunnistus kaatoi selaimen välilehden (" + (LS.get("ks.sr.kaatui") === "sanelu" ? "saneltaessa" : "tarkistuksessa") + "), joten se on poistettu käytöstä tällä laitteella. Sanelut tallennetaan äänitteinä; ääni ei lähde puhelimesta."; btn = '<button class="btn btn-sm" data-uudelleen style="margin-top:10px">Kokeile uudelleen</button>'; }
+    else if (MODE === "palvelin") t = "Sanelun ääni lähetetään selaimen puheentunnistuspalveluun (Chrome: Google). Asetus on ylläpitäjän valinta (config.js).";
     else if (PAIKALLINEN === "available") t = "Puheentunnistus tapahtuu tässä puhelimessa. Ääntä ei lähetetä mihinkään.";
     else if (PAIKALLINEN === "downloadable" || PAIKALLINEN === "downloading") { t = "Suomen puheentunnistus voidaan ladata puhelimeen. Sen jälkeen sanelu muuttuu tekstiksi puhelimessa, myös ilman verkkoa. Siihen asti sanelut tallennetaan äänitteinä."; btn = '<button class="btn btn-sm btn-primary" data-asenna style="margin-top:10px">Lataa suomen puheentunnistus</button>'; }
     else t = "Tämä selain ei tue suomen puheentunnistusta puhelimessa. Sanelut tallennetaan äänitteinä (ääni ei lähde puhelimesta), ja teksti kirjoitetaan tai litteroidaan raportoinnissa.";
     el.innerHTML = '<section class="card"><div class="card-h"><h2>Sanelu ja tietosuoja</h2></div><div class="card-b"><p style="margin:0">' + esc(t) + "</p>" + btn + "</div></section>";
+    const u = el.querySelector("[data-uudelleen]");
+    if (u) u.addEventListener("click", () => { LS.set("ks.sr.kaatui", null); valmisP = null; Dictation.puheKortti(el); });
     const b = el.querySelector("[data-asenna]");
     if (b) b.addEventListener("click", async () => {
       b.disabled = true; b.textContent = "Ladataan…";
-      try { const ok = await SR.install({ langs: ["fi-FI"], processLocally: true }); await tarkistaPaikallinen(); UI.toast(ok ? "Suomen puheentunnistus on nyt puhelimessa." : "Lataus ei onnistunut.", 3500); }
+      try { const ok = await suojattu("lataus", () => SR.install({ langs: ["fi-FI"], processLocally: true })); await tarkistaPaikallinen(); UI.toast(ok ? "Suomen puheentunnistus on nyt puhelimessa." : "Lataus ei onnistunut.", 3500); }
       catch (e) { UI.toast("Lataus ei onnistunut: " + (e.message || e), 4000); }
       Dictation.puheKortti(el);
     });

@@ -20,7 +20,7 @@ window.KS_CONFIG = {
                  sanelu tallennetaan äänitteenä eikä ääntä lähetetä mihinkään.
      "palvelin"  selaimen oletus: ääni lähetetään selaimen puheentunnistuspalveluun
                  (Chrome: Google). Käytä vain, jos yritys on hyväksynyt tämän. */
-  puheentunnistus: "laite",
+  puheentunnistus: "palvelin",     // kehitysvaihe: kuten versiossa 25. Tuotantoon päätös, ks. KAYTTOONOTTO-PILVI.md
 
   /* Laitteen tiedot: pilvikohteen tiedot poistetaan puhelimesta, kun kohde on synkronoitu
      eikä sitä ole avattu näin moneen päivään. */

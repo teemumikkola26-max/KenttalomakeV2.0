@@ -614,12 +614,20 @@
     UI.hideToast(500);
     render();
   });
+  /* Käynnistyksen vaihe talteen: jos välilehti kaatuu, seuraava käynnistys kertoo, missä vaiheessa */
+  const vaihe = (v) => { try { if (v) localStorage.setItem("ks.boot", v); else localStorage.removeItem("ks.boot"); } catch (e) { /* ohita */ } };
+  let edellinenKaatui = null;
+  try { edellinenKaatui = localStorage.getItem("ks.boot"); } catch (e) { /* ohita */ }
   window.addEventListener("DOMContentLoaded", async () => {
-    await M.load();
-    await Learn.load();
-    await Vocab.load();
+    vaihe("menetelmät"); await M.load();
+    vaihe("oppiminen"); await Learn.load();
+    vaihe("sanasto"); await Vocab.load();
+    vaihe("pilvi");
     if (window.Cloud) { try { await Cloud.init(); } catch (e) { console.warn("Pilvi", e); } }
+    vaihe("näkymä");
     render();
+    if (edellinenKaatui) setTimeout(() => UI.toast("Edellinen käynnistys keskeytyi (vaihe: " + edellinenKaatui + "). Ilmoita tästä ylläpitäjälle, jos toistuu.", 6000), 800);
+    setTimeout(() => vaihe(null), 6000);
     if (window.Sync && Cloud.enabled) { Sync.start(); Sync.siivoa(false).catch(() => {}); }
     if ("serviceWorker" in navigator && location.protocol !== "file:") {
       navigator.serviceWorker.register("sw.js").then((reg) => {
