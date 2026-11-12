@@ -215,6 +215,8 @@ Kohteen tason arvio rakennusosittain PBM:n kuntoarvion raporttipohjan järjestyk
 
 **Käyttöikätaulukko** on Sanasto-sivulla (Kuntoarvio → Käyttöiät). Rivin muoto on `osa | nimike | käyttöikä | tarkastusväli | kunnossapitojakso | lähde`. Oletuksena taulukossa ovat PBM:n kuntoarvion liitteen 1 rivit (lähde *PBM liite 1*) ja raporttipohjan tekstien käyttöiät (lähde *PBM raporttipohja*). Taulukkoa voi täydentää KH 90-00403:sta, ja lähteen merkitseminen riville on suositeltavaa.
 
+Rakennusosassa voi olla useita rakenteita (esim. parketti, muovimatto ja laatoitus). Jokaiselle annetaan oma vuosi ja tarvittaessa oma käyttöikä, jos rakennetta ei ole käyttöikätaulukossa. Kuntoluokka annetaan koko osalle. Valintalista tulee käyttöikätaulukosta ja Sanasto-sivun listasta *Rakenteet ja materiaalit*; listaan voi myös kirjoittaa vapaasti.
+
 ## Märkätilakartoitus (menetelmä `mtk`)
 
 Tarkistuslomake: yksi havainto = yksi märkätila (pesuhuone, sauna, erillinen WC tai keittiön allaskaappi). Lomake perustuu yrityksen aiempaan märkätilakartoituksen tarkistuslistaan.
@@ -257,11 +259,37 @@ Olosuhdeseuranta on kohteen yhteinen mittaus, ei tilakohtainen havainto. Mittala
 
 ZIP-paketissa `havainnot.json` (`olosuhdeseuranta`) ja `havainnot.md` sisältävät laiteluettelon (tunnus, kerros, tila, kohta pohjakuvassa), ja laitteet on merkitty pohjapiirroksiin. Mittausdata tulee raportille mittalaitteiden pilvipalvelusta. Tutkimussuunnitelman kohdassa *Olosuhdeseuranta* tehty-määrä on kirjattujen laitteiden määrä.
 
+## Yleiskuvat (`js/yleiskuvat.js`)
+
+Kameranäkymässä on kaksi välilehteä: **Havainto** ja **Yleiskuva**. Yleiskuva-tilassa jokainen laukaisu tallentuu heti kohteen yleiskuviin valitun tilan kanssa, ilman sanelua ja havaintoa. Kohteen sivulla *Yleiskuvat* näyttää kuvat tiloittain; kuvalle voi lisätä kuvatekstin tai vaihtaa tilan. ZIP-paketissa kuvat ovat kansiossa `yleiskuvat/` (YK01_OH1.jpg …), ja luettelo on `havainnot.md`:ssä ja `havainnot.json`:ssa. Yleiskuvat synkronoituvat pilveen kuten muutkin kohteen tiedot.
+
+## Näytteenotto (menetelmä `nayte`)
+
+Näytetyypit on ryhmitelty (materiaali-, ilma-, pinta- ja pölynäytteet). Lähtökohta on Labroc Oy:n akkreditoitu pätevyysalue (FINAS T314) sekä PBM:n raporteissa käytetyt näytteet. Tyyppi antaa tunnukselle etuliitteen (MIK1, VOCI1, AS1 …) ja näyttää vain tyypin kentät (esim. ilmanäytteelle keräin, ilmamäärä ja aika; materiaalinäytteelle materiaali). Tulos on valinnainen, koska se tulee laboratoriosta. Valintalistoihin voi kirjoittaa oman arvon (*Muu…*).
+
+## Pilvi ja useampi tutkija (`js/cloud.js`, `js/sync.js`, `js/cloudui.js`)
+
+Käyttöönotto: **KAYTTOONOTTO-PILVI.md**. Tietokanta: `supabase/schema.sql`, käyttöoikeustestit: `supabase/rls-testit.sql`.
+
+- **Laite ensin:** kirjaukset tallentuvat aina ensin puhelimeen. Synkronointi lähettää muutokset ja hakee tiimin muutokset, kun yhteys on: käynnistyessä, 30 s välein, verkon palatessa ja muutoksen jälkeen. Kohteen yläreunassa näkyy tila, esim. *Pilvessä ajan tasalla* tai *Ei verkkoa: 5 muutosta odottaa*.
+- **Kirjautuminen:** Microsoft 365 -tunnuksilla (Supabase Auth, Entra ID). Vain sallitut sähköpostidomainit hyväksytään, ja tarkistus tehdään sekä sovelluksessa että tietokannassa.
+- **Oikeudet:** kohteen näkee vain sen tiimi. Sääntö tarkistetaan tietokannassa (RLS), ja kuvat ovat yksityisessä säiliössä polussa `kohde/tiedosto`. Muokkaaja ja aika asetetaan palvelimella. Rivejä ei poisteta pysyvästi, vaan poisto on merkintä, ja jokaisesta muutoksesta jää lokirivi.
+- **Rivit:** kohde puretaan riveiksi (kohde, kerros, tila, suunnitelman kohta, mittalaite, kuntoarvio, kuntoarvion osa, havainto, tiedosto), joten kaksi tutkijaa voi kirjata samaan aikaan. Jos samaa riviä on muutettu kahdessa paikassa, pilvessä ollut versio jää voimaan. Havainnon korvautunut versio jää talteen havaintokortille, josta sen voi palauttaa.
+- **Numerointi:** kentällä tutkijakohtaiset sarjat (TM-05), raportilla (ZIP) juoksevasti H01, H02 …
+- **Puhelimen tiedot:** uloskirjautuminen poistaa pilvikohteet puhelimesta (lähettämättömät säilyvät). Vanhat, synkronoidut kohteet poistetaan automaattisesti.
+
+## Tietoturva
+
+- **Ei ulkoista koodia:** kirjastot ovat repossa (`lib/`, versiot ja tarkisteet `lib/VERSIONS.txt`), eivät CDN:stä.
+- **Content-Security-Policy (index.html):** koodia ladataan vain sovelluksen omasta osoitteesta, ja tietoja voi lähettää vain sovellukseen ja organisaation Supabase-projektiin.
+- **Puheentunnistus:** `config.js` → `puheentunnistus: "laite"` = tunnistus vain puhelimessa. Jos se ei ole käytettävissä, sanelu tallennetaan äänitteenä, eikä ääni lähde puhelimesta.
+- **Kuvat:** kuvat piirretään aina uudelleen, joten sijainti- ja laitetiedot (EXIF/GPS) eivät päädy tallenteisiin.
+
 ## Tallennus ja tietosuoja
 
-- Tiedot tallentuvat vain laitteen selaimeen (IndexedDB). Palvelinta tai pilveä ei ole.
-- Sovellus pyytää selaimelta pysyvää tallennustilaa, mutta selaimen tietojen tyhjennys poistaa kohteet. **Vie ZIP-paketti jokaisesta kohteesta.** Samalla paketilla kohteen voi palauttaa (etusivu → Palauta varmuuskopio).
-- Puheentunnistus (Web Speech API) käsittelee puheen selaimen palvelussa (Chrome: Google). Arvioi tämä organisaation tietosuojakäytäntöjä vasten ennen tuotantokäyttöä.
+- Ilman pilviasetuksia tiedot tallentuvat vain laitteen selaimeen (IndexedDB). Selaimen tietojen tyhjennys poistaa kohteet, joten **vie ZIP-paketti jokaisesta kohteesta**. Samalla paketilla kohteen voi palauttaa (etusivu → Palauta varmuuskopio).
+- Pilviasetuksilla tiedot tallentuvat ensin laitteelle ja siirtyvät organisaation Supabase-projektiin (EU), ks. *Pilvi ja useampi tutkija*.
+- Puheentunnistus: ks. *Tietoturva*. Palvelinpohjainen tunnistus (`puheentunnistus: "palvelin"`) lähettää äänen selaimen palveluun (Chrome: Google).
 
 ## ZIP-paketin sisältö
 
@@ -307,6 +335,12 @@ Jos selaimen kamera ei käynnisty, laukaisin avaa puhelimen oman kamerasovelluks
 ```
 index.html             sovelluksen runko
 css/app.css            PBM-väriteema
+js/config.js           ympäristön asetukset (Supabase, domainit, puheentunnistus)
+js/cloud.js            kirjautuminen (Microsoft 365) ja pilviyhteys
+js/sync.js             synkronointi (laite ensin)
+js/cloudui.js          kirjautumisnäkymä, tili, tiimi, synkronoinnin tila
+lib/                   kirjastot (ei CDN:stä)
+supabase/              tietokanta ja käyttöoikeustestit
 js/ui.js               kuvakkeet, ikkunat, ilmoitukset
 js/db.js               IndexedDB-tallennus
 js/methods.js          oletusmenetelmät, rakenneosat, menetelmien tallennus

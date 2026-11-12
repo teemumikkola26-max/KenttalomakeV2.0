@@ -2,6 +2,10 @@
 <html lang="fi">
 <head>
 <meta charset="utf-8">
+<!-- Tietoturva: sovellus saa ladata koodia vain omasta osoitteestaan ja lähettää tietoja vain
+     omaan Supabase-projektiin. Vaihda YOUR-PROJECT samaksi kuin js/config.js:n supabaseUrl. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; connect-src 'self' https://YOUR-PROJECT.supabase.co; img-src 'self' blob: data:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self'; object-src 'none'; frame-src 'none'; base-uri 'self'; form-action 'self'">
+<meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#ffffff">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -15,6 +19,8 @@
 <body>
 <div id="app"><main class="view no-nav"><div class="empty">Ladataan…</div></main></div>
 <noscript>Sovellus vaatii JavaScriptin.</noscript>
+<script src="js/config.js"></script>
+<script src="lib/supabase.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/db.js"></script>
 <script src="js/methods.js"></script>
@@ -22,11 +28,15 @@
 <script src="js/dictation.js"></script>
 <script src="js/camera.js"></script>
 <script src="js/lukulaite-ocr.js"></script>
+<script src="js/cloud.js"></script>
 <script src="js/app.js"></script>
+<script src="js/sync.js"></script>
+<script src="js/cloudui.js"></script>
 <script src="js/zoom.js"></script>
 <script src="js/plan.js"></script>
 <script src="js/check.js"></script>
 <script src="js/seuranta.js"></script>
+  <script src="js/yleiskuvat.js"></script>
 <script src="js/planimport.js"></script>
 <script src="js/kuntoarvio-data.js"></script>
 <script src="js/kuntoarvio.js"></script>
