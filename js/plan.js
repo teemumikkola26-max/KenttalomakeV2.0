@@ -279,7 +279,8 @@
   }
 
   async function roomSheet(t, kerrosId) {
-    const isNew = !t;
+    const isNew = !t || !!t.__new;
+    if (t && t.__new) delete t.__new;
     return new Promise((resolve) => {
       t = t || { id: DB.uid("t_"), tunnus: "", nimi: "", kerrosId: kerrosId, pos: null, merkinta: null };
       sheet("<h3>" + (isNew ? "Uusi tila" : "Muokkaa tilaa") + "</h3>" +
@@ -392,7 +393,7 @@
       fr.forEach((t) => {
         const lbl = aptOf(t) ? t.tunnus.slice(aptOf(t).length).trim() : (t.tunnus || t.nimi);
         const st = M.TILASTATUS[Model.tilaStatus(t)];
-        out += '<button class="pin room ' + st.cls + (many ? " sm" : "") + (t.tunnistus && !t.tunnistus.vahvistettu ? " unconf" : "") + '" data-room="' + t.id + '" style="left:' + (t.pos.x * 100) + "%;top:" + (t.pos.y * 100) + '%" aria-label="' + esc(Model.tilaNimi(t) + ", " + st.l) + '">' + esc(lbl) + "</button>";
+        out += '<button class="pin room ' + st.cls + (many ? " sm" : "") + (opts.sel === t.id ? " sel" : "") + (t.tunnistus && !t.tunnistus.vahvistettu ? " unconf" : "") + '" data-room="' + t.id + '" style="left:' + (t.pos.x * 100) + "%;top:" + (t.pos.y * 100) + '%" aria-label="' + esc(Model.tilaNimi(t) + ", " + st.l) + '">' + esc(lbl) + "</button>";
       });
     }
     S.havainnot.filter((h) => h.sijainti && h.sijainti.piste && h.sijainti.kerrosId === kerrosId && h.id !== opts.except).forEach((h) => {
@@ -490,51 +491,104 @@
   }
 
   /* ---------- Sijainnin valinta (kamera ja havaintokortti) ---------- */
+  /* ---------- Sijainnin valinta ----------
+     Nopein tapa ensin: viimeksi käytetyt tilat ja haku (tunnus tai nimi), sitten pohjapiirros
+     (tilan merkin napautus valitsee tilan ja kohdan). Rakenneosa on valinnainen. */
+  const normS = (x) => String(x || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  function searchRooms(q, limit) {
+    const words = normS(q).split(/\s+/).filter(Boolean);
+    if (!words.length) return [];
+    const hits = [];
+    S.kohde.tilat.forEach((t) => {
+      const tun = normS(t.tunnus), nim = normS(t.nimi), ker = normS((Model.kerros(t.kerrosId) || {}).nimi);
+      const hay = tun + " " + tun.replace(/\s+/g, "") + " " + nim + " " + ker;
+      if (!words.every((w) => hay.includes(w))) return;
+      const w0 = words[0];
+      const score = (tun === w0 || tun.replace(/\s+/g, "") === w0 ? 0 : tun.startsWith(w0) ? 1 : nim.startsWith(w0) ? 2 : 3);
+      hits.push({ t, score });
+    });
+    hits.sort((a, b) => a.score - b.score || (a.t.tunnus || a.t.nimi).localeCompare(b.t.tunnus || b.t.nimi, "fi", { numeric: true }));
+    return hits.slice(0, limit || 8).map((x) => x.t);
+  }
+  function recentRooms(n) {
+    const seen = new Set(), out = [];
+    S.havainnot.slice().sort((a, b) => b.updated - a.updated).forEach((h) => {
+      const id = h.sijainti && h.sijainti.tilaId;
+      if (id && !seen.has(id) && Model.tila(id)) { seen.add(id); out.push(Model.tila(id)); }
+    });
+    return out.slice(0, n || 6);
+  }
+
   function locationSheet(sij, onDone) {
     const k = S.kohde;
     const s = JSON.parse(JSON.stringify(sij || {}));
     if (!s.kerrosId && k.kerrokset[0]) s.kerrosId = k.kerrokset[0].id;
-    let showPlan = false;
+    let showAll = false, query = "", zoomApi = null, focusNext = !!s.tilaId;
 
     const ref = sheet("<div data-body></div>", null, {});
     const el = ref.el;
+    const roomChip = (t) => '<button class="chip" data-t="' + t.id + '" aria-pressed="' + (t.id === s.tilaId) + '">' + esc(Model.tilaNimi(t)) +
+      (t.kerrosId !== s.kerrosId && k.kerrokset.length > 1 ? ' <span class="mp-tag">' + esc((Model.kerros(t.kerrosId) || {}).nimi || "") + "</span>" : "") + "</button>";
+
+    function paintResults() {
+      const box = el.querySelector("[data-res]");
+      if (!box) return;
+      if (!query.trim()) { box.innerHTML = ""; return; }
+      const res = searchRooms(query, 8);
+      box.innerHTML = '<div class="chips" style="margin-top:8px">' + res.map(roomChip).join("") +
+        '<button class="chip" data-a="addRoom">+ Uusi tila' + (res.length ? "" : " “" + esc(query.trim()) + "”") + "</button></div>";
+    }
 
     async function paint() {
       const kerros = Model.kerros(s.kerrosId);
       if (kerros && kerros.planId) await Model.ensureUrls([kerros.planId]);
       const rooms = k.tilat.filter((t) => t.kerrosId === s.kerrosId);
+      const cur = s.tilaId && Model.tila(s.tilaId);
+      const recent = recentRooms(6).filter((t) => !cur || t.id !== cur.id);
+      const many = rooms.length > 15;
       el.querySelector("[data-body]").innerHTML =
-        "<h3>Sijainti</h3>" +
-        '<div class="sect"><span class="label">Kerros</span><div class="chips">' +
-        k.kerrokset.map((e) => '<button class="chip" data-k="' + e.id + '" aria-pressed="' + (e.id === s.kerrosId) + '">' + esc(e.nimi) + "</button>").join("") +
-        '<button class="chip" data-a="addFloor">+ Kerros</button></div></div>' +
-        (kerros ? '<div class="sect"><span class="label">Tila</span><div class="chips">' +
-          rooms.map((t) => '<button class="chip" data-t="' + t.id + '" aria-pressed="' + (t.id === s.tilaId) + '">' + esc(Model.tilaNimi(t)) + "</button>").join("") +
-          '<button class="chip" data-a="addRoom">+ Uusi tila</button></div></div>' : "") +
-        '<div class="sect"><span class="label">Rakenneosa</span><div class="chips">' +
-        M.RAKENNEOSAT.map((r) => '<button class="chip" data-r="' + esc(r) + '" aria-pressed="' + (r === s.rakenneosa) + '">' + esc(r) + "</button>").join("") + "</div></div>" +
+        '<div class="loc-head"><h3 style="margin:0">Sijainti</h3><span class="loc-cur' + (cur ? "" : " missing") + '">' + icon("pin") +
+          esc(cur ? Model.tilaNimi(cur) : "Tila valitsematta") + "</span></div>" +
+        '<label class="mp-search" style="margin:10px 0 0">' + icon("list") +
+          '<input type="search" data-q value="' + esc(query) + '" placeholder="Hae tila: A101, wc, keittiö…" aria-label="Hae tila" autocomplete="off"></label>' +
+        '<div data-res></div>' +
+        (recent.length ? '<div class="sect"><span class="label">Viimeksi käytetyt</span><div class="chips">' + recent.map(roomChip).join("") + "</div></div>" : "") +
+        (k.kerrokset.length > 1 || !k.kerrokset.length ? '<div class="sect"><span class="label">Kerros</span><div class="chips">' +
+          k.kerrokset.map((e) => '<button class="chip" data-k="' + e.id + '" aria-pressed="' + (e.id === s.kerrosId) + '">' + esc(e.nimi) + "</button>").join("") +
+          '<button class="chip" data-a="addFloor">+ Kerros</button></div></div>' : "") +
         (kerros && kerros.planId
-          ? '<div class="sect">' + (showPlan
-            ? '<span class="label">Napauta kohtaa pohjapiirroksessa</span><div class="plan-wrap placing" data-plan><img src="' + Model.url(kerros.planId) + '" alt="" draggable="false">' +
-              pinsHtml(kerros.id, { dim: true, except: "__none__" }) +
+          ? '<div class="sect"><span class="label">Napauta tilaa tai kohtaa pohjapiirroksessa</span><div class="plan-wrap placing" data-plan><img src="' + Model.url(kerros.planId) + '" alt="" draggable="false">' +
+              pinsHtml(kerros.id, { dim: true, except: "__none__", sel: s.tilaId }) +
               (s.piste && s.piste.x != null ? '<span class="pin newpin" style="left:' + (s.piste.x * 100) + "%;top:" + (s.piste.y * 100) + '%"></span>' : "") + "</div>" +
-              (s.piste ? '<button class="link" data-a="clearPt">Poista merkintä</button>' : "")
-            : '<button class="btn btn-block" data-a="showPlan">' + icon("pin") + (s.piste ? "Kohta merkitty pohjapiirrokseen · muuta" : "Merkitse kohta pohjapiirrokseen") + "</button>") + "</div>"
+              (s.piste ? '<button class="link" data-a="clearPt">Poista kohta</button>' : "") + "</div>"
           : "") +
+        (kerros && (!many || showAll || !kerros.planId)
+          ? '<div class="sect"><span class="label">Tilat · ' + esc(kerros.nimi) + "</span><div class=\"chips\">" +
+            (many && !showAll ? "" : rooms.map(roomChip).join("")) +
+            (many && !showAll ? '<button class="chip" data-a="all">Näytä kaikki ' + rooms.length + " tilaa</button>" : "") +
+            '<button class="chip" data-a="addRoom">+ Uusi tila</button></div></div>'
+          : kerros ? '<button class="link" data-a="all" style="margin-top:6px">Näytä kaikki ' + rooms.length + " tilaa listana</button>" : "") +
+        '<div class="sect"><span class="label">Rakenneosa (valinnainen)</span><div class="chips">' +
+          M.RAKENNEOSAT.map((r) => '<button class="chip" data-r="' + esc(r) + '" aria-pressed="' + (r === s.rakenneosa) + '">' + esc(r) + "</button>").join("") + "</div></div>" +
         '<div class="row-btns"><button class="btn" data-a="cancel">Peruuta</button><button class="btn btn-primary" data-a="ok">Valmis</button></div>';
-      if (kerros && kerros.planId) Zoom.attach(el.querySelector("[data-plan]"), "loc:" + kerros.id);
+      paintResults();
+      const qi = el.querySelector("[data-q]");
+      qi.addEventListener("input", () => { query = qi.value; paintResults(); });
+      zoomApi = kerros && kerros.planId ? Zoom.attach(el.querySelector("[data-plan]"), "loc:" + kerros.id) : null;
+      if (zoomApi && focusNext && cur && cur.pos && cur.kerrosId === s.kerrosId) zoomApi.focus(cur.pos.x, cur.pos.y, 3);
+      focusNext = false;
     }
 
     el.addEventListener("click", async (e) => {
+      if (e.target.closest(".zctl")) return;
       const plan = e.target.closest("[data-plan]");
       if (plan) {
         const p = relPos(e, plan.querySelector("img"));
         s.piste = { x: p.x, y: p.y };
-        // Tilan merkin napautus valitsee myös tilan
+        // Tilan merkin napautus valitsee tilan; muuten lähin tilamerkki, jos tila on vielä valitsematta
         const rp = e.target.closest("[data-room]");
         if (rp) s.tilaId = rp.dataset.room;
         else {
-          // muuten lähin tilamerkki, jos kohta on selvästi sen lähellä
           const kk = Model.kerros(s.kerrosId), near = k.tilat.filter((t) => t.kerrosId === s.kerrosId && t.pos)
             .map((t) => ({ t, d: Math.hypot(t.pos.x - p.x, (t.pos.y - p.y) * ((kk && kk.h && kk.w) ? kk.h / kk.w : 1)) })).sort((a, b) => a.d - b.d)[0];
           if (near && near.d < 0.04 && !s.tilaId) s.tilaId = near.t.id;
@@ -546,7 +600,12 @@
       if (b.dataset.k) {
         if (s.kerrosId !== b.dataset.k) { s.kerrosId = b.dataset.k; s.tilaId = null; s.piste = null; }
       } else if (b.dataset.t) {
-        s.tilaId = s.tilaId === b.dataset.t ? null : b.dataset.t;
+        const t = Model.tila(b.dataset.t);
+        if (s.tilaId === t.id) { s.tilaId = null; }
+        else {
+          if (t.kerrosId !== s.kerrosId) { s.kerrosId = t.kerrosId; s.piste = null; }
+          s.tilaId = t.id; focusNext = true; query = "";
+        }
       } else if (b.dataset.r) {
         s.rakenneosa = s.rakenneosa === b.dataset.r ? null : b.dataset.r;
       } else if (b.dataset.a === "addFloor") {
@@ -556,10 +615,10 @@
         if (f) { s.kerrosId = f.id; s.tilaId = null; s.piste = null; }
       } else if (b.dataset.a === "addRoom") {
         el.parentNode.style.display = "none";
-        const t = await roomSheet(null, s.kerrosId);
+        const t = await roomSheet(query.trim() && !searchRooms(query, 1).length ? { id: DB.uid("t_"), tunnus: "", nimi: query.trim().charAt(0).toUpperCase() + query.trim().slice(1), kerrosId: s.kerrosId, pos: null, merkinta: null, __new: true } : null, s.kerrosId);
         el.parentNode.style.display = "";
-        if (t) s.tilaId = t.id;
-      } else if (b.dataset.a === "showPlan") { showPlan = true; }
+        if (t) { s.tilaId = t.id; query = ""; }
+      } else if (b.dataset.a === "all") { showAll = true; }
       else if (b.dataset.a === "clearPt") { s.piste = null; }
       else if (b.dataset.a === "cancel") { ref.close(); return; }
       else if (b.dataset.a === "ok") { ref.close(); onDone(s); return; }
@@ -568,5 +627,5 @@
     paint();
   }
 
-  window.Plan = { view, locationSheet, roomActions, pinsHtml, detectRooms, reviewRooms, confirmRoom };
+  window.Plan = { view, locationSheet, searchRooms, recentRooms, roomActions, pinsHtml, detectRooms, reviewRooms, confirmRoom };
 })();

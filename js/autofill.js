@@ -51,7 +51,7 @@
 
   /* ---------- Tulos ---------- */
   const OK_PHRASES = ["ei huomautettava", "ei poikkeam", "ei vaurio", "ei merkkejä", "ei viitteitä", "ei havaittu", "kunnossa", "ehjä", "ehjät", "normaali", "moitteeton", "hyväkuntoi", "hyvässä kunnossa", "tavanomai"];
-  const BAD_STEMS = ["vaurio", "vaurioitu", "kosteusvaurio", "vesivaurio", "mikrobi", "home", "hilseil", "halkea", "halkeil", "irtoa", "irronnut", "irti", "kupru", "kuplii", "tummu", "värjäy", "kopo", "laho", "lahoa", "ruoste", "ruostu", "haju", "vuoto", "vuota", "märkä", "märkiä", "kostea", "kosteita", "koholla", "kohonnut", "puutteel", "rikkoutu", "rikki", "rako", "painum", "poikkeama", "korjattava", "huono", "heikko", "pullistu", "turpoa", "kastunut", "kastuu", "tippuu", "tiivistyy", "jäätyy", "vetää"];
+  const BAD_STEMS = ["vaurio", "vaurioitu", "kosteusvaurio", "vesivaurio", "mikrobi", "home", "hilseil", "halkea", "halkeil", "irtoa", "irronnut", "irti", "kupru", "kuplii", "tummu", "värjäy", "kopo", "laho", "lahoa", "ruoste", "ruostu", "haju", "vuoto", "vuota", "märkä", "märkiä", "kostea", "kosteita", "koholla", "kohonnut", "puutteel", "rikkoutu", "rikki", "rako", "painum", "poikkeama", "korjattava", "huono", "heikko", "pullistu", "turpoa", "kastunut", "kastuu", "tippuu", "tiivistyy", "jäätyy", "vetää", "kosteusjälk", "vesijälk", "vuotojälk", "jälki", "jälkiä", "läikk", "laikk", "valum", "sammal", "levä"];
   function detectTulos(t) {
     let bad = false, ok = false, negated = false;
     for (const p of OK_PHRASES) if (has(t, p)) { ok = true; break; }
@@ -107,16 +107,30 @@
     const k = S.kohde;
     // 1) Olemassa oleva tila tunnuksen tai nimen perusteella ("K03", "keittiössä")
     let best = null;
+    const esc2 = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    // Tunnus ensin ("A101", "a 101", "K03"): yksiselitteinen
     k.tilat.forEach((r) => {
-      const cands = [];
-      if (r.tunnus) cands.push(norm(r.tunnus).trim().replace(/ /g, " ?"));
-      if (r.nimi && r.nimi.length >= 3) cands.push(norm(r.nimi).trim().slice(0, Math.max(3, norm(r.nimi).trim().length - 1)));
-      cands.forEach((c) => {
-        const i = t.search(new RegExp("(^| )" + c, "u"));
-        if (i >= 0 && (!best || i < best.i || (i === best.i && r.kerrosId === kerrosId))) best = { i, id: r.id };
-      });
+      if (!r.tunnus || !/\d/.test(r.tunnus)) return;
+      const c = esc2(norm(r.tunnus).trim().replace(/\s+/g, "")).replace(/([a-zåäö])(\d)/g, "$1 ?$2");
+      const i = t.search(new RegExp("(^| )" + c + "($| |[.,])", "u"));
+      if (i >= 0 && (!best || i < best.i)) best = { i, id: r.id };
     });
     if (best) return { id: best.id };
+    // Nimi ("keittiössä"): vain jos nimi on yksiselitteinen (kymmenestä WC:stä ei arvata)
+    const byName = {};
+    k.tilat.forEach((r) => {
+      if (!r.nimi || r.nimi.length < 3) return;
+      const c = norm(r.nimi).trim().slice(0, Math.max(3, norm(r.nimi).trim().length - 1));
+      const i = t.search(new RegExp("(^| )" + esc2(c), "u"));
+      if (i >= 0) (byName[c] = byName[c] || { i, list: [] }).list.push(r);
+    });
+    Object.values(byName).forEach((g) => {
+      let pick = g.list.length === 1 ? g.list[0] : g.list.filter((r) => r.kerrosId === kerrosId).length === 1 ? g.list.find((r) => r.kerrosId === kerrosId) : null;
+      if (pick && (!best || g.i < best.i)) best = { i: g.i, id: pick.id };
+      if (!pick && (!best || g.i < best.i)) best = { i: g.i, ambiguous: true };
+    });
+    if (best && best.id) return { id: best.id };
+    if (best && best.ambiguous) return null;
     // 2) Yleinen tilan nimi -> uusi tila
     let v = null;
     ROOM_VOCAB.forEach(([stem, name]) => { const i = t.search(stemRe(stem)); if (i >= 0 && (!v || i < v.i)) v = { i, name }; });

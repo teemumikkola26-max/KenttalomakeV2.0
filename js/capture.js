@@ -52,20 +52,23 @@
       '<div class="cam">' +
       '<div class="cam-top">' +
       '<button class="cam-round" data-c="close" aria-label="Tallenna ja sulje">' + icon("close") + "</button>" +
-      '<button class="loc-chip" data-c="loc">' + icon("pin") + '<span class="txt" data-loc></span><span class="ch">vaihda</span></button>' +
+      '<button class="loc-chip" data-c="loc">' + icon("pin") + '<span class="txt"><b data-loc></b><small data-locsub></small></span><span class="ch">vaihda</span></button>' +
       "</div>" +
       '<div class="viewfinder"><video autoplay playsinline muted></video><div class="flash"></div>' +
       '<div class="vf-msg" data-vfmsg>Käynnistetään kameraa…</div>' +
       '<div class="vf-left"><button class="vf-count" data-c="switch" aria-label="Vaihda havaintoa: lisää kuvia aiempaan havaintoon"><span data-count></span> ' + icon("back", "down") + "</button>" +
       '<button class="vf-prev hidden" data-c="prev"></button></div><div class="vf-thumbs" data-thumbs></div>' +
+      // Kolme vähimmäistietoa: kuva, havainto, tila
+      '<div class="vf-req" data-req><span data-rq="kuva">' + icon("cam") + "Kuva</span><span data-rq=\"hav\">" + icon("mic") + "Havainto</span>" +
+      '<button data-rq="tila" data-c="loc">' + icon("pin") + "Tila</button></div>" +
       '<div class="dict-live hidden" data-live aria-live="polite"><div class="dl-h"><span class="rec"></span><span data-lst>Sanelu</span></div><div class="dl-t" data-prev></div></div>' +
       "</div>" +
       '<div class="cam-panel">' +
-      '<div class="cp-row"><span class="cam-lbl" data-mlbl>Menetelmä</span><div class="chips scroll" data-mchips></div></div>' +
-      '<div class="cp-row cp-res"><div class="chips" data-tulos>' +
-      '<button class="chip c-note" data-t="poikkeama">Poikkeama</button><button class="chip c-ok" data-t="ok">Ei huomautettavaa</button></div>' +
-      '<button class="card-link" data-c="card"><span data-cl>Kortti</span>' + icon("back", "flip") + "</button></div>" +
       '<textarea data-text rows="2" aria-label="Havainto" placeholder="Kirjoita havainto tai pidä mikrofonia pohjassa"></textarea>' +
+      '<div class="cp-meta">' +
+      '<button class="meta-chip" data-c="more" aria-label="Vaihda menetelmä"><span data-mname></span>' + icon("back", "down") + "</button>" +
+      '<div class="chips" data-tulos><button class="chip c-note" data-t="poikkeama">Poikkeama</button><button class="chip c-ok" data-t="ok">Ei huom.</button></div>' +
+      '<button class="card-link" data-c="card"><span data-cl>Lisää</span>' + icon("back", "flip") + "</button></div>" +
       "</div>" +
       '<div class="cam-bottom">' +
       '<button class="cam-side" data-c="next"><span class="c">' + icon("plus") + "</span>Seuraava</button>" +
@@ -79,29 +82,36 @@
     const ta = $("[data-text]");
 
     /* ---------- Piirto ---------- */
+    const SRC = { sanelu: "sanelusta", kuva: "kuvasta", opittu: "opittu" };
     function paintLoc() {
-      const t = Model.sijaintiTeksti(h.sijainti);
-      $("[data-loc]").innerHTML = esc(t || "Valitse sijainti") + (h.auto && h.auto.tila === "sanelu" ? ' <span class="mp-tag">sanelusta</span>' : "");
-      $(".loc-chip").classList.toggle("missing", !h.sijainti.tilaId);
+      const t = h.sijainti.tilaId && Model.tila(h.sijainti.tilaId);
+      const ker = Model.kerros(h.sijainti.kerrosId);
+      const src = h.auto && h.auto.tila;
+      $("[data-loc]").innerHTML = t ? esc(Model.tilaNimi(t)) + (SRC[src] ? ' <span class="mp-tag">' + SRC[src] + "</span>" : src === true ? ' <span class="mp-tag">edellinen</span>' : "") : "Valitse tila";
+      $("[data-locsub]").textContent = [S.kohde.kerrokset.length > 1 && ker ? ker.nimi : "", h.sijainti.rakenneosa, h.sijainti.piste ? "kohta merkitty" : ""].filter(Boolean).join(" · ");
+      $(".loc-chip").classList.toggle("missing", !t);
+      paintReq();
     }
     function paintMethods() {
-      const list = MethodPicker.ehdotukset(h.menetelma, h.id).slice(0, 4);
+      const m = h.menetelma ? M.menetelma(h.menetelma) : null;
       const src = h.auto && h.auto.menetelma;
-      const srcTag = src === "sanelu" ? "sanelusta" : src === "opittu" ? "opittu" : "";
-      $("[data-mchips]").innerHTML = list.map((x) =>
-        '<button class="chip" data-m="' + esc(x.id) + '" aria-pressed="' + (x.id === h.menetelma) + '">' + esc(x.nimi) +
-        (x.id === h.menetelma && srcTag ? ' <span class="mp-tag">' + srcTag + "</span>" : x.tag ? ' <span class="mp-tag">' + esc(x.tag) + "</span>" : "") + "</button>").join("") +
-        '<button class="chip" data-c="more">' + (list.length ? "Muu…" : "Valitse…") + "</button>";
-      $("[data-mlbl]").classList.toggle("missing", !h.menetelma);
-      $("[data-mlbl]").textContent = h.menetelma ? "Menetelmä" : "Valitse menetelmä";
-      UI.showSelected($("[data-mchips]"));
+      $("[data-mname]").textContent = m ? (m.lyhyt || m.nimi) : "Menetelmä";
+      $(".meta-chip").classList.toggle("missing", !m);
+      $(".meta-chip").classList.toggle("autoset", !!SRC[src]);
+      $(".meta-chip").title = m ? m.nimi + (SRC[src] ? " (" + SRC[src] + ")" : "") : "";
     }
     function paintTulos() {
       root.querySelectorAll("[data-t]").forEach((b) => {
         const on = b.dataset.t === h.tulos;
         b.setAttribute("aria-pressed", String(on));
-        b.innerHTML = (b.dataset.t === "ok" ? "Ei huomautettavaa" : "Poikkeama") + (on && h.auto && h.auto.tulos === "sanelu" ? ' <span class="mp-tag">sanelusta</span>' : "");
+        b.textContent = b.dataset.t === "ok" ? "Ei huom." : "Poikkeama";
+        b.classList.toggle("autoset", on && !!(h.auto && h.auto.tulos === "sanelu"));
       });
+    }
+    // Vähimmäistiedot näkyvät kameranäkymässä: vihreä = kunnossa
+    function paintReq() {
+      const ok = { kuva: h.kuvat.length > 0, hav: !!((h.sanelu || "").trim() || (h.aanitteet || []).length), tila: !!h.sijainti.tilaId };
+      root.querySelectorAll("[data-rq]").forEach((x) => { x.classList.toggle("ok", ok[x.dataset.rq]); });
     }
 
     /* Sanelusta tunnistetut tiedot: menetelmä, tila, rakenneosa, tulos */
@@ -123,13 +133,14 @@
       const pb = $("[data-c=prev]");
       pb.classList.toggle("hidden", !prev);
       if (prev) pb.textContent = "← Lisää kuvia: " + nro(prev.nro);
-      // Kortti: montako pakollista tietoa puuttuu (kuva/sanelu ei lasketa, se näkyy tässä)
-      const miss = Check.havaintoPuutteet(h).filter((x) => x !== "kuva tai sanelu");
+      // Lisätiedot: vain menetelmän omat kentät (kuva, havainto, tila, menetelmä ja tulos näkyvät jo tässä)
+      const miss = Check.havaintoPuutteet(h).filter((x) => !["kuva tai sanelu", "tila", "tulos", "menetelmä", "suunnitelman kohta"].includes(x));
       const fields = M.menetelma(h.menetelma).kentat.length;
       const warn = miss.length > 0 && hasContent();
-      $("[data-cl]").innerHTML = "Kortti" + (warn ? ' <span class="cl-n" aria-label="' + miss.length + ' puuttuu">' + miss.length + "</span>" : "");
+      $("[data-cl]").innerHTML = (fields ? "Mittaukset" : "Lisää") + (warn ? ' <span class="cl-n" aria-label="' + miss.length + ' puuttuu">' + miss.length + "</span>" : "");
       $(".card-link").classList.toggle("warn", warn);
       $(".card-link").setAttribute("aria-label", "Avaa havaintokortti" + (warn ? ", puuttuu: " + miss.join(", ") : "") + (fields ? ", " + fields + " kenttää" : ""));
+      paintReq();
     }
     async function paintThumbs() {
       const last = h.kuvat.slice(-3);
@@ -193,6 +204,30 @@
       h.kuvat.push(id);
       await saveNow();
       paintThumbs();
+      roomFromPhoto(h, blob);
+    }
+    /* Tila kuvasta: jos kuvassa on kohteen tilan tunnus (ovikyltti, pohjakuvan numero), tila
+       asetetaan siitä. Ei koske tutkijan itse valitsemaa tilaa. Luku tehdään taustalla. */
+    let photoRoomQ = Promise.resolve();
+    const numbered = () => S.kohde.tilat.filter((t) => /\d/.test(t.tunnus || "")).length >= 2;
+    function roomFromPhoto(target, blob) {
+      if (!window.PlanRooms || !numbered()) return;
+      const canSet = () => !target.sijainti.tilaId || (target.auto && target.auto.tila && target.auto.tila !== "kuva");
+      if (!canSet()) return;
+      photoRoomQ = photoRoomQ.then(async () => {
+        if (!canSet()) return;
+        let r = null;
+        try { r = await PlanRooms.roomFromPhoto(blob, S.kohde.tilat); } catch (e) { return; }
+        if (!r || !canSet() || r.id === target.sijainti.tilaId) return;
+        if (target.sijainti.kerrosId !== r.kerrosId || target.sijainti.tilaId) target.sijainti.piste = null;
+        target.sijainti.tilaId = r.id; target.sijainti.kerrosId = r.kerrosId;
+        target.auto = Object.assign({}, target.auto, { tila: "kuva" });
+        Auto.autoKohta(target);
+        await Model.saveHavainto(target);
+        if (target === h) { paintLoc(); paintStatus(); }
+        UI.buzz(15);
+        toast("Tila kuvasta: " + Model.tilaNimi(r), 2600);
+      }).catch(() => {});
     }
     // Kuvan käsittely ja tallennus kestää hetken: siirtymät odottavat, ettei kuva jää välistä.
     let pendingShots = Promise.resolve();

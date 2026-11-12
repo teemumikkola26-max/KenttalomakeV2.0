@@ -1004,6 +1004,35 @@
     }
   }
 
+  /* ---------- Tila valokuvasta ----------
+     Kun tutkija kuvaa oven tilakyltin tai pohjakuvan tilanumeron, kuvasta etsitään kohteen
+     tilojen tunnuksia (A101, K03). Vain kohteessa olevat tunnukset kelpaavat, joten väärä
+     osuma on epätodennäköinen. */
+  const tkey = (x) => String(x || "").toUpperCase().replace(/[^A-ZÅÄÖ0-9]/g, "");
+  async function roomFromPhoto(blob, rooms) {
+    const map = new Map();
+    rooms.forEach((r) => { const k2 = tkey(r.tunnus); if (k2 && /\d/.test(k2) && k2.length >= 2) map.set(k2, r); });
+    if (!map.size) return null;
+    const img = await createImageBitmap(blob, { imageOrientation: "from-image" });
+    const sc = Math.min(1, 1600 / Math.max(img.width, img.height));
+    const c = document.createElement("canvas"); c.width = Math.round(img.width * sc); c.height = Math.round(img.height * sc);
+    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+    if (img.close) img.close();
+    const wk = await worker();
+    const r = await wk.recognize(c);
+    const words = (r.data.words || []).filter((w) => w.confidence > 30).map((w) => w.text);
+    // Tunnus voi olla yksi sana (A101) tai kaksi (A 101); numero-osan O -> 0 ja I/l -> 1
+    const fixDigits = (x) => x.replace(/^([A-ZÅÄÖ]{0,3})(.*)$/, (m0, a, b) => a + b.replace(/O/g, "0").replace(/[IL]/g, "1"));
+    const cands = [];
+    words.forEach((w, i) => { cands.push(tkey(w)); if (words[i + 1]) cands.push(tkey(w + words[i + 1])); });
+    for (const x of cands) {
+      if (map.has(x)) return map.get(x);
+      const f = fixDigits(x);
+      if (map.has(f)) return map.get(f);
+    }
+    return null;
+  }
+
   /* Pääfunktio. opts: { pdfTokens (jos PDF:stä luettiin), image (Blob/ImageBitmap), progress(fn) } */
   async function detect(opts) {
     if (opts.pdfTokens && opts.pdfTokens.length) {
@@ -1030,5 +1059,5 @@
     return best;
   }
 
-  window.PlanRooms = { detect, interpret, pdfTokens, learn, confirm, reject, stats, resetModel, exportModel, importModel, keyOf, matchAbbr, ABBR, _ocrTokens: ocrTokens, _photoTokens: photoTokens, _textBoxes: textBoxes, _grayOf: grayOf, _rotGray: rotGray, _sheets: sheets };
+  window.PlanRooms = { detect, roomFromPhoto, interpret, pdfTokens, learn, confirm, reject, stats, resetModel, exportModel, importModel, keyOf, matchAbbr, ABBR, _ocrTokens: ocrTokens, _photoTokens: photoTokens, _textBoxes: textBoxes, _grayOf: grayOf, _rotGray: rotGray, _sheets: sheets };
 })();

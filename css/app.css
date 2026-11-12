@@ -428,3 +428,31 @@ input.flag{border:2px solid #c9771d !important;background:#fff4e5}
 .zoomable.zfull .zinner{display:inline-block;width:auto}
 .zoomable.zfull .zinner img{width:auto;height:auto;max-width:100vw;max-height:100vh;max-height:100dvh}
 .zoomable.zfull .zctl{top:calc(env(safe-area-inset-top) + 10px);right:10px}
+/* Sijainnin valinta */
+.loc-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.loc-cur{display:inline-flex;align-items:center;gap:5px;font-size:14px;font-weight:600;padding:5px 10px;border-radius:99px;background:var(--ok-bg,#e8f3ea);color:var(--ink)}
+.loc-cur.missing{background:#fbe9d6;color:#8a4b0f}
+.loc-cur svg.i{width:16px;height:16px}
+/* Kameranäkymä: vähimmäistiedot ja tiivis lisärivi */
+.loc-chip .txt{display:flex;flex-direction:column;line-height:1.2}
+.loc-chip .txt b{font-size:15px;font-weight:700;overflow:hidden;text-overflow:ellipsis}
+.loc-chip .txt small{font-size:11.5px;color:#c9cfd8;overflow:hidden;text-overflow:ellipsis}
+.loc-chip .txt small:empty{display:none}
+.loc-chip.missing{background:rgba(240,179,122,.16)}
+.vf-req{position:absolute;left:8px;bottom:8px;display:flex;gap:6px;z-index:2}
+.vf-req>*{display:inline-flex;align-items:center;gap:4px;min-height:30px;padding:0 9px;border-radius:99px;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.35);color:#e5e8ec;font-size:12.5px;font-weight:600}
+.vf-req>* svg.i{width:14px;height:14px}
+.vf-req>.ok{background:rgba(46,125,50,.85);border-color:#6fbf73;color:#fff}
+.vf-req button{cursor:pointer;font:inherit;font-size:12.5px;font-weight:600}
+.vf-req button:not(.ok){border-color:#f0b37a;color:#f7d9b9}
+.cp-meta{display:flex;align-items:center;gap:6px}
+.cp-meta .chips{flex-wrap:nowrap;gap:6px}
+.cp-meta .chip{min-height:38px;padding:0 11px;font-size:13.5px}
+.meta-chip{flex:0 1 auto;min-width:0;display:inline-flex;align-items:center;gap:3px;min-height:38px;padding:0 9px 0 12px;border-radius:99px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.08);color:#f2efe6;font-size:13.5px;font-weight:600;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meta-chip svg.i.down{transform:rotate(-90deg);width:14px;height:14px}
+.meta-chip.missing{border-color:#f0b37a;color:#f7d9b9}
+.cp-meta .card-link{margin-left:auto}
+.dict-live{z-index:3}
+.meta-chip{min-width:84px;flex-shrink:0}
+.cp-meta .chip.autoset,.meta-chip.autoset{border-style:dashed}
+.cam-hint{font-size:11.5px;color:#9aa4b1;margin:-2px 2px 0}

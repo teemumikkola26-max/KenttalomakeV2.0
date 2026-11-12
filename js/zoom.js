@@ -151,7 +151,16 @@
 
     if (img && !img.complete) img.addEventListener("load", apply, { once: true });
     apply();
-    return { reset: () => { st.z = 1; st.x = 0; st.y = 0; st.full = false; apply(); }, state: st };
+    // Kohdistus: suhteellinen piste (0..1) näkymän keskelle zoomattuna
+    function focus(rx, ry, z) {
+      if (img && (!img.complete || !inner.offsetWidth)) { img.addEventListener("load", () => focus(rx, ry, z), { once: true }); return; }
+      const s = size();
+      st.z = Math.max(st.z, z || 3);
+      st.x = s.ww / 2 - s.ox - rx * s.bw * st.z;
+      st.y = s.wh / 2 - s.oy - ry * s.bh * st.z;
+      apply();
+    }
+    return { reset: () => { st.z = 1; st.x = 0; st.y = 0; st.full = false; apply(); }, focus, state: st };
   }
 
   window.Zoom = { attach };

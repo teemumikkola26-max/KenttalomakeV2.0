@@ -27,6 +27,16 @@ Sovellus on osa RTA-opinnäytetyön kehitystyötä ja erillinen PBM Kenttälomak
 
 Tavoite: havainnon kirjaaminen vie saman ajan kuin pelkkä kuvaaminen. Tutkija kuvaa ja puhuu, sovellus täyttää loput.
 
+**Kolme vähimmäistietoa.** Havainnolle tarvitaan kuva, havainto (kirjoitettu tai saneltu) ja tila. Kameranäkymän alareunassa ne näkyvät kolmena merkkinä (Kuva, Havainto, Tila), jotka muuttuvat vihreiksi, kun tieto on saatu. Menetelmä ja tulos ovat yhdellä tiiviillä rivillä tekstikentän alla: ne täyttyvät sanelusta tai oletuksesta (katkoviivareuna = automaattinen), ja niitä voi vaihtaa yhdellä napautuksella. Menetelmän omat kentät (esim. RH-mittaukset) ovat Mittaukset-painikkeen takana.
+
+**Tila ilman käsityötä.** Tila tulee ensisijaisesti automaattisesti:
+
+1. edellisestä havainnosta (merkintä *edellinen*)
+2. sanelusta: tilan tunnus ("tilassa A 101") tai yksiselitteinen nimi ("keittiössä"). Jos samannimisiä tiloja on useita (esim. kymmenen WC:tä), nimestä ei arvata.
+3. kuvasta: kun kuvaat oven tilakyltin tai pohjakuvan tilanumeron, sovellus lukee kuvasta kohteen tilojen tunnukset (merkintä *kuvasta*). Vain kohteessa olevat tunnukset kelpaavat. Luku tehdään taustalla, eikä se koske tutkijan itse valitsemaa tilaa.
+
+Jos tila pitää valita itse, sijaintinäkymässä on ensin viimeksi käytetyt tilat ja haku (tunnus tai nimi, esim. "wc 12"). Sen alla on pohjapiirros: tilan merkin napautus valitsee tilan ja kohdan, ja haulla valittu tila kohdistetaan ja zoomataan pohjapiirroksessa. Rakenneosa on valinnainen.
+
 **Tiedot täyttyvät itse (`js/autofill.js`)**
 
 | Tieto | Mistä |
