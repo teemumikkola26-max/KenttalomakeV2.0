@@ -37,7 +37,10 @@
     const root = document.getElementById("app");
     root.innerHTML = App.topbar({ title: "Sanasto", sub: "Sanat, joilla sanelu ja pohjakuvat tulkitaan", back: App.paluu("#/menetelmat") }) +
       '<main class="view no-nav">' +
-      '<section class="card"><div class="card-b" style="padding-top:14px"><label class="ka-chk" style="border:0;padding:0"><input type="checkbox" data-autofill' + (Auto.enabled() ? " checked" : "") + '><span><b>Täytä tiedot sanelusta</b><br><span class="hint">Sovellus päättelee sanelusta menetelmän, tilan, tuloksen ja mittausarvot. Kun tämä on pois, sanelu tallentuu tekstinä ja tiedot valitaan itse.</span></span></label></div></section>' +
+      '<section class="card"><div class="card-h"><h2>Täytetään sanelusta</h2></div><div class="card-b">' +
+      '<p class="hint" style="margin:0 0 8px">Valitse, mitkä tiedot sovellus päättelee sanelusta. Muut valitset itse. Sanelu tallentuu aina tekstinä, ja itse tehdyistä valinnoista kertyy aineistoa tunnistuksen parantamiseen.</p>' +
+      Object.keys(Auto.AF).map((k) => '<label class="ka-chk"><input type="checkbox" data-af="' + k + '"' + (Auto.paalla(k) ? " checked" : "") + '><span><b>' + Auto.AF[k].nimi + "</b>" + (Auto.AF[k].ohje ? '<br><span class="hint">' + Auto.AF[k].ohje + "</span>" : "") + "</span></label>").join("") +
+      "</div></section>" +
       '<section class="card"><div class="card-h"><h2>Kokeile sanelua</h2></div><div class="card-b">' +
       '<textarea data-test placeholder="esim. Pesuhuoneen lattiakaivon ympäriltä pko-arvot koholla, Gann Hydromette BL-E, b55-anturi 120 yksikköä" style="min-height:72px"></textarea>' +
       '<div data-out class="hint" style="margin:8px 0 0;font-size:14px;line-height:1.6"></div></div></section>' +
@@ -49,7 +52,7 @@
 
     const savers = {};
     const test = root.querySelector("[data-test]");
-    root.querySelector("[data-autofill]").addEventListener("change", (e) => { Auto.setEnabled(e.target.checked); UI.toast(e.target.checked ? "Sanelusta täyttö päällä" : "Sanelusta täyttö pois: valitse tiedot itse", 2600); });
+    root.querySelectorAll("[data-af]").forEach((c) => c.addEventListener("change", () => { Auto.aseta(c.dataset.af, c.checked); UI.toast(Auto.AF[c.dataset.af].nimi + ": " + (c.checked ? "sanelusta" : "valitaan itse"), 2200); }));
     const out = root.querySelector("[data-out]");
     const runTest = () => { out.innerHTML = tryText(test.value); };
 

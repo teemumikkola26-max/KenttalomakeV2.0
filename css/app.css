@@ -572,3 +572,19 @@ details.vocab:not([open])>summary{border-bottom:none}
 .cam-guide li{margin-bottom:8px}
 .cam-guide .btn{width:100%}
 .cam-round[data-c="ohje"]{font-size:20px;font-weight:700}
+/* Pikavalinta (menetelmä / tila) uuden havainnon alussa */
+.qp{position:absolute;left:0;right:0;bottom:0;top:0;z-index:35;background:rgba(0,0,0,.45);display:flex;align-items:flex-end}
+.qp-box{width:100%;max-height:82%;overflow:auto;background:#17191c;color:#fff;border-radius:20px 20px 0 0;padding:14px 14px calc(14px + env(safe-area-inset-bottom));box-shadow:0 -8px 30px rgba(0,0,0,.4)}
+.qp-h{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;opacity:.7;margin:6px 2px 8px}
+.qp-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.qp-m{min-height:62px;border:0;border-radius:14px;background:#2a2e33;color:#fff;font:inherit;font-size:16px;font-weight:650;text-align:left;padding:10px 12px;cursor:pointer;display:flex;flex-direction:column;justify-content:center;gap:2px}
+.qp-m small{font-size:12px;font-weight:500;opacity:.7}
+.qp-m.qp-first{background:#fff;color:#111;grid-column:1/-1}
+.qp-m:active,.qp-chip:active{transform:scale(.98)}
+.qp-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.qp-chip{border:1px solid rgba(255,255,255,.22);background:transparent;color:#fff;font:inherit;font-size:14px;padding:8px 12px;border-radius:999px;cursor:pointer}
+.qp-chip[aria-pressed="true"]{background:#fff;color:#111;border-color:#fff}
+.qp-chip.qp-more{border-style:dashed}
+.qp-skip{display:block;margin:6px auto 0;background:none;border:0;color:#fff;opacity:.7;font:inherit;font-size:14px;padding:8px;cursor:pointer;text-decoration:underline}
+.qp-small .qp-m{min-height:44px;font-size:14px;font-weight:550;padding:8px 10px;background:#22262a}
+.qp-m.qp-more{background:transparent;border:1px dashed rgba(255,255,255,.3)}

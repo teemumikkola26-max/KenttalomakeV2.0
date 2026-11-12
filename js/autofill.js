@@ -248,22 +248,43 @@
   /* ---------- Kaikki yhdellä kertaa ---------- */
   /* Palauttaa listan muutoksista: [{ kentta, arvo }] */
   /* Tutkija voi ottaa sanelusta täytön pois käytöstä (Sanasto-sivu). Sanelu tallentuu silti. */
-  function enabled() { try { return localStorage.getItem("ks.autofill") !== "0"; } catch (e) { return true; } }
-  function setEnabled(on) { try { localStorage.setItem("ks.autofill", on ? "1" : "0"); } catch (e) { /* ohita */ } }
+  /* Mitä sanelusta täytetään. Tutkija valitsee Sanasto-sivulla. Oletus: menetelmä valitaan itse
+     (pikavalinta uuden havainnon alussa), muut täytetään sanelusta. Valinnat ovat laitekohtaisia. */
+  const AF = {
+    menetelma: { nimi: "Menetelmä", oletus: false, ohje: "Pois: menetelmä valitaan pikavalinnasta uuden havainnon alussa." },
+    tila: { nimi: "Tila ja rakenneosa", oletus: true, ohje: "Pois: tila valitaan itse. Pikavalinnassa näkyvät viimeksi käytetyt tilat." },
+    tulos: { nimi: "Tulos (poikkeama / ei huom.)", oletus: true, ohje: "" },
+    kentat: { nimi: "Mittausarvot ja kentät", oletus: true, ohje: "Lukemat, mittalaite, materiaali jne." }
+  };
+  function asetukset() {
+    let o = {};
+    try {
+      const raw = localStorage.getItem("ks.af");
+      if (raw) o = JSON.parse(raw) || {};
+      else if (localStorage.getItem("ks.autofill") === "0") Object.keys(AF).forEach((k) => { o[k] = false; });
+    } catch (e) { /* oletukset */ }
+    const out = {};
+    Object.keys(AF).forEach((k) => { out[k] = typeof o[k] === "boolean" ? o[k] : AF[k].oletus; });
+    return out;
+  }
+  const paalla = (k) => asetukset()[k];
+  function aseta(k, on) { const o = asetukset(); o[k] = !!on; try { localStorage.setItem("ks.af", JSON.stringify(o)); } catch (e) { /* ohita */ } }
+  const enabled = () => Object.values(asetukset()).some(Boolean);
+  function setEnabled(on) { Object.keys(AF).forEach((k) => aseta(k, on)); }
   async function apply(h) {
     h.auto = h.auto || {};
-    if (!enabled()) return [];
+    const af = asetukset();
     const t = norm(h.sanelu);
     const changes = [];
     const canSet = (key, cur) => !cur || h.auto[key];
 
-    let mid = detectMethod(t);
+    let mid = af.menetelma ? detectMethod(t) : null;
     // Märkätilakartoitus sisältää pintakosteuden ja aistinvaraisen: "pko 45" ei vaihda menetelmää
     if (mid && h.menetelma && (M.menetelma(h.menetelma).sisaltaa || []).includes(mid)) mid = h.menetelma;
     if (mid && canSet("menetelma", h.menetelma) && mid !== h.menetelma) {
       h.menetelma = mid; h.auto.menetelma = "sanelu"; h.vahvistettu = false;
       changes.push({ kentta: "menetelmä", arvo: M.menetelma(mid).nimi });
-    } else if (!mid && canSet("menetelma", h.menetelma) && window.Learn) {
+    } else if (af.menetelma && !mid && canSet("menetelma", h.menetelma) && window.Learn) {
       // Avainsanat eivät tunnistaneet: kokeillaan opittua mallia (vain selvät tapaukset).
       const pred = Learn.predict(h);
       if (pred && pred.id !== h.menetelma) {
@@ -272,12 +293,12 @@
       }
     }
     // Näytteenotossa tulos tulee laboratoriosta: "mikrobi" ei ole kentällä poikkeama
-    const tul = h.menetelma && M.menetelma(h.menetelma).tulosVapaa ? null : detectTulos(t);
+    const tul = !af.tulos || (h.menetelma && M.menetelma(h.menetelma).tulosVapaa) ? null : detectTulos(t);
     if (tul && canSet("tulos", h.tulos) && tul !== h.tulos) {
       h.tulos = tul; h.auto.tulos = "sanelu";
       changes.push({ kentta: "tulos", arvo: M.TULOKSET[tul] });
     }
-    const room = detectRoom(t, h.sijainti.kerrosId);
+    const room = af.tila ? detectRoom(t, h.sijainti.kerrosId) : null;
     if (room && canSet("tila", h.sijainti.tilaId)) {
       let r = room.id ? Model.tila(room.id) : null;
       if (!r && room.create) r = await ensureRoom(room.create, h.sijainti.kerrosId);
@@ -287,7 +308,7 @@
         changes.push({ kentta: "tila", arvo: Model.tilaNimi(r) + (r.auto && room.create ? " (uusi)" : "") });
       }
     }
-    const part = detectPart(t);
+    const part = af.tila ? detectPart(t) : null;
     // Tila vaihtui sanelussa: edellisestä havainnosta tuotu rakenneosa ei enää päde.
     if (!part && changes.some((c) => c.kentta === "tila") && h.auto.rakenneosa === true) { h.sijainti.rakenneosa = null; delete h.auto.rakenneosa; }
     if (part && canSet("rakenneosa", h.sijainti.rakenneosa) && part !== h.sijainti.rakenneosa) {
@@ -295,14 +316,16 @@
       changes.push({ kentta: "rakenneosa", arvo: part });
     }
     // Kuntoarvion rakennusosa sanelusta ("räystäskourut" -> Vesikattovarusteet)
-    if (window.Kuntoarvio && Kuntoarvio.aktiivinen() && canSet("kaOsa", h.kaOsa)) {
+    if (af.menetelma && window.Kuntoarvio && Kuntoarvio.aktiivinen() && canSet("kaOsa", h.kaOsa)) {
       const ko = Kuntoarvio.tunnistaOsa(h.sanelu);
       if (ko && ko !== h.kaOsa) { h.kaOsa = ko; h.auto.kaOsa = "sanelu"; changes.push({ kentta: "rakennusosa", arvo: Kuntoarvio.osa(ko).nimi }); }
     }
     if (autoKohta(h)) changes.push({ kentta: "suunnitelma", arvo: h.suunnitelmaId === "ei" ? "ei suunnitelmassa" : Model.kohtaNimi(Model.kohta(h.suunnitelmaId)) });
     if (autoTunnus(h)) changes.push({ kentta: "tunnus", arvo: h.kentat.tunnus });
     // Menetelmän kentät sanelusta (mittalaite, lukemat, kerrokset ...)
-    if (window.FieldFill && h.menetelma) FieldFill.apply(h).forEach((c) => changes.push(c));
+    if (window.FieldFill && h.menetelma && af.kentat) FieldFill.apply(h).forEach((c) => changes.push(c));
+    // Näytetyyppi voi tulla vasta kentistä: tunnuksen etuliite sen mukaan (MIK1 -> MIKI1)
+    if (h.menetelma && autoTunnus(h) && !changes.some((c) => c.kentta === "tunnus")) changes.push({ kentta: "tunnus", arvo: h.kentat.tunnus });
     return changes;
   }
 
@@ -330,5 +353,5 @@
   Vocab.define("tilat", { group: "Sanelu: sijainti", title: "Tilojen nimet", type: "map", defaults: ROOM_DEF,
     help: "sana = tilan nimi. Jos kohteessa ei vielä ole tilaa, se luodaan tällä nimellä. Kohteen omat tilat ja tunnukset (A101) tunnistetaan aina." });
 
-  window.Auto = { enabled, setEnabled, METHOD_WORDS, methodWords, TUNNUS_PREFIX, apply, manual, markCarried, autoKohta, autoTunnus, _detect: { detectMethod, detectTulos, detectPart, detectRoom, norm, stemRe } };
+  window.Auto = { AF, asetukset, paalla, aseta, enabled, setEnabled, METHOD_WORDS, methodWords, TUNNUS_PREFIX, apply, manual, markCarried, autoKohta, autoTunnus, _detect: { detectMethod, detectTulos, detectPart, detectRoom, norm, stemRe } };
 })();

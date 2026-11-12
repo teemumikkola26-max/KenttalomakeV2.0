@@ -259,6 +259,12 @@ Olosuhdeseuranta on kohteen yhteinen mittaus, ei tilakohtainen havainto. Mittala
 
 ZIP-paketissa `havainnot.json` (`olosuhdeseuranta`) ja `havainnot.md` sisältävät laiteluettelon (tunnus, kerros, tila, kohta pohjakuvassa), ja laitteet on merkitty pohjapiirroksiin. Mittausdata tulee raportille mittalaitteiden pilvipalvelusta. Tutkimussuunnitelman kohdassa *Olosuhdeseuranta* tehty-määrä on kirjattujen laitteiden määrä.
 
+## Sanelusta täyttö ja pikavalinta
+
+Sanasto-sivulla valitaan, mitkä tiedot päätellään sanelusta: menetelmä, tila ja rakenneosa, tulos sekä mittausarvot ja kentät. Valinta on laitekohtainen. Oletuksena menetelmä valitaan itse ja muut täytetään sanelusta.
+
+Kun menetelmä valitaan itse, uuden havainnon alussa avautuu pikavalinta: suunnitelman tekemättömät ja edellinen menetelmä isoina painikkeina, muut alla. Seuraava-painikkeen jälkeen ylimpänä on "sama kuin edellä", joten sarja jatkuu yhdellä napautuksella. Jos myös tila valitaan itse, samassa näkymässä ovat viimeksi käytetyt tilat. Itse tehdyt valinnat kerryttävät opetusaineistoa (Learn), joten tunnistuksen voi myöhemmin ottaa uudelleen käyttöön.
+
 ## Yleiskuvat (`js/yleiskuvat.js`)
 
 Kameranäkymässä on kaksi välilehteä: **Havainto** ja **Yleiskuva**. Yleiskuva-tilassa jokainen laukaisu tallentuu heti kohteen yleiskuviin valitun tilan kanssa, ilman sanelua ja havaintoa. Kohteen sivulla *Yleiskuvat* näyttää kuvat tiloittain; kuvalle voi lisätä kuvatekstin tai vaihtaa tilan. ZIP-paketissa kuvat ovat kansiossa `yleiskuvat/` (YK01_OH1.jpg …), ja luettelo on `havainnot.md`:ssä ja `havainnot.json`:ssa. Yleiskuvat synkronoituvat pilveen kuten muutkin kohteen tiedot.

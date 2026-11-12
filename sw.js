@@ -4,7 +4,7 @@
      tekstintunnistuksen moottori ja kielidata ensimmäisellä käytöllä (oma, pysyvä välimuisti).
    - Pilvi (Supabase) ja kirjautuminen eivät kulje välimuistin kautta.
    Nosta CACHE-versiota aina, kun julkaiset muutoksia. */
-const CACHE = "kuva-sanelu-v28";
+const CACHE = "kuva-sanelu-v29";
 const LIBCACHE = "kuva-sanelu-lib-1";      // nosta, kun lib/-tiedostot päivitetään
 const SHELL = [
   "./", "index.html", "css/app.css",

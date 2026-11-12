@@ -38,7 +38,8 @@
         if (!t || t.kerrosId !== preset.kerrosId) { n.sijainti.tilaId = null; n.sijainti.piste = null; }
       }
       // Oletus: aistinvarainen tarkastelu (yleisin havainto). Sanelu tai napautus vaihtaa sen.
-      if (!n.menetelma && M.MENETELMAT.some((m) => m.id === "aisti" && !m.piilotettu)) n.menetelma = "aisti";
+      // (Kun menetelmä valitaan itse, se kysytään pikavalinnalla eikä oletusta aseteta.)
+      if (!n.menetelma && Auto.paalla("menetelma") && M.MENETELMAT.some((m) => m.id === "aisti" && !m.piilotettu)) n.menetelma = "aisti";
       if (n.menetelma) applyMemory(n);
       Auto.markCarried(n);          // edellisestä tuotu konteksti saa vaihtua sanelun mukaan
       if (preset && preset.kaCarry && n.kaOsa) n.auto.kaOsa = true;     // kuntoarvion osa jatkuu, sanelu voi vaihtaa
@@ -345,6 +346,7 @@
       syncUrl();
       paintAll();
       ta.blur();
+      pikavalinta(false);
     }
 
     /* Vaihto toiseen havaintoon kesken kuvauksen (lisäkuvat aiempaan havaintoon) */
@@ -366,8 +368,9 @@
       paintAll();
     }
 
-    function selectMethod(id) {
-      if (h.menetelma === id) return;
+    function selectMethod(id, vahvista) {
+      if (h.menetelma === id) { if (vahvista) { Auto.manual(h, "menetelma"); if (S.kohde) S.kohde.viimeisin = Object.assign({}, S.kohde.viimeisin || {}, { menetelma: id }); } return; }
+      if (vahvista && S.kohde) S.kohde.viimeisin = Object.assign({}, S.kohde.viimeisin || {}, { menetelma: id });
       h.menetelma = id;
       h.vahvistettu = false;
       applyMemory(h);
@@ -418,6 +421,62 @@
     paintAll();
     const release = UI.keepAwake();
     naytaOhje();
+    // Uusi havainto: pikavalinta, jos menetelmä (tai tila) valitaan itse. Ei, kun jatketaan
+    // olemassa olevaa havaintoa tai kuvaus avattiin tietylle suunnitelman kohdalle.
+    if (mode === "hav" && !saved && !q.menetelma && !q.kohta && !q.kaosa) pikavalinta(true);
+
+    /* Pikavalinta: tila (jos valitaan itse) ja menetelmä yhdellä näytöllä. Menetelmän napautus sulkee. */
+    function pikavalinta(alku) {
+      const kysyM = !Auto.paalla("menetelma"), kysyT = !Auto.paalla("tila");
+      if (!kysyM && !(kysyT && !h.sijainti.tilaId)) return;
+      const vanha = root.querySelector(".qp"); if (vanha) vanha.remove();
+      const g = document.createElement("div");
+      g.className = "qp";
+      const tilat = () => {
+        const ids = [];
+        if (h.sijainti.tilaId) ids.push(h.sijainti.tilaId);
+        (S.havainnot || []).slice().sort((a, b) => b.updated - a.updated).forEach((x) => { const t = x.sijainti && x.sijainti.tilaId; if (t && !ids.includes(t)) ids.push(t); });
+        return ids.slice(0, 7).map((id) => Model.tila(id)).filter(Boolean);
+      };
+      const paint = () => {
+        const sugg = MethodPicker.ehdotukset(h.menetelma, h.id);
+        const muut = M.havaintoMenetelmat().filter((m) => !sugg.some((x) => x.id === m.id));
+        g.innerHTML = '<div class="qp-box">' +
+          (kysyT ? '<div class="qp-h">Tila</div><div class="qp-chips">' +
+            tilat().map((t) => '<button class="qp-chip" data-qt="' + t.id + '" aria-pressed="' + (t.id === h.sijainti.tilaId) + '">' + esc(Model.tilaNimi(t)) + "</button>").join("") +
+            '<button class="qp-chip qp-more" data-qt="__muu">' + (tilat().length ? "Muu tila…" : "Valitse tila…") + "</button></div>" : "") +
+          (kysyM ? '<div class="qp-h">' + (alku ? "Mitä kirjaat?" : "Seuraavan havainnon menetelmä") + '</div><div class="qp-grid">' +
+            sugg.map((x, i) => '<button class="qp-m' + (i === 0 && x.id === h.menetelma ? " qp-first" : "") + '" data-qm="' + esc(x.id) + '">' + esc(x.nimi) +
+              (x.id === h.menetelma && !alku ? '<small>sama kuin edellä</small>' : x.tag ? "<small>" + esc(x.tag) + "</small>" : "") + "</button>").join("") +
+            "</div>" +
+            (muut.length && sugg.length ? '<div class="qp-h">Muut menetelmät</div>' : "") +
+            '<div class="qp-grid qp-small">' + muut.map((m) => '<button class="qp-m" data-qm="' + esc(m.id) + '">' + esc(m.nimi) + "</button>").join("") +
+            '<button class="qp-m qp-more" data-qm="__hae">Hae tai lisää uusi…</button></div>' : '<button class="btn btn-primary" data-qok style="width:100%;margin-top:12px">Valmis</button>') +
+          '<button class="qp-skip" data-qskip>' + (kysyM ? "Valitse myöhemmin" : "Ohita") + "</button></div>";
+      };
+      paint();
+      root.appendChild(g);
+      const sulje = () => { g.remove(); paintAll(); };
+      g.addEventListener("click", (e) => {
+        const tb = e.target.closest("[data-qt]");
+        if (tb) {
+          if (tb.dataset.qt === "__muu") {
+            Plan.locationSheet(h.sijainti, (sij) => { h.sijainti = sij; Auto.manual(h, "tila"); Auto.autoKohta(h); paintLoc(); paintStatus(); paint(); if (!kysyM && h.sijainti.tilaId) sulje(); });
+            return;
+          }
+          const t = Model.tila(tb.dataset.qt);
+          if (t) { h.sijainti.tilaId = t.id; h.sijainti.kerrosId = t.kerrosId; h.sijainti.piste = null; Auto.manual(h, "tila"); Auto.autoKohta(h); if (window.FieldFill) FieldFill.apply(h); paintLoc(); paintStatus(); }
+          if (!kysyM) { sulje(); return; }
+          paint(); return;
+        }
+        const mb = e.target.closest("[data-qm]");
+        if (mb) {
+          if (mb.dataset.qm === "__hae") { MethodPicker.openSheet({ selected: h.menetelma, excludeHavainto: h.id, onSelect: (id) => { selectMethod(id, true); sulje(); } }); return; }
+          selectMethod(mb.dataset.qm, true); sulje(); return;
+        }
+        if (e.target.closest("[data-qskip],[data-qok]")) sulje();
+      });
+    }
 
     /* Ensikäytön ohje: näytetään kerran, ohjeen saa uudelleen ?-painikkeesta */
     function naytaOhje(force) {
@@ -427,13 +486,13 @@
       const g = document.createElement("div");
       g.className = "cam-guide";
       g.innerHTML = '<div class="cg-box"><h3>Näin kirjaat havainnon</h3><ol>' +
-        "<li><b>Valitse tila</b> yläreunasta (tai sano se sanelussa).</li>" +
+        "<li><b>Valitse menetelmä ja tila</b> pikavalinnasta. Tilan voi vaihtaa yläreunasta.</li>" +
         "<li><b>Ota kuva</b> laukaisimesta. Kuvia voi ottaa useita.</li>" +
         "<li><b>Pidä mikrofonia pohjassa</b> ja kerro havainto. Vapauta, kun olet valmis.</li>" +
         "<li><b>Seuraava</b> tallentaa ja aloittaa uuden havainnon samassa tilassa.</li>" +
         "<li><b>Kortti</b> avaa kaikki tiedot ja mittauskentät. Sen voi avata myös ilman kuvaa.</li>" +
         "<li><b>Yleiskuva</b>-välilehdellä otat kuvia ilman havaintoa (julkisivut, tilat).</li></ol>" +
-        '<p class="hint" style="color:#ddd;margin:0 0 14px">Kaikki tallentuu heti. Sanelusta täyttöä voi säätää Sanasto-sivulla.</p>' +
+        '<p class="hint" style="color:#ddd;margin:0 0 14px">Kaikki tallentuu heti. Sen, mitä sanelusta täytetään, voi valita Sanasto-sivulla.</p>' +
         '<button class="btn btn-primary" data-ok>Selvä</button></div>';
       root.appendChild(g);
       g.querySelector("[data-ok]").addEventListener("click", () => { try { localStorage.setItem("ks.ohje.kuvaus", "1"); } catch (e) { /* ohita */ } g.remove(); });

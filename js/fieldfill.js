@@ -305,7 +305,7 @@
     const Model = (window.App && App.Model) || window.Model;
     const m = M.menetelma(h.menetelma);
     if (!m || !m.kentat.length) return [];
-    const paalla = !window.Auto || Auto.enabled();
+    const paalla = !window.Auto || Auto.paalla("kentat");
     const hasText = paalla && !!(h.sanelu || "").trim();
     // Ilman sanelua täytetään vain tilasta pääteltävät (märkätilan tyyppi, asunto)
     if (!hasText && !m.kentat.some((f) => f.tilasta || f.k === "asunto")) return [];

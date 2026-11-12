@@ -2,7 +2,7 @@
    ui.js – yhteiset apuvälineet: kuvakkeet, escapointi, ikkunat, ilmoitukset
    ========================================================================= */
 /* Sovelluksen versio: nosta yhdessä sw.js:n CACHE-version kanssa. */
-window.APP_VERSION = "28";
+window.APP_VERSION = "29";
 
 (function () {
   "use strict";
