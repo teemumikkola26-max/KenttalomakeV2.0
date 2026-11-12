@@ -149,6 +149,39 @@
   }
   const titleDevice = (s) => s.split(" ").map((w) => /\d/.test(w) || w.length <= 3 ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
 
+  /* Tarkistuslistan valinta: haetaan lauseenosasta, jossa kentän sana on ("saumoissa rakoja",
+     "kaadot riittävät", "ei tulvakynnystä"). Näin yhdessä sanelussa voi kuitata monta kohtaa. */
+  function selectInClauses(f, t) {
+    const ws = wordsFor(f);
+    const clauses = String(t).split(/[.,;:!?]|\s(?:ja|sekä|mutta)\s/);
+    for (const c of clauses) {
+      const cc = " " + c.trim() + " ";
+      if (ws.length && !ws.some((w) => new RegExp(wre(w), "u").test(cc))) continue;
+      for (const [w, o] of f.ow) if ((f.o || []).includes(o) && new RegExp(wre(w), "u").test(cc)) return o;
+    }
+    return null;
+  }
+  /* Märkätilan tyyppi tilan nimestä: "KH", "Kylpyhuone", "S", "Sauna", "WC", "K" */
+  const TILA_KOODIT = { ph: "Pesuhuone", kh: "Pesuhuone", pesuhuone: "Pesuhuone", kylpyhuone: "Pesuhuone", s: "Sauna", sauna: "Sauna", löylyhuone: "Sauna",
+    wc: "Erillinen WC", "erillinen wc": "Erillinen WC", k: "Keittiö", kt: "Keittiö", ke: "Keittiö", keittiö: "Keittiö", keittokomero: "Keittiö", tupakeittiö: "Keittiö", avokeittiö: "Keittiö" };
+  function fromRoom(f, h, Model) {
+    const r = h.sijainti && h.sijainti.tilaId && Model.tila(h.sijainti.tilaId);
+    if (!r) return null;
+    for (const n of [r.nimi, String(r.tunnus || "").split(/\s+/).pop()]) {
+      const v = TILA_KOODIT[String(n || "").toLowerCase().replace(/\d+$/, "").trim()];
+      if (v && (f.o || []).includes(v)) return v;
+    }
+    return f.ow ? selectInClauses(Object.assign({}, f, { sanat: [] }), " " + String(r.nimi || "").toLowerCase() + " ") : null;
+  }
+  /* Asunnon tunnus: sanelusta ("asunto B 12", "huoneistossa 5") tai tilan tunnuksen alusta ("A1 KH") */
+  function asunto(h, t, Model) {
+    const m = String(t).match(/(?:^|\s)(?:asun[a-zåäö]*|huoneisto[a-zåäö]*|as\.?)\s+([a-zåäö]{0,2})\s?(\d{1,3})(?![0-9])/u);
+    if (m) return (m[1] + m[2]).toUpperCase();
+    const r = h.sijainti && h.sijainti.tilaId && Model.tila(h.sijainti.tilaId);
+    const a = r && String(r.tunnus || "").match(/^([A-ZÅÄÖ]{1,2}\s?\d{1,3})\s+\S/u);
+    return a ? a[1].replace(/\s+/g, "") : null;
+  }
+
   /* ---------- Yksittäiset kentät ---------- */
   function scalarValue(f, t) {
     if (f.t === "num") {
@@ -161,6 +194,7 @@
       if (f.u === "mm" && /^(cm|sentti|senti)/.test(r.u)) v = toNum(String(parseFloat(v.replace(",", ".")) * 10));
       return toNum(v);
     }
+    if (f.t === "select" && f.ow) return selectInClauses(f, t);
     if (f.t === "select") {
       const list = SELECT_WORDS[f.k] || (f.o || []).map((o) => [o.toLowerCase(), o]);
       for (const [w, o] of list) if ((f.o || []).includes(o) && new RegExp(wre(w), "u").test(t)) return o;
@@ -270,8 +304,11 @@
   function apply(h) {
     const Model = (window.App && App.Model) || window.Model;
     const m = M.menetelma(h.menetelma);
-    if (!m || !m.kentat.length || !(h.sanelu || "").trim()) return [];
-    const t = prep(h.sanelu);
+    if (!m || !m.kentat.length) return [];
+    const hasText = !!(h.sanelu || "").trim();
+    // Ilman sanelua täytetään vain tilasta pääteltävät (märkätilan tyyppi, asunto)
+    if (!hasText && !m.kentat.some((f) => f.tilasta || f.k === "asunto")) return [];
+    const t = prep(h.sanelu || "");
     h.auto = h.auto || {};
     const changes = [];
     // Taulukot: ensimmäinen ryhmitelty taulukko saa mittausrivit, ryhmittelemätön olosuhteet
@@ -301,13 +338,16 @@
     // Yksittäiset kentät
     m.kentat.forEach((f) => {
       if (f.t === "table" || f.t === "date") return;
+      if (!M.nakyy(h, f)) return;
+      if (!hasText && !f.tilasta && f.k !== "asunto") return;
       const cur = h.kentat[f.k], isAuto = h.auto["k:" + f.k] === "sanelu" || (f.k === "tunnus" && h.auto.tunnus);
       if (cur && !isAuto && !(f.muista && h.auto["k:" + f.k] === "muisti")) {
         // muistettu arvo (esim. edellisen havainnon laite) saa vaihtua, jos sanelussa sanotaan toinen
         const mem = f.muista && Model.muistiGet(h.menetelma + "." + f.k);
         if (!(mem && cur === mem)) return;
       }
-      const v = scalarValue(f, t);
+      let v = f.k === "asunto" ? asunto(h, t, Model) : scalarValue(f, t);
+      if ((v == null || v === "") && f.tilasta) v = fromRoom(f, h, Model);
       if (v == null || v === "" || v === cur) return;
       h.kentat[f.k] = v;
       h.auto["k:" + f.k] = "sanelu";
@@ -316,6 +356,12 @@
       if (f.mittaus) h.vahvistettu = false;
       changes.push({ kentta: "kenttä", arvo: f.l + ": " + v + (f.u && f.t === "num" ? " " + f.u : "") });
     });
+    // Tarkistuslistan puute (esim. saumoissa rakoja) on poikkeama, ellei tutkija ole itse valinnut tulosta
+    const dev = M.kentat(h).find((f) => f.okv && h.kentat[f.k] && h.kentat[f.k] !== f.okv);
+    if (dev && h.tulos !== "poikkeama" && (!h.tulos || (h.auto && h.auto.tulos))) {
+      h.tulos = "poikkeama"; h.auto.tulos = "sanelu";
+      changes.push({ kentta: "tulos", arvo: "Poikkeama (" + dev.l.toLowerCase() + ")" });
+    }
     return changes;
   }
 

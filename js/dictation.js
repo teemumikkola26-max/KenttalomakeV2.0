@@ -117,6 +117,7 @@
         this.committed = [];
         this.onPreview("");
         if (text) this.onCommit(text);
+        else { buzz([40, 60, 40]); this.onState("empty", "Sanelusta ei saatu tekstiä. Sanele uudelleen tai kirjoita."); }
       }
     }
 

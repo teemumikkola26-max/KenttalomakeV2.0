@@ -39,17 +39,18 @@
     nayte: ["näyte", "näytte", "mik1", "mikrobimateriaalinäyte", "voc-materiaalinäyte", "voc-ilmanäyte", "mikrobi-ilmanäyte", "ilmanäyte", "laskeumanäyte", "geeliteippinäyte", "pyyhintäpölynäyte", "pölynäyte", "pölynkoostumusnäyte", "pah-näyte", "pcb-näyte", "materiaalinäyte", "mikrobinäyte", "asbestinäyte", "haitta-ainenäyte", "näytepala", "näytteenot", "otettiin näyte", "kuitunäyte", "pah näyte", "voc näyte"],
     merkkiaine: ["merkkiain", "merkkikaasu", "merkkiainevuoto", "merkkiaineanalysaattori", "alipaineist", "sensistor", "mak1", "typpived", "tiiviyskoe", "tiiviysmittau", "tiiviystarkastelu", "injektoi", "vuotoilmaa", "ilmavuoto"],
     lampokuvaus: ["lämpökuva", "lämpökamer", "lämpösäteily", "termografi", "pintalämpötil", "lämpötilaindeksi", "flir", "hikmicro", "kylmäsilta", "kylmävuoto"],
+    mtk: ["märkätilakartoitu", "märkätilatarkast", "märkätilan kunto", "märkätilojen kunto"],
     paine: ["painesuhte", "paine ero", "paine-ero", "paineero", "dp-calc", "dp calc", "paine-eromittari", "alipain", "ylipain", "ilmavirta", "ilmavirra", "ilmamäärä", "tuloilmamäär", "poistoilmamäär", "painesuhdeseuran"]
   };
   function detectMethod(t) {
     const hits = [];
     M.MENETELMAT.forEach((m) => {
-      if (m.piilotettu || m.seuranta) return;
+      if (m.piilotettu || m.seuranta || m.kohdetaso) return;
       for (const w of methodWords(m)) { if (!w.trim()) continue; const i = t.search(stemRe(w.trim())); if (i >= 0) { hits.push({ id: m.id, i }); break; } }
     });
     // Itse lisätyt menetelmät nimen perusteella (esim. "Radonmittaus")
     M.MENETELMAT.forEach((m) => {
-      if (m.piilotettu || m.seuranta || methodWords(m).length) return;
+      if (m.piilotettu || m.seuranta || m.kohdetaso || methodWords(m).length) return;
       const n = norm(m.nimi).trim();
       if (n.length >= 5) { const i = t.indexOf(" " + n.slice(0, Math.max(5, n.length - 2))); if (i >= 0) hits.push({ id: m.id, i }); }
     });
@@ -242,7 +243,9 @@
     const changes = [];
     const canSet = (key, cur) => !cur || h.auto[key];
 
-    const mid = detectMethod(t);
+    let mid = detectMethod(t);
+    // Märkätilakartoitus sisältää pintakosteuden ja aistinvaraisen: "pko 45" ei vaihda menetelmää
+    if (mid && h.menetelma && (M.menetelma(h.menetelma).sisaltaa || []).includes(mid)) mid = h.menetelma;
     if (mid && canSet("menetelma", h.menetelma) && mid !== h.menetelma) {
       h.menetelma = mid; h.auto.menetelma = "sanelu"; h.vahvistettu = false;
       changes.push({ kentta: "menetelmä", arvo: M.menetelma(mid).nimi });
@@ -276,6 +279,11 @@
       h.sijainti.rakenneosa = part; h.auto.rakenneosa = "sanelu";
       changes.push({ kentta: "rakenneosa", arvo: part });
     }
+    // Kuntoarvion rakennusosa sanelusta ("räystäskourut" -> Vesikattovarusteet)
+    if (window.Kuntoarvio && Kuntoarvio.aktiivinen() && canSet("kaOsa", h.kaOsa)) {
+      const ko = Kuntoarvio.tunnistaOsa(h.sanelu);
+      if (ko && ko !== h.kaOsa) { h.kaOsa = ko; h.auto.kaOsa = "sanelu"; changes.push({ kentta: "rakennusosa", arvo: Kuntoarvio.osa(ko).nimi }); }
+    }
     if (autoKohta(h)) changes.push({ kentta: "suunnitelma", arvo: h.suunnitelmaId === "ei" ? "ei suunnitelmassa" : Model.kohtaNimi(Model.kohta(h.suunnitelmaId)) });
     if (autoTunnus(h)) changes.push({ kentta: "tunnus", arvo: h.kentat.tunnus });
     // Menetelmän kentät sanelusta (mittalaite, lukemat, kerrokset ...)
@@ -307,5 +315,5 @@
   Vocab.define("tilat", { group: "Sanelu: sijainti", title: "Tilojen nimet", type: "map", defaults: ROOM_DEF,
     help: "sana = tilan nimi. Jos kohteessa ei vielä ole tilaa, se luodaan tällä nimellä. Kohteen omat tilat ja tunnukset (A101) tunnistetaan aina." });
 
-  window.Auto = { METHOD_WORDS, methodWords, TUNNUS_PREFIX, apply, manual, markCarried, autoKohta, autoTunnus, _detect: { detectMethod, detectTulos, detectPart, detectRoom, norm } };
+  window.Auto = { METHOD_WORDS, methodWords, TUNNUS_PREFIX, apply, manual, markCarried, autoKohta, autoTunnus, _detect: { detectMethod, detectTulos, detectPart, detectRoom, norm, stemRe } };
 })();

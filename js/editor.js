@@ -130,7 +130,8 @@
     const n = (await kaytto())[m.id] || 0;
     const flags = (f) => [M.tyyppiNimi(f.t) + (f.u ? " (" + f.u + ")" : ""),
       f.t === "table" && (f.sarakkeet || []).map((c) => c.l).join(", "),
-      f.ocr && "kameraluku", f.req && "pakollinen", f.mittaus && "mittaustulos", f.muista && "muistetaan"].filter(Boolean).join(" · ");
+      f.ocr && "kameraluku", f.req && "pakollinen", f.mittaus && "mittaustulos", f.muista && "muistetaan",
+      f.okv && "kunnossa: " + f.okv, f.kun && "vain: " + (f.kun.v || []).join(", ")].filter(Boolean).join(" · ");
     const rows = m.kentat.map((f, i) =>
       '<div class="row" style="cursor:default">' +
       '<button class="grow" data-a="field" data-i="' + i + '" style="background:none;border:none;padding:0;text-align:left;cursor:pointer;min-height:44px">' +
@@ -147,7 +148,8 @@
       '<label class="field" style="margin:0"><span>Lyhenne <span class="u">(havaintokortin otsikossa)</span></span><input type="text" data-m="lyhyt" value="' + esc(m.lyhyt || "") + '" maxlength="14"></label>' +
       "</div></section>" +
       (m.seuranta ? '<section class="card"><div class="card-b" style="padding-top:14px"><p style="margin:0">Olosuhdeseuranta on kohteen yhteinen mittaus. Mittalaitteet (tunnus MIR1–MIR99, tila, merkintä pohjakuvaan ja kuva sijoittelusta) kirjataan kohteen <b>Olosuhdeseuranta</b>-näkymässä, eikä menetelmällä ole havaintokohtaisia kenttiä. Mittausdata tulee raportille mittalaitteiden pilvipalvelusta.</p></div></section>' : "") +
-      (m.seuranta ? "" : '<section class="card"><div class="card-h"><h2>Sanelun tunnistus</h2>' + (Array.isArray(m.sanat) ? '<span class="meta"><b class="vb-ed">muokattu</b></span>' : "") + '</div><div class="card-b">' +
+      (m.kuntoarvio ? '<section class="card"><div class="card-b" style="padding-top:14px"><p style="margin:0">Kuntoarvio tehdään kohteen <b>Kuntoarvio</b>-näkymässä: rakennusosien kuntoluokat, rakennus- tai uusimisvuodet ja käyttöiät. Havainnot (kuva + sanelu) liitetään rakennusosiin. Käyttöikätaulukkoa voi täydentää Sanasto-sivulla.</p></div></section>' : "") +
+      (m.seuranta || m.kuntoarvio ? "" : '<section class="card"><div class="card-h"><h2>Sanelun tunnistus</h2>' + (Array.isArray(m.sanat) ? '<span class="meta"><b class="vb-ed">muokattu</b></span>' : "") + '</div><div class="card-b">' +
       '<label class="field"><span>Tunnistussanat <span class="u">(yksi riville)</span></span><textarea data-ms="sanat" spellcheck="false" autocapitalize="off" style="min-height:140px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:14px">' + esc(Auto.methodWords(m).join("\n")) + "</textarea></label>" +
       '<p class="hint" style="margin:-4px 0 10px">Kun sanelussa on jokin näistä, havainto saa tämän menetelmän. Sana on sanan alku (<b>pintakosteu</b> osuu sanaan pintakosteusmittaus). Lyhyt sana (<b>pko</b>, <b>ra1</b>) kirjoitetaan sellaisenaan.</p>' +
       '<label class="field" style="margin:0"><span>Tunnuksen etuliite <span class="u">(esim. M, RA, MIK, MAK)</span></span><input type="text" data-ms="etuliite" value="' + esc(m.etuliite || "") + '" placeholder="' + esc(Auto.TUNNUS_PREFIX[m.id] || "ei automaattista tunnusta") + '" maxlength="6" autocapitalize="characters"></label>' +

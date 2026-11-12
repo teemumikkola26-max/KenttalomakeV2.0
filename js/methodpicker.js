@@ -44,7 +44,7 @@
       if (ex) { if (tag) ex.tag = ex.tag ? ex.tag + " · " + tag : tag; return; }
       if (!id) return;
       const m = M.MENETELMAT.find((x) => x.id === id);
-      if (!m || m.seuranta || (m.piilotettu && id !== selected)) return;
+      if (!m || m.seuranta || m.kohdetaso || (m.piilotettu && id !== selected)) return;
       out.push({ id, nimi: m.nimi, tag });
     };
     add(selected, null);

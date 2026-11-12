@@ -27,8 +27,8 @@
       id: "pintakosteus", nimi: "Pintakosteuskartoitus", lyhyt: "Pintakost.", kentat: [
         { k: "laite", l: "Mittalaite", t: "text", req: true, muista: true },
         { k: "asteikko", l: "Asteikko / yksikkö", t: "select", o: ["Vertailuarvo", "Laitteen asteikko", "% (puu)"], muista: true },
-        { k: "arvo", l: "Arvo, havaintokohta", t: "num", req: true, mittaus: true },
-        { k: "vertailu", l: "Arvo, vertailukohta", t: "num", req: true, mittaus: true }
+        { k: "arvo", l: "Havaintokohdan lukema", t: "num", req: true, mittaus: true },
+        { k: "vertailu", l: "Vertailukohdan lukema", t: "num", req: true, mittaus: true }
       ]
     },
     {
@@ -97,8 +97,64 @@
         { k: "jakso", l: "Tarkastelujakso", t: "text" }
       ]
     },
+    /* Märkätilakartoitus: yksi havainto = yksi märkätila (pesuhuone, sauna, erillinen WC, keittiön allaskaappi).
+       Tarkistuslista: kentän "kun" näyttää kentän vain tietylle tilatyypille, "okv" on kunnossa-arvo
+       (Muut kohdat kunnossa -painike), "ow" valinnan sanelusanat ja "sanat" kentän sanelusanat. */
+    {
+      id: "mtk", nimi: "Märkätilakartoitus", lyhyt: "Märkätila", lomake: true, laskenta: "asunto", sisaltaa: ["pintakosteus", "aisti"], kentat: [
+        { k: "asunto", l: "Asunto", t: "text", req: true, muista: true },
+        { k: "mtila", l: "Märkätila", t: "select", req: true, tilasta: true, o: ["Pesuhuone", "Sauna", "Erillinen WC", "Keittiö"],
+          ow: [["pesuhuone", "Pesuhuone"], ["kylpyhuone", "Pesuhuone"], ["suihku", "Pesuhuone"], ["sauna", "Sauna"], ["löylyhuone", "Sauna"], ["erillinen wc", "Erillinen WC"], ["vessa", "Erillinen WC"], ["wc", "Erillinen WC"], ["keittiö", "Keittiö"], ["allaskaap", "Keittiö"]] },
+        { k: "lattia", l: "Lattiapinnoite", t: "select", o: ["Keraaminen laatta", "Muovimatto", "Muu"], kun: { k: "mtila", v: ["Pesuhuone", "Sauna", "Erillinen WC"] },
+          sanat: ["lattia", "lattiassa", "lattialla"], ow: [["laatt", "Keraaminen laatta"], ["laato", "Keraaminen laatta"], ["klinkkeri", "Keraaminen laatta"], ["muovimat", "Muovimatto"], ["matto", "Muovimatto"]] },
+        { k: "lattia_kl", l: "Lattian kunto", t: "select", o: ["Hyvä", "Välttävä", "Huono"], kun: { k: "mtila", v: ["Pesuhuone", "Sauna", "Erillinen WC"] },
+          sanat: ["lattia", "lattian"], ow: [["huono", "Huono"], ["heikko", "Huono"], ["välttäv", "Välttävä"], ["kulunut", "Välttävä"], ["hyvä", "Hyvä"], ["hyvässä", "Hyvä"]] },
+        { k: "seina", l: "Seinäpinnoite", t: "select", o: ["Keraaminen laatta", "Muovimatto", "Puupaneeli", "Maalattu levy", "Muu"], kun: { k: "mtila", v: ["Pesuhuone", "Sauna", "Erillinen WC"] },
+          sanat: ["seinä", "seinät", "seinissä", "seinillä"], ow: [["laatt", "Keraaminen laatta"], ["laato", "Keraaminen laatta"], ["muovimat", "Muovimatto"], ["paneel", "Puupaneeli"], ["maalat", "Maalattu levy"]] },
+        { k: "seina_kl", l: "Seinien kunto", t: "select", o: ["Hyvä", "Välttävä", "Huono"], kun: { k: "mtila", v: ["Pesuhuone", "Sauna", "Erillinen WC"] },
+          sanat: ["seinä", "seinät", "seinien"], ow: [["huono", "Huono"], ["heikko", "Huono"], ["välttäv", "Välttävä"], ["kulunut", "Välttävä"], ["hyvä", "Hyvä"], ["hyvässä", "Hyvä"]] },
+        { k: "katto", l: "Kattopinnoite", t: "select", o: ["Puupaneeli", "Maalattu levy", "Muu"], kun: { k: "mtila", v: ["Pesuhuone", "Sauna", "Erillinen WC"] },
+          sanat: ["katto", "katossa", "katon"], ow: [["paneel", "Puupaneeli"], ["maalat", "Maalattu levy"]] },
+        { k: "katto_kl", l: "Katon kunto", t: "select", o: ["Hyvä", "Välttävä", "Huono"], kun: { k: "mtila", v: ["Pesuhuone", "Sauna", "Erillinen WC"] },
+          sanat: ["katto", "katon"], ow: [["huono", "Huono"], ["heikko", "Huono"], ["välttäv", "Välttävä"], ["kulunut", "Välttävä"], ["hyvä", "Hyvä"], ["hyvässä", "Hyvä"]] },
+        { k: "pko_lattia", l: "Lattian pko-arvo (suurin)", t: "num", req: true, mittaus: true,
+          sanat: ["lattian pko", "lattia pko", "pko lattia", "lattian pintakosteu", "lattian lukem", "allaskaapin edu", "pko arvo", "pko", "lukema"] },
+        { k: "vert_lattia", l: "Lattian vertailuarvo", t: "num", req: true, mittaus: true,
+          sanat: ["lattian vertailu", "vertailu lattia", "vertailuarvo", "vertailu", "kuiva alue", "kuivalla alueella"] },
+        { k: "pko_seina", l: "Seinien pko-arvo (suurin)", t: "num", mittaus: true, kun: { k: "mtila", v: ["Pesuhuone", "Sauna", "Erillinen WC"] },
+          sanat: ["seinän pko", "seinien pko", "seinä pko", "pko seinä", "seinien lukem", "seinästä", "seiniltä"] },
+        { k: "vert_seina", l: "Seinien vertailuarvo", t: "num", mittaus: true, kun: { k: "mtila", v: ["Pesuhuone", "Sauna", "Erillinen WC"] },
+          sanat: ["seinän vertailu", "seinien vertailu", "vertailu seinä"] },
+        { k: "saumat", l: "Saumaukset", t: "select", o: ["Ei puutteita", "Rakoja / puutteita", "Tummentumaa"], okv: "Ei puutteita", kun: { k: "mtila", v: ["Pesuhuone", "Sauna", "Erillinen WC"] },
+          sanat: ["sauma", "saumoissa", "saumauk"], ow: [["ei puut", "Ei puutteita"], ["kunnossa", "Ei puutteita"], ["ehj", "Ei puutteita"], ["tumm", "Tummentumaa"], ["mustu", "Tummentumaa"], ["värjäy", "Tummentumaa"], ["rako", "Rakoja / puutteita"], ["raot", "Rakoja / puutteita"], ["rakoja", "Rakoja / puutteita"], ["halke", "Rakoja / puutteita"], ["irto", "Rakoja / puutteita"], ["puut", "Rakoja / puutteita"]] },
+        { k: "kaadot", l: "Lattian kaadot", t: "select", o: ["Riittävät", "Vaatimattomat", "Puutteelliset"], okv: "Riittävät", kun: { k: "mtila", v: ["Pesuhuone", "Sauna", "Erillinen WC"] },
+          sanat: ["kaado", "kaato", "kallistu"], ow: [["puutteelli", "Puutteelliset"], ["väärä", "Puutteelliset"], ["vastakaat", "Puutteelliset"], ["lammikoi", "Puutteelliset"], ["riittämättöm", "Puutteelliset"], ["vaatimatto", "Vaatimattomat"], ["loiv", "Vaatimattomat"], ["riittäv", "Riittävät"], ["hyvät", "Riittävät"], ["kunnossa", "Riittävät"]] },
+        { k: "kynnys", l: "Tulvakynnys", t: "select", o: ["Riittävän korkea", "Liian matala", "Puuttuu"], okv: "Riittävän korkea", kun: { k: "mtila", v: ["Pesuhuone", "Erillinen WC"] },
+          sanat: ["kynny", "tulvakynny"], ow: [["ei kynny", "Puuttuu"], ["ei tulvakynny", "Puuttuu"], ["puuttu", "Puuttuu"], ["ei ole", "Puuttuu"], ["matal", "Liian matala"], ["riittäv", "Riittävän korkea"], ["korkea", "Riittävän korkea"], ["kunnossa", "Riittävän korkea"]] },
+        { k: "kaivo", l: "Lattiakaivo", t: "select", o: ["Ei puutteita", "Puutteita"], okv: "Ei puutteita", kun: { k: "mtila", v: ["Pesuhuone", "Erillinen WC"] },
+          sanat: ["kaivo", "lattiakaivo", "kaivossa"], ow: [["ei puut", "Ei puutteita"], ["ei havaittu puut", "Ei puutteita"], ["kunnossa", "Ei puutteita"], ["puhdas", "Ei puutteita"], ["puut", "Puutteita"], ["likai", "Puutteita"], ["ruost", "Puutteita"], ["irti", "Puutteita"], ["vuo", "Puutteita"]] },
+        { k: "wc", l: "WC-istuin", t: "select", o: ["Alkuperäinen, kunnossa", "Uusittu, kunnossa", "Vuotoja"], kun: { k: "mtila", v: ["Pesuhuone", "Erillinen WC"] },
+          sanat: ["wc-istuin", "wc istuin", "istuin", "pönttö"], ow: [["vuo", "Vuotoja"], ["uusi", "Uusittu, kunnossa"], ["vaihdettu", "Uusittu, kunnossa"], ["alkuper", "Alkuperäinen, kunnossa"], ["vanha", "Alkuperäinen, kunnossa"]] },
+        { k: "allas", l: "Allas ja hana", t: "select", o: ["Alkuperäinen, kunnossa", "Uusittu, kunnossa", "Vuotoja"], kun: { k: "mtila", v: ["Pesuhuone", "Erillinen WC"] },
+          sanat: ["allas", "altaa", "pesuallas", "hana", "sekoitin"], ow: [["vuo", "Vuotoja"], ["tippu", "Vuotoja"], ["uusi", "Uusittu, kunnossa"], ["vaihdettu", "Uusittu, kunnossa"], ["alkuper", "Alkuperäinen, kunnossa"], ["vanha", "Alkuperäinen, kunnossa"]] },
+        { k: "viemari", l: "Viemärikalusteet", t: "select", o: ["Ei puutteita", "Silikonisaumaus puuttuu WC-istuimen juurelta", "Kiinnitysruuvien suojatulpat puuttuvat", "Muita puutteita"], okv: "Ei puutteita", kun: { k: "mtila", v: ["Pesuhuone", "Erillinen WC"] },
+          sanat: ["viemäri", "silikon", "tulpa", "suojatulp", "juure"], ow: [["ei puut", "Ei puutteita"], ["kunnossa", "Ei puutteita"], ["silikon", "Silikonisaumaus puuttuu WC-istuimen juurelta"], ["tulp", "Kiinnitysruuvien suojatulpat puuttuvat"], ["puut", "Muita puutteita"]] },
+        { k: "kiinto", l: "Kiintokalusteet", t: "select", o: ["Ei vaurioita", "Vaurioita"], okv: "Ei vaurioita", kun: { k: "mtila", v: ["Pesuhuone", "Erillinen WC"] },
+          sanat: ["kiintokaluste", "kaapisto", "kaapi", "peilikaap"], ow: [["ei vauri", "Ei vaurioita"], ["kunnossa", "Ei vaurioita"], ["ehj", "Ei vaurioita"], ["vauri", "Vaurioita"], ["turvon", "Vaurioita"], ["rikki", "Vaurioita"]] },
+        { k: "allaskaappi", l: "Allaskaappi", t: "select", o: ["Ei puutteita", "Vesivuotojälkiä", "Putkien kannakointi puutteellinen", "Viemärin liitos epätiivis"], okv: "Ei puutteita", kun: { k: "mtila", v: ["Keittiö"] },
+          sanat: ["allaskaap", "altaan alla", "tiskipöy"], ow: [["ei puut", "Ei puutteita"], ["kunnossa", "Ei puutteita"], ["kuiva", "Ei puutteita"], ["vuoto", "Vesivuotojälkiä"], ["vesivuo", "Vesivuotojälkiä"], ["kosteusvauri", "Vesivuotojälkiä"], ["kosteusjälk", "Vesivuotojälkiä"], ["kannak", "Putkien kannakointi puutteellinen"], ["heilu", "Putkien kannakointi puutteellinen"], ["epätiivi", "Viemärin liitos epätiivis"], ["liitos", "Viemärin liitos epätiivis"]] },
+        { k: "kaukalo_apk", l: "Astianpesukoneen tulvakaukalo", t: "select", o: ["Kyllä", "Ei"], okv: "Kyllä", kun: { k: "mtila", v: ["Keittiö"] },
+          sanat: ["astianpesukone", "apk"], ow: [["ei", "Ei"], ["puuttu", "Ei"], ["kaukalo", "Kyllä"], ["on", "Kyllä"]] },
+        { k: "kaukalo_jk", l: "Jääkaapin tulvakaukalo", t: "select", o: ["Kyllä", "Ei"], okv: "Kyllä", kun: { k: "mtila", v: ["Keittiö"] },
+          sanat: ["jääkaap"], ow: [["ei", "Ei"], ["puuttu", "Ei"], ["kaukalo", "Kyllä"], ["on", "Kyllä"]] },
+        { k: "kaatumaeste", l: "Lieden kaatumaeste", t: "select", o: ["Kyllä", "Ei"], okv: "Kyllä", kun: { k: "mtila", v: ["Keittiö"] },
+          sanat: ["kaatumaest", "kaatumaraut", "liesi", "liedes", "lieden"], ow: [["ei", "Ei"], ["puuttu", "Ei"], ["on", "Kyllä"], ["kaatumaest", "Kyllä"], ["kaatumaraut", "Kyllä"]] }
+      ]
+    },
     // Olosuhdeseuranta on kohteen yhteinen mittaus: mittalaitteet kirjataan Olosuhdeseuranta-näkymässä, ei havaintoina.
-    { id: "seuranta", nimi: "Olosuhdeseuranta", lyhyt: "Seuranta", seuranta: true, kentat: [] },
+    { id: "seuranta", nimi: "Olosuhdeseuranta", lyhyt: "Seuranta", seuranta: true, kohdetaso: true, kentat: [] },
+    // Kuntoarvio: rakennusosien kuntoluokat ja käyttöiät kirjataan Kuntoarvio-näkymässä; havainnot liitetään osiin.
+    { id: "kuntoarvio", nimi: "Kuntoarvio", lyhyt: "KA", kuntoarvio: true, kohdetaso: true, kentat: [] },
     { id: "muu", nimi: "Muu menetelmä", lyhyt: "Muu", kentat: [
       { k: "nimi", l: "Menetelmän nimi", t: "text", req: true }
     ] }
@@ -152,8 +208,11 @@
               M.MENETELMAT[i] = uusi; muuttui = true;
             }
           });
+          // Vanhat oletusnimet, joissa pilkku sekoitti puutelistan ("arvo, havaintokohta, arvo, vertailukohta")
+          const RENAME = { "Arvo, havaintokohta": "Havaintokohdan lukema", "Arvo, vertailukohta": "Vertailukohdan lukema" };
+          M.MENETELMAT.forEach((m) => (m.kentat || []).forEach((f) => { if (RENAME[f.l]) { f.l = RENAME[f.l]; muuttui = true; } }));
           // Uudet oletusmenetelmät (esim. olosuhdeseuranta) lisätään aiempaan asennukseen
-          OLETUKSET.filter((o) => o.seuranta && !M.MENETELMAT.some((m) => m.id === o.id)).forEach((o) => {
+          OLETUKSET.filter((o) => (o.kohdetaso || o.lomake) && !M.MENETELMAT.some((m) => m.id === o.id)).forEach((o) => {
             const i = M.MENETELMAT.findIndex((m) => m.id === "muu");
             M.MENETELMAT.splice(i >= 0 ? i : M.MENETELMAT.length, 0, clone(o)); muuttui = true;
           });
@@ -162,7 +221,7 @@
       } catch (e) { console.warn("Menetelmien lataus epäonnistui", e); }
     },
     /* Havainnoille valittavat menetelmät (olosuhdeseuranta ei ole havainto) */
-    havaintoMenetelmat() { return M.MENETELMAT.filter((m) => !m.piilotettu && !m.seuranta); },
+    havaintoMenetelmat() { return M.MENETELMAT.filter((m) => !m.piilotettu && !m.seuranta && !m.kohdetaso); },
     async save() {
       await DB.put("asetukset", { id: "menetelmat", lista: M.MENETELMAT, muokattu: Date.now() });
     },
@@ -199,6 +258,9 @@
         return f.mittaus && !tyhja(h.kentat[f.k]);
       });
     },
+    /* Kenttä näkyy, kun sen ehto täyttyy (esim. tulvakynnys vain pesuhuoneelle ja WC:lle) */
+    nakyy(h, f) { return !f.kun || (f.kun.v || []).includes(h.kentat && h.kentat[f.kun.k]); },
+    kentat(h) { return M.menetelma(h.menetelma).kentat.filter((f) => M.nakyy(h, f)); },
     rivit(h, f) { return Array.isArray(h.kentat[f.k]) ? h.kentat[f.k] : []; },
     ryhmaSarake(f) { return (f.sarakkeet || []).find((c) => c.ryhma) || null; },
     tyyppiNimi(t) { const x = KENTTATYYPIT.find((k) => k.v === t); return x ? x.l : t; },

@@ -47,6 +47,7 @@
       });
     });
 
+    if (window.Kuntoarvio) Kuntoarvio.puutteet().forEach((x) => out.push(x));
     (k.seuranta || []).forEach((x) => {
       const puuttuu = Seuranta.puutteet(x);
       if (!puuttuu.length || puuttuu.length === 4) return;   // täysin tyhjä luonnos ei ole puute
@@ -69,7 +70,7 @@
     if (!h.sijainti || !h.sijainti.tilaId) puuttuu.push("tila");
     if (!h.menetelma) puuttuu.push("menetelmä");
     if (!h.tulos) puuttuu.push("tulos");
-    m.kentat.forEach((f) => {
+    M.kentat(h).forEach((f) => {
       if (f.t === "table") {
         const rows = M.rivit(h, f);
         if (f.req && !rows.length) { puuttuu.push(f.l.toLowerCase()); return; }
@@ -94,6 +95,7 @@
     if (n("kohta")) parts.push(n("kohta") + " suunnitelman kohtaa tekemättä");
     if (n("tila")) parts.push(n("tila") + (n("tila") === 1 ? " tila" : " tilaa") + " tutkimatta");
     if (n("havainto")) parts.push(n("havainto") + (n("havainto") === 1 ? " havainnosta" : " havainnosta") + " puuttuu tietoja");
+    if (n("kuntoarvio")) parts.push("kuntoarvio kesken");
     if (n("seuranta")) parts.push(n("seuranta") + (n("seuranta") === 1 ? " mittalaitteelta" : " mittalaitteelta") + " puuttuu tietoja");
     return parts.join(", ") + ".";
   }
@@ -110,7 +112,8 @@
       ["kohta", "Tutkimussuunnitelma"],
       ["tila", "Tilat"],
       ["havainto", "Havainnot"],
-      ["seuranta", "Olosuhdeseuranta"]
+      ["seuranta", "Olosuhdeseuranta"],
+      ["kuntoarvio", "Kuntoarvio"]
     ];
     let body = "";
     groups.forEach(([t, title]) => {
@@ -156,6 +159,7 @@
       if (a === "do") {
         if (b.dataset.t === "kohta") App.kohtaActions(Model.kohta(id));
         else if (b.dataset.t === "tila") Plan.roomActions(Model.tila(id));
+        else if (b.dataset.t === "kuntoarvio") location.hash = "#/k/" + k.id + "/kuntoarvio";
         else if (b.dataset.t === "seuranta") location.hash = "#/k/" + k.id + "/seuranta/" + id;
         else location.hash = "#/k/" + k.id + "/h/" + id;
       } else if (a === "pois") {

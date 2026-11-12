@@ -2,7 +2,7 @@
    ui.js – yhteiset apuvälineet: kuvakkeet, escapointi, ikkunat, ilmoitukset
    ========================================================================= */
 /* Sovelluksen versio: nosta yhdessä sw.js:n CACHE-version kanssa. */
-window.APP_VERSION = "21";
+window.APP_VERSION = "25";
 
 (function () {
   "use strict";
@@ -39,6 +39,12 @@ window.APP_VERSION = "21";
   }
 
   let toastTimer = null;
+  let toastAt = 0;
+  /* Näkymän vaihtuessa vanha ilmoitus pois (ei peitä uuden näkymän painikkeita); juuri annettu ilmoitus jää */
+  function hideToast(olderThan) {
+    if (olderThan && Date.now() - toastAt < olderThan) return;
+    const el = document.getElementById("toast"); if (el) el.classList.remove("on"); clearTimeout(toastTimer);
+  }
   function toast(msg, ms) {
     let el = document.getElementById("toast");
     if (!el) {
@@ -47,12 +53,19 @@ window.APP_VERSION = "21";
       document.body.appendChild(el);
     }
     el.textContent = msg;
+    toastAt = Date.now();
     el.classList.add("on");
+    el.classList.toggle("top", !!document.querySelector(".cam"));
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => el.classList.remove("on"), ms || 2200);
   }
 
-  /* Alhaalta nouseva ikkuna. bind(el, close) liittää tapahtumat. */
+  /* Alhaalta nouseva ikkuna. bind(el, close) liittää tapahtumat.
+     Puhelimen takaisin-ele sulkee ylimmän ikkunan (ei siirry edelliseen näkymään),
+     ja näkymän vaihtuessa kaikki ikkunat suljetaan, jotta vanha ikkuna ei jää
+     muuttamaan toisen näkymän tietoja. */
+  const openSheets = [];
+  let sheetSeq = 0, swallowPop = 0;
   function sheet(html, bind, opts) {
     opts = opts || {};
     const bg = document.createElement("div");
@@ -61,12 +74,23 @@ window.APP_VERSION = "21";
     document.body.appendChild(bg);
     const el = bg.firstChild;
     let closed = false;
-    const close = (val) => {
+    const id = ++sheetSeq, hashAtOpen = location.hash;
+    try { history.pushState({ ksSheet: id }, ""); } catch (e) { /* ohita */ }
+    const entry = { id, close: null };
+    const close = (val, fromBack) => {
       if (closed) return;
       closed = true;
       bg.remove();
+      const i = openSheets.indexOf(entry);
+      if (i >= 0) openSheets.splice(i, 1);
+      // Painikkeella suljettu: poistetaan ikkunan historiamerkintä, ellei näkymä vaihtunut samalla
+      if (!fromBack) setTimeout(() => {
+        if (location.hash === hashAtOpen && history.state && history.state.ksSheet === id) { swallowPop++; history.back(); }
+      }, 0);
       if (opts.onClose) opts.onClose(val);
     };
+    entry.close = close;
+    openSheets.push(entry);
     bg.addEventListener("click", (e) => { if (e.target === bg && !opts.modal) close(null); });
     el.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => close(null)));
     if (bind) bind(el, close);
@@ -74,6 +98,16 @@ window.APP_VERSION = "21";
     if (f) setTimeout(() => f.focus(), 50);
     return { el, close };
   }
+
+  function closeAllSheets() { openSheets.slice().reverse().forEach((s) => s.close(null, true)); }
+  // Rekisteröidään kaikkien skriptien jälkeen: kameraluvun oma takaisin-käsittely ehtii ensin.
+  window.addEventListener("DOMContentLoaded", () => {
+    window.addEventListener("popstate", () => {
+      if (swallowPop) { swallowPop--; return; }
+      const top = openSheets[openSheets.length - 1];
+      if (top) top.close(null, true);
+    });
+  });
 
   function confirmSheet(o) {
     return new Promise((resolve) => {
@@ -143,7 +177,8 @@ window.APP_VERSION = "21";
   function debounce(fn, ms) {
     let t = null;
     const d = function () { const a = arguments; clearTimeout(t); t = setTimeout(() => fn.apply(null, a), ms); };
-    d.flush = () => { if (t) { clearTimeout(t); t = null; fn(); } };
+    d.flush = () => { if (t) { clearTimeout(t); t = null; return fn(); } };
+    d.cancel = () => { clearTimeout(t); t = null; };
     return d;
   }
 
@@ -176,5 +211,5 @@ window.APP_VERSION = "21";
 
   function nro(n) { return "H" + String(n).padStart(2, "0"); }
 
-  window.UI = { icon, esc, toast, sheet, confirmSheet, promptSheet, pickFile, loadScript, debounce, pvm, nro, showSelected, keepAwake, buzz };
+  window.UI = { icon, esc, toast, hideToast, closeAllSheets, sheet, confirmSheet, promptSheet, pickFile, loadScript, debounce, pvm, nro, showSelected, keepAwake, buzz };
 })();

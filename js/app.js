@@ -41,7 +41,8 @@
           rakenneosa: preset.rakenneosa != null ? preset.rakenneosa : (last.rakenneosa || null),
           piste: null
         },
-        suunnitelmaId: preset.suunnitelmaId || null
+        suunnitelmaId: preset.suunnitelmaId || null,
+        kaOsa: preset.kaOsa || null
       };
     },
     async saveKohde() {
@@ -112,8 +113,19 @@
 
     kohtaTehty(p) {
       // Olosuhdeseurannassa tehty = kirjatut mittalaitteet
-      if (M.menetelma(p.menetelma).seuranta) return (S.kohde.seuranta || []).filter((x) => x.nro).length;
-      return S.havainnot.filter((h) => h.suunnitelmaId === p.id).length;
+      if (M.menetelma(p.menetelma).kuntoarvio) { const e = window.Kuntoarvio && S.kohde.kuntoarvio ? Kuntoarvio.edistyminen() : { n: 0, all: 1 }; return e.n >= e.all ? (p.maara || 1) : 0; }
+      // Usea seurantakohta (esim. paine-erot ja T/RH/CO2): laitteet jaetaan kohdille järjestyksessä
+      if (M.menetelma(p.menetelma).seuranta) {
+        let n = (S.kohde.seuranta || []).filter((x) => x.nro).length;
+        const all = S.kohde.suunnitelma.filter((q) => M.menetelma(q.menetelma).seuranta && !q.pois);
+        if (p.pois || all.length < 2) return n;
+        for (const q of all) { const t = Math.min(n, q.maara || 1); if (q === p) return t; n -= t; }
+        return 0;
+      }
+      const linked = S.havainnot.filter((h) => h.suunnitelmaId === p.id);
+      // Märkätilakartoitus lasketaan asunnoittain (yhdessä asunnossa useita märkätiloja)
+      if (M.menetelma(p.menetelma).laskenta === "asunto") return new Set(linked.map((h) => String(h.kentat.asunto || h.id).toUpperCase())).size;
+      return linked.length;
     },
     kohtaValmis(p) { return !!p.pois || Model.kohtaTehty(p) >= (p.maara || 1); },
 
@@ -185,6 +197,16 @@
     return h.tulos === "poikkeama" ? "p-note" : h.tulos === "ok" ? "p-ok" : "p-n";
   }
 
+  /* Varmuuskopion tila: onko kohteessa muutoksia viimeisen ZIP-viennin jälkeen */
+  function vientiTila(k, hav) {
+    const muutos = Math.max(k.updated || 0, ...(hav || []).map((h) => h.updated || 0));
+    const tyhja = !(hav || []).length && !(k.seuranta || []).length;
+    if (tyhja) return { msg: "" };
+    if (!k.viety) return { msg: "Ei vielä viety: tiedot vain tällä laitteella", cls: "warn" };
+    if (muutos > k.viety + 3000) return { msg: "Muutoksia viennin " + UI.pvm(k.viety) + " jälkeen: vie uusi paketti", cls: "warn" };
+    return { msg: "Viety " + UI.pvm(k.viety), cls: "ok" };
+  }
+
   /* ---------------- Näkymä: kohteet ---------------- */
   async function viewHome() {
     S.kohde = null;
@@ -194,8 +216,10 @@
     let rows = "";
     for (const k of kohteet) {
       const hav = await DB.byKohde("havainnot", k.id);
+      const st = vientiTila(k, hav);
       rows += '<a class="row" href="#/k/' + k.id + '" style="text-decoration:none;color:inherit"><div class="grow"><div class="t">' + esc(k.nimi || "Nimetön kohde") +
-        '</div><div class="s">' + esc([k.osoite, k.pvm ? UI.pvm(k.pvm) : "", hav.length + " havaintoa"].filter(Boolean).join(" · ")) + "</div></div>" + icon("back", "flip") + "</a>";
+        '</div><div class="s">' + esc([k.osoite, k.pvm ? UI.pvm(k.pvm) : "", hav.length + " havaintoa"].filter(Boolean).join(" · ")) + "</div>" +
+        (st.msg ? '<div class="s vienti ' + st.cls + '">' + esc(st.msg) + "</div>" : "") + "</div>" + icon("back", "flip") + "</a>";
     }
     app().innerHTML = topbar({ title: "Kuva + sanelu", sub: "Kenttähavainnot kuvina ja saneluina" }) +
       '<main class="view no-nav">' +
@@ -249,7 +273,10 @@
       '<section class="card"><div class="card-h"><h2>Tutkimussuunnitelma</h2><a class="link" href="#/k/' + k.id + '/suunnitelma">Muokkaa</a></div>' +
       (plan || '<div class="empty">Lisää suunnitelman kohdat, niin näet kentällä mitä on tehty ja mitä puuttuu.<br><br><a class="btn btn-sm" href="#/k/' + k.id + '/suunnitelma">' + icon("plus") + "Lisää kohdat</a></div>") +
       "</section>" +
+      Kuntoarvio.kohdeCard() +
       Seuranta.kohdeCard() +
+      (Kuntoarvio.aktiivinen() ? "" : '<a class="row seur-link" href="#/k/' + k.id + '/kuntoarvio" style="text-decoration:none;color:inherit;margin:-4px 0 12px;border-radius:12px">' +
+        icon("list") + '<div class="grow"><div class="t">Kuntoarvio</div><div class="s">Rakennusosat, kuntoluokat ja käyttöiät</div></div>' + icon("back", "flip") + "</a>") +
       '<section class="card"><div class="card-h"><h2>Viimeisimmät havainnot</h2>' +
       (S.havainnot.length ? '<a class="link" href="#/k/' + k.id + '/havainnot">Kaikki ' + S.havainnot.length + "</a>" : "") + "</div>" +
       '<div class="card-b">' + (rec ? '<div class="recent">' + rec + "</div>" : '<div class="empty" style="padding:6px 0 4px">Ei vielä havaintoja.</div>') + "</div></section>" +
@@ -313,6 +340,7 @@
       '<p class="hint">Jos aineisto käytetään julkaistavassa työssä, anonymisoi kohteen nimi ja osoite ennen vientiä.</p>' +
       "</div></section>" +
       '<section class="card"><div class="card-h"><h2>Vienti ja varmuuskopio</h2></div><div class="card-b">' +
+      (vientiTila(k, S.havainnot).msg ? '<p class="hint vienti ' + vientiTila(k, S.havainnot).cls + '" style="margin:0 0 10px">' + esc(vientiTila(k, S.havainnot).msg) + "</p>" : "") +
       '<button class="btn btn-block" data-act="export">' + icon("download") + "Vie ZIP-paketti</button>" +
       '<p class="hint">Paketti sisältää kuvat, sanelut, jäsennellyt tiedot ja pohjapiirrokset merkintöineen. Samalla paketilla kohteen voi palauttaa toiselle laitteelle.</p>' +
       "</div></section>" +
@@ -335,6 +363,7 @@
     app().innerHTML = topbar({ title: "Tutkimussuunnitelma", sub: k.nimi, back: "#/k/" + k.id }) +
       '<main class="view no-nav"><section class="card">' + (rows || '<div class="empty">Ei kohtia.</div>') + "</section>" +
       '<button class="btn btn-primary btn-block" data-act="addKohta">' + icon("plus") + "Lisää kohta</button>" +
+      '<div style="height:10px"></div><button class="btn btn-block" data-act="pdfKohdat">' + icon("upload") + "Tuo tarjouksesta tai suunnitelmasta (PDF)</button>" +
       '<p class="hint">Kirjaa suunnitelman tutkimukset menetelmittäin. Määrä tarkoittaa esimerkiksi mittauspisteiden tai avausten lukumäärää. Havainto liitetään kohtaan havaintokortilla.</p></main>';
   }
 
@@ -372,19 +401,43 @@
 
   /* ---------------- Toiminnot (klikit) ---------------- */
   const A = {
+    /* Uusi kohde alkaa tutkimussuunnitelmasta: nimi, osoite, projektinumero ja tutkimukset luetaan
+       PDF:stä. Ilman suunnitelmaa kohteelle annetaan vain nimi. */
     async newKohde() {
       sheet(
         "<h3>Uusi kohde</h3>" +
-        '<label class="field"><span>Kohteen nimi</span><input type="text" data-f="nimi" autofocus></label>' +
-        '<label class="field"><span>Tutkija</span><input type="text" data-f="tutkija" value="' + esc(localStorage.getItem("ks_tutkija") || "") + '"></label>' +
-        '<div class="row-btns"><button class="btn" data-close>Peruuta</button><button class="btn btn-primary" data-ok>Luo kohde</button></div>',
+        '<p style="margin:0 0 12px">Aloita tutkimussuunnitelmasta tai tarjouksesta. Kohteen tiedot ja tutkimukset luetaan siitä, ja tarkistat ne ennen lisäämistä.</p>' +
+        '<button class="btn btn-primary btn-block" data-pdf style="min-height:56px">' + icon("upload") + "Valitse tutkimussuunnitelma (PDF)</button>" +
+        '<label class="field" style="margin-top:14px"><span>Tutkija</span><input type="text" data-f="tutkija" value="' + esc(localStorage.getItem("ks_tutkija") || "") + '"></label>' +
+        '<div data-manual class="hidden"><label class="field"><span>Kohteen nimi</span><input type="text" data-f="nimi"></label>' +
+          '<div class="row-btns"><button class="btn" data-close>Peruuta</button><button class="btn btn-primary" data-ok>Luo kohde</button></div></div>' +
+        '<div data-manualbtns class="row-btns"><button class="btn" data-close>Peruuta</button><button class="btn" data-a="manual">Ei suunnitelmaa</button></div>',
         (el, close) => {
+          const tutkija = () => { const v = el.querySelector('[data-f="tutkija"]').value.trim(); try { localStorage.setItem("ks_tutkija", v); } catch (e) { /* ohita */ } return v; };
+          el.querySelector('[data-a="manual"]').addEventListener("click", () => {
+            el.querySelector("[data-manual]").classList.remove("hidden");
+            el.querySelector("[data-manualbtns]").classList.add("hidden");
+            el.querySelector('[data-f="nimi"]').focus();
+          });
+          el.querySelector("[data-pdf]").addEventListener("click", async () => {
+            const fs = await UI.pickFile("application/pdf,.pdf", false);
+            if (!fs[0]) return;
+            let res;
+            try { res = await PlanImport.read(fs[0]); }
+            catch (e) { console.error(e); toast("PDF:n lukeminen epäonnistui. Voit luoda kohteen ilman suunnitelmaa.", 4500); return; }
+            const kt = res.kohde || {};
+            const k = Model.newKohde({ nimi: kt.nimi || fs[0].name.replace(/\.pdf$/i, ""), tutkija: tutkija() });
+            k.osoite = kt.osoite || ""; k.projektinro = kt.projektinro || "";
+            await DB.put("kohteet", k);
+            DB.requestPersist();
+            close();
+            location.hash = "#/k/" + k.id + "/suunnitelma";
+            setTimeout(() => PlanImport.review(res, fs[0].name), 300);
+          });
           el.querySelector("[data-ok]").addEventListener("click", async () => {
             const nimi = el.querySelector('[data-f="nimi"]').value.trim();
-            const tutkija = el.querySelector('[data-f="tutkija"]').value.trim();
             if (!nimi) { toast("Anna kohteelle nimi"); return; }
-            try { localStorage.setItem("ks_tutkija", tutkija); } catch (e) { /* ohita */ }
-            const k = Model.newKohde({ nimi, tutkija });
+            const k = Model.newKohde({ nimi, tutkija: tutkija() });
             await DB.put("kohteet", k);
             DB.requestPersist();
             close();
@@ -405,6 +458,7 @@
     openH(el) { location.hash = "#/k/" + S.kohde.id + "/h/" + el.dataset.id; },
     galleria() { Gallery.importPhotos(() => render()); },
     addKohta() { kohtaSheet(null); },
+    pdfKohdat() { PlanImport.importPdf(); },
     editKohta(el) { kohtaSheet(Model.kohta(el.dataset.id)); },
     async delKohta(el) {
       const p = Model.kohta(el.dataset.id);
@@ -428,12 +482,12 @@
   function kohtaActions(p) {
     const k = S.kohde;
     const linked = S.havainnot.filter((h) => h.suunnitelmaId === p.id);
-    const seur = M.menetelma(p.menetelma).seuranta;
+    const seur = M.menetelma(p.menetelma).seuranta, kam = M.menetelma(p.menetelma).kuntoarvio;
     sheet(
       "<h3>" + esc(Model.kohtaNimi(p)) + "</h3>" +
       "<p>" + (p.pois ? "Jätetään pois: " + esc(p.pois.syy) : "Tehty " + Model.kohtaTehty(p) + " / " + (p.maara || 1)) + "</p>" +
       '<div style="display:flex;flex-direction:column;gap:8px">' +
-      (seur ? '<button class="btn btn-primary" data-a="seur">' + icon("pin") + "Olosuhdeseuranta: mittalaitteet</button>"
+      (kam ? '<button class="btn btn-primary" data-a="ka">' + icon("list") + "Avaa kuntoarvio</button>" : seur ? '<button class="btn btn-primary" data-a="seur">' + icon("pin") + "Olosuhdeseuranta: mittalaitteet</button>"
             : '<button class="btn btn-primary" data-a="kuva">' + icon("cam") + "Kuva + sanelu tähän kohtaan</button>") +
       linked.map((h) => '<button class="btn" data-h="' + h.id + '">' + nro(h.nro) + " · " + esc(Model.sijaintiTeksti(h.sijainti) || "Sijainti puuttuu") + "</button>").join("") +
       (p.pois ? '<button class="btn" data-a="palauta">Palauta tehtäväksi</button>' : '<button class="btn" data-a="pois">Jätetään pois + syy</button>') +
@@ -445,6 +499,8 @@
         });
         const sv = el.querySelector('[data-a="seur"]');
         if (sv) sv.addEventListener("click", () => { close(); location.hash = "#/k/" + k.id + "/seuranta"; });
+        const kv2 = el.querySelector('[data-a="ka"]');
+        if (kv2) kv2.addEventListener("click", () => { close(); location.hash = "#/k/" + k.id + "/kuntoarvio"; });
         el.querySelectorAll("[data-h]").forEach((b) => b.addEventListener("click", () => { close(); location.hash = "#/k/" + k.id + "/h/" + b.dataset.h; }));
         const pois = el.querySelector('[data-a="pois"]');
         if (pois) pois.addEventListener("click", async () => {
@@ -505,6 +561,7 @@
       else if (sub === "pohja") await Plan.view(q);
       else if (sub === "lahto") await Check.view();
       else if (sub === "seuranta") await Seuranta.view(parts[3] || null);
+      else if (sub === "kuntoarvio") await Kuntoarvio.view(parts[3] || null);
       else await viewKohde();
     } catch (err) {
       console.error(err);
@@ -523,6 +580,8 @@
     const from = (e.oldURL || "").split("#")[1] || "/";
     const asetus = (h) => /^\/?(menetelmat|sanasto)/.test(h);
     if (/^#\/(menetelmat|sanasto)/.test(location.hash) && !asetus(from)) paluuHash = "#" + from;
+    UI.closeAllSheets();
+    UI.hideToast(500);
     render();
   });
   window.addEventListener("DOMContentLoaded", async () => {

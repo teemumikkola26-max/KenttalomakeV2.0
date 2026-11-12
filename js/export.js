@@ -93,7 +93,7 @@
 
   function mittausRivit(h) {
     const m = M.menetelma(h.menetelma);
-    return m.kentat.filter((f) => f.t !== "table" && h.kentat[f.k] != null && String(h.kentat[f.k]).trim() !== "")
+    return m.kentat.filter((f) => f.t !== "table" && M.nakyy(h, f) && h.kentat[f.k] != null && String(h.kentat[f.k]).trim() !== "")
       .map((f) => ({ kentta: f.l, arvo: String(h.kentat[f.k]).trim(), yksikko: f.u || "", mittaus: !!f.mittaus }));
   }
 
@@ -162,6 +162,7 @@
         const rivit = mittausRivit(h);
         return {
           tunnus: nro(h.nro),
+          kuntoarvion_osa: h.kaOsa && window.Kuntoarvio && Kuntoarvio.osa(h.kaOsa) ? Kuntoarvio.osa(h.kaOsa).nimi : null,
           sijainti: { kerros: e ? e.nimi : null, tila: t ? Model.tilaNimi(t) : null, rakenneosa: h.sijainti.rakenneosa || null,
             pohjapiirros: h.sijainti.piste ? { x_pros: Math.round(h.sijainti.piste.x * 1000) / 10, y_pros: Math.round(h.sijainti.piste.y * 1000) / 10 } : null },
           menetelma: M.menetelma(h.menetelma).nimi,
@@ -185,6 +186,7 @@
         };
       }),
       olosuhdeseuranta: seurantaJson(),
+      kuntoarvio: window.Kuntoarvio ? Kuntoarvio.vienti() : null,
       avoimet_puutteet: puutteet.map((x) => x.otsikko + ": " + x.selite)
     };
   }
@@ -254,6 +256,31 @@
       L.push("**Tutkijan alustava tulkinta:** " + (h.tutkijan_alustava_tulkinta || "–"));
       L.push("");
     });
+    if (j.kuntoarvio) {
+      const ka = j.kuntoarvio, pt = ka.perustiedot || {};
+      L.push("## Kuntoarvio");
+      L.push("");
+      L.push("Kuntoluokat: " + ka.kuntoluokat.join("; ") + ".");
+      L.push("");
+      const PT = { rakennustyyppi: "Rakennustyyppi", rakennusvuosi: "Rakennusvuosi", pintaala: "Pinta-ala (m²)", huoneistoja: "Huoneistoja", perustukset: "Perustukset", runko: "Runko", julkisivu: "Julkisivu", vesikatto: "Vesikatto ja katemateriaali", lammitys: "Lämmitys", korjaukset: "Tehdyt kunnossapito- ja muutostyöt" };
+      Object.keys(PT).forEach((x) => { if (pt[x]) L.push("- " + PT[x] + ": " + String(pt[x]).replace(/\n+/g, "; ")); });
+      if (ka.rajaukset) L.push("- Rajaukset: " + ka.rajaukset.replace(/\n+/g, "; "));
+      L.push("");
+      let ryh = "";
+      ka.osat.forEach((o) => {
+        if (o.ryhma !== ryh) { ryh = o.ryhma; L.push("### " + ryh); L.push(""); }
+        if (o.kuntoluokka == null && !o.huomiot && !o.havainnot.length) { L.push("- " + o.osa + (o.koodi ? " (" + o.koodi + ")" : "") + ": ei arvioitu"); return; }
+        L.push("- **" + o.osa + (o.koodi ? " (" + o.koodi + ")" : "") + "**: kuntoluokka " + (o.kuntoluokka == null ? "–" : o.kuntoluokka) +
+          (o.rakenne ? "; rakenne: " + o.rakenne : "") + (o.vuosi ? "; vuosi: " + o.vuosi : "") +
+          (o.kayttoika_laskettu ? "; " + o.kayttoika_laskettu + " (laskettu, lähde " + (o.kayttoian_lahde || "–") + ")" : "") +
+          (o.tarkastusvali ? "; tarkastusväli " + o.tarkastusvali : "") + (o.kunnossapitojakso ? "; kunnossapitojakso " + o.kunnossapitojakso : "") +
+          (o.pts_ehdokas ? "; PTS-ehdokas" : "") + (o.valittomasti_korjattava ? "; VÄLITTÖMÄSTI KORJATTAVA" : "") +
+          (o.lisatutkimus ? "; lisätutkimus" : "") + (o.asiantuntija_arvio_suositeltava ? "; asiantuntija-arvio suositeltava" : "") +
+          (o.havainnot.length ? "; havainnot " + o.havainnot.join(", ") : ""));
+        if (o.huomiot) L.push("  - Arvioijan huomiot: " + o.huomiot);
+      });
+      L.push("");
+    }
     if (j.olosuhdeseuranta) {
       L.push("## Olosuhdeseuranta: mittalaitteiden sijainnit");
       L.push("");
@@ -312,7 +339,19 @@
     "9. Olosuhdeseurannasta paketissa ovat vain mittalaitteiden tunnukset ja\n" +
     "   sijainnit (tila ja merkintä pohjapiirroksessa). Mittausdata saadaan\n" +
     "   mittalaitteiden pilvipalvelusta. Laitteiden sijoittelukuvat ovat vain\n" +
-    "   poishakua varten (varmuuskopio/seuranta/), eikä niitä käytetä raportissa.\n";
+    "   poishakua varten (varmuuskopio/seuranta/), eikä niitä käytetä raportissa.\n" +
+    "10. Kuntoarvion kuntoluokka (1–5) on arvioijan arvio. Käyttöikälaskelma on\n" +
+    "   sovelluksen laskema käyttöikätaulukosta ja rakennus- tai uusimisvuodesta;\n" +
+    "   lähde on merkitty. PTS-ehdokkaat ovat ehdotuksia PTS-taulukkoon, eivät\n" +
+    "   päätöksiä. LVIA- ja sähköosat on arvioitu pintapuolisesti rakennusteknisenä;\n" +
+    "   kohdat, joissa asiantuntija-arvio on suositeltava, esitetään lisätutkimuksina.\n";
+
+  /* Viennin ajankohta: etusivu muistuttaa, jos kohteessa on vientiä uudempia muutoksia (puhelimen
+     katoaminen tai rikkoutuminen ei vie kenttäpäivän työtä) */
+  async function merkitseViety() {
+    S.kohde.viety = Date.now();
+    await Model.saveKohde();
+  }
 
   async function run(keskenerainen) {
     const k = S.kohde;
@@ -396,7 +435,7 @@
 
       // Puhelimessa jakovalikko (esim. sähköposti, Teams, Tiedostot), muuten lataus.
       if (navigator.canShare && navigator.canShare({ files: [file] }) && /Android|iPhone|iPad/i.test(navigator.userAgent)) {
-        try { await navigator.share({ files: [file], title: name }); toast("Paketti jaettu"); return; }
+        try { await navigator.share({ files: [file], title: name }); await merkitseViety(); toast("Paketti jaettu"); return; }
         catch (e) { if (e && e.name === "AbortError") return; }
       }
       const a = document.createElement("a");
@@ -404,6 +443,7 @@
       a.download = name;
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+      await merkitseViety();
       toast("Paketti ladattu: " + name, 3500);
     } catch (e) {
       console.error(e);

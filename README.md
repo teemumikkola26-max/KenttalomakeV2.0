@@ -29,6 +29,13 @@ Tavoite: havainnon kirjaaminen vie saman ajan kuin pelkkä kuvaaminen. Tutkija k
 
 **Kolme vähimmäistietoa.** Havainnolle tarvitaan kuva, havainto (kirjoitettu tai saneltu) ja tila. Kameranäkymän alareunassa ne näkyvät kolmena merkkinä (Kuva, Havainto, Tila), jotka muuttuvat vihreiksi, kun tieto on saatu. Menetelmä ja tulos ovat yhdellä tiiviillä rivillä tekstikentän alla: ne täyttyvät sanelusta tai oletuksesta (katkoviivareuna = automaattinen), ja niitä voi vaihtaa yhdellä napautuksella. Menetelmän omat kentät (esim. RH-mittaukset) ovat Mittaukset-painikkeen takana.
 
+**Varma kirjaus.**
+- Kaikki tallentuu heti. Siirtymä (Seuraava, havaintokortti, sulje) odottaa, että viimeinen kuva on tallennettu, sanelun teksti saatu ja tunnistus (menetelmä, tila, kentät) tehty, joten nopeakaan napautus ei jätä tietoja täyttämättä. Myös näkymästä poistumisen jälkeen saapuva sanelu tallentuu havaintoon.
+- Jos sanelusta ei saada tekstiä, puhelin värisee ja näkyy ilmoitus *Sanelusta ei saatu tekstiä*.
+- Puhelimen takaisin-ele sulkee avoimen ikkunan (esim. sijainnin valinta) eikä vaihda näkymää. Näkymän vaihtuessa avoimet ikkunat suljetaan, jotta ne eivät muuta toisen näkymän tietoja.
+- Kameranäkymästä havaintokortille ja takaisin palaa samaan havaintoon.
+- Etusivu ja kohteen tiedot näyttävät, onko kohde viety ZIP-pakettina ja onko vientiä uudempia muutoksia. Tiedot ovat vain puhelimessa, joten paketti kannattaa viedä kenttäpäivän päätteeksi.
+
 **Tila ilman käsityötä.** Tila tulee ensisijaisesti automaattisesti:
 
 1. edellisestä havainnosta (merkintä *edellinen*)
@@ -185,6 +192,59 @@ Taulukkokentän voi lisätä mihin tahansa menetelmään menetelmäeditorissa (t
 
 **Menetelmien päivitys:** oletusmenetelmällä on versionumero (`versio` tiedostossa `js/methods.js`). Kun versio nousee, laitteelle tallennettu vanhempi versio korvataan uudella käynnistyksen yhteydessä. Itse lisätyt menetelmät eivät muutu.
 
+## Kuntoarvio (`js/kuntoarvio.js`, `js/kuntoarvio-data.js`)
+
+Kohteen tason arvio rakennusosittain PBM:n kuntoarvion raporttipohjan järjestyksessä (alueosat, talo-osat, tilaosat, LVIA, sähkö). Avataan kohteen etusivulta (**Kuntoarvio**) tai tutkimussuunnitelman kohdasta *Kuntoarvio*. Tarjouksen sana "kuntoarvio" tunnistuu suunnitelmaan.
+
+- **Perustiedot ja rajaukset:** rakennustyyppi, rakennusvuosi, pinta-ala, huoneistot, perustukset, runko, julkisivu, vesikatto, lämmitys, tehdyt korjaukset, rajaukset ja PTS-jakso (oletus 10 v).
+- **Rakennusosa** sisältää:
+  - tarkistuslistan (muistilista, ruksattavissa)
+  - kuntoluokan 1–5 tai *Ei koske kohdetta*
+  - rakenteen tai materiaalin käyttöikätaulukosta sekä rakennus- tai uusimisvuoden
+  - huomiot ja toimenpide-ehdotuksen (sanelu)
+  - merkinnät *Välittömästi korjattava*, *Lisätutkimus* ja (LVIA/sähkö) *Asiantuntija-arvio suositeltava*
+  - havainnot (*Kuva + sanelu tähän osaan*)
+  - *Seuraava* vie seuraavaan arvioimattomaan osaan.
+- **Käyttöikälaskelma:** "Tekninen käyttöikä 40 v → saavutetaan 2045 (jäljellä 19 v)", tarkastusväli, kunnossapitojakso ja lähde. Vuotena käytetään rakennusvuotta, jos osalle ei ole annettu omaa vuotta.
+- **PTS-ehdokkaat:** osat, joiden käyttöikä saavutetaan PTS-jakson aikana, ja osat, joiden kuntoluokka on 1–2.
+- **LVIA ja sähkö:** tarkistuslistat on kirjoitettu rakennusteknisen arvioijan muistilistaksi (pintapuolinen arvio raporttipohjan esipuheen mukaisesti). *Asiantuntija-arvio suositeltava* menee lisätutkimuksiin.
+- **Huoneistojen märkätilat:** märkätilakartoituksen yhteenveto (puutteet, suurin pko-arvo) ja kuntoluokan ehdotus. Ehdotus on apu, ja kuntoluokan päättää arvioija.
+- **Havainnot rakennusosiin:** havainnon rakennusosa tunnistetaan sanelusta (esim. "räystäskourut" → Vesikattovarusteet) tai valitaan havaintokortilla.
+- **Lähtötarkistus:** näyttää arvioimatta jääneiden osien määrän yhtenä kohtana.
+- **Vienti:** ZIP-paketissa (`kuntoarvio` JSON:ssa ja oma luku `havainnot.md`:ssä) osat ovat raporttipohjan järjestyksessä.
+
+**Käyttöikätaulukko** on Sanasto-sivulla (Kuntoarvio → Käyttöiät). Rivin muoto on `osa | nimike | käyttöikä | tarkastusväli | kunnossapitojakso | lähde`. Oletuksena taulukossa ovat PBM:n kuntoarvion liitteen 1 rivit (lähde *PBM liite 1*) ja raporttipohjan tekstien käyttöiät (lähde *PBM raporttipohja*). Taulukkoa voi täydentää KH 90-00403:sta, ja lähteen merkitseminen riville on suositeltavaa.
+
+## Märkätilakartoitus (menetelmä `mtk`)
+
+Tarkistuslomake: yksi havainto = yksi märkätila (pesuhuone, sauna, erillinen WC tai keittiön allaskaappi). Lomake perustuu yrityksen aiempaan märkätilakartoituksen tarkistuslistaan.
+
+- **Asunto** ja **märkätilan tyyppi** päätellään tilasta (esim. tila "A1 KH" → asunto A1, pesuhuone) tai sanelusta ("asunto B 4, sauna"). Asunto muistetaan seuraavaan havaintoon.
+- Näkyvät kohdat riippuvat tyypistä. Esimerkiksi tulvakynnys, lattiakaivo ja kalusteet näkyvät vain pesuhuoneessa ja WC:ssä, ja keittiöllä on allaskaappi, tulvakaukalot ja kaatumaeste.
+- Valinnat ovat sirurivejä (yksi napautus). Sanelu täyttää kohdat lauseenosittain, esim. "saumoissa rakoja ja kaadot riittävät, ei tulvakynnystä, lattian pko 45 vertailu 20".
+- **Muut kohdat kunnossa** merkitsee tyhjät tarkistuskohdat kunnossa-arvolla, joten saneltavaksi jäävät vain puutteet.
+- Puute tarkistuskohdassa (esim. saumoissa rakoja) asettaa tulokseksi Poikkeama, ellei tutkija ole valinnut tulosta itse.
+- Vähimmäistiedot ovat asunto, märkätila, lattian pko-arvo ja vertailuarvo.
+- Tutkimussuunnitelman määrä lasketaan asuntoina (asunnossa voi olla useita märkätiloja).
+- Kun märkätilakartoitus on valittu, sanelu "pko 45" ei vaihda menetelmäksi pintakosteuskartoitusta.
+
+Kentän ehdot ovat menetelmän määrittelyssä: `kun` (näkyy vain tietyllä tyypillä), `okv` (kunnossa-arvo), `ow` (valinnan sanelusanat) ja `tilasta` (päätellään tilan nimestä).
+
+## Tutkimussuunnitelma PDF:stä (`js/planimport.js`)
+
+Tarjouksen tai tutkimussuunnitelman PDF luetaan laitteella (pdf.js, ei verkkopalvelua). Uusi kohde alkaa siitä: **Uusi kohde → Valitse tutkimussuunnitelma (PDF)**, jolloin kohde luodaan PDF:n nimellä, osoitteella ja projektinumerolla ja suunnitelman kohdat tarkistetaan heti. *Ei suunnitelmaa* luo kohteen pelkällä nimellä. Olemassa olevaan kohteeseen: tai **Tutkimussuunnitelma → Tuo tarjouksesta tai suunnitelmasta (PDF)**.
+
+- Kohteen tiedot: *Kohde*, *Osoite* ja *Projektinumero* täytetään tyhjiin kenttiin.
+- Kohdat luetaan osiosta, joka alkaa otsikosta *Tutkimusten sisältö*, *Esitämme … tehtäväksi*, *Tarjous sisältää* tai *Sisältö*, ja päättyy esim. otsikkoon *Näytteenottovälineet*, *Tulosten toimitus* tai *Kustannus*.
+- Luettelon pääkohta on suunnitelman kohta; sisennetyt alakohdat ovat sen tarkennuksia. Alakohdan näytteet (esim. "mikrobinäytteitä 1 kpl / avaus") ovat oma kohta, ja määrä kerrotaan avausten määrällä.
+- Määrä: "4 kpl", vaihteluvälistä pienempi ("3–4 tilaa" → 3), alakohtien summa tai alakohtien lukumäärä (esim. paine-erojen mittausvälit).
+- Ilman luetteloa teksti luetaan virkkeittäin. *Optio*-kohdat näytetään valitsemattomina, ja kohta, joka tehdään toisen yhteydessä, on valitsematon.
+- Tutkija tarkistaa ehdotukset (valinta, menetelmä, määrä, tarkennus) ennen lisäämistä.
+
+Menetelmät tunnistetaan menetelmien tunnistussanoista ja Sanasto-sivun listasta *Suunnitelman sanat* (`sana = menetelmä`, esim. `kuntotarkastu = aisti`, `olosuhdeseuran = seuranta`).
+
+Olosuhdeseurannalla voi olla useita kohtia (esim. paine-erot ja T/RH/CO₂). Kirjatut mittalaitteet jaetaan niille järjestyksessä.
+
 ## Olosuhdeseuranta (`js/seuranta.js`)
 
 Olosuhdeseuranta on kohteen yhteinen mittaus, ei tilakohtainen havainto. Mittalaitteet kirjataan kohteen **Olosuhdeseuranta**-näkymässä (kohteen etusivu, tutkimussuunnitelman kohta tai pohjapiirroksen MIR-merkki). Laitteesta kirjataan vain:
@@ -271,6 +331,9 @@ js/obslist.js          havaintojen haku ja valinta
 js/gallery.js          galleriakuvien liittäminen ottoajan perusteella
 js/check.js            lähtötarkistus
 js/seuranta.js         olosuhdeseurannan mittalaitteet
+js/planimport.js       tutkimussuunnitelma tarjouksen/suunnitelman PDF:stä
+js/kuntoarvio.js       kuntoarvio: rakennusosat, kuntoluokat, käyttöiät, PTS-ehdokkaat
+js/kuntoarvio-data.js  rakennusosat, tarkistuslistat ja käyttöikätaulukko
 js/export.js           ZIP-vienti ja palautus
 sw.js                  toiminta ilman verkkoa
 ```

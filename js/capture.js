@@ -40,13 +40,14 @@
       if (!n.menetelma && M.MENETELMAT.some((m) => m.id === "aisti" && !m.piilotettu)) n.menetelma = "aisti";
       if (n.menetelma) applyMemory(n);
       Auto.markCarried(n);          // edellisestä tuotu konteksti saa vaihtua sanelun mukaan
+      if (preset && preset.kaCarry && n.kaOsa) n.auto.kaOsa = true;     // kuntoarvion osa jatkuu, sanelu voi vaihtaa
       Auto.autoKohta(n); Auto.autoTunnus(n);
       return n;
     }
 
     // Uusi havainto alkaa aistinvaraisesta tarkastelusta (ellei avattu tietylle suunnitelman kohdalle).
     // Seuraava-painike sen sijaan jatkaa samalla menetelmällä (esim. RH-pisteiden sarja).
-    if (!h) h = newObservation({ menetelma: q.menetelma, suunnitelmaId: q.kohta, tilaId: q.tila, kerrosId: q.kerros });
+    if (!h) h = newObservation({ menetelma: q.menetelma, suunnitelmaId: q.kohta, tilaId: q.tila, kerrosId: q.kerros, kaOsa: q.kaosa });
 
     document.getElementById("app").innerHTML =
       '<div class="cam">' +
@@ -122,11 +123,13 @@
       if (!changes.length) return;
       if (h.menetelma !== before) applyMemory(h);
       paintLoc(); paintMethods(); paintTulos(); paintStatus();
-      const shown = changes.filter((c) => ["menetelmä", "tulos", "tila", "rakenneosa", "kenttä", "taulukko"].includes(c.kentta));
+      const shown = changes.filter((c) => ["menetelmä", "tulos", "tila", "rakenneosa", "rakennusosa", "kenttä", "taulukko"].includes(c.kentta));
       if (shown.length) toast("Sanelusta: " + shown.slice(0, 3).map((c) => c.arvo).join(", ") + (shown.length > 3 ? " ja " + (shown.length - 3) + " muuta" : ""), 3000);
       if (saved) persist();
     }
     const autoSoon = UI.debounce(runAuto, 900);
+    let autoP = Promise.resolve();
+    let alive = true;   // näkymä auki; myöhässä tuleva sanelu tallentuu silti havaintoon
     function paintStatus() {
       const n = h.nro ? nro(h.nro) : "Uusi havainto";
       $("[data-count]").textContent = n + (h.kuvat.length ? " · " + h.kuvat.length + (h.kuvat.length === 1 ? " kuva" : " kuvaa") : "");
@@ -143,7 +146,7 @@
       $(".card-link").setAttribute("aria-label", "Avaa havaintokortti" + (warn ? ", puuttuu: " + miss.join(", ") : "") + (fields ? ", " + fields + " kenttää" : ""));
       // Menetelmän vähimmäistiedot: mitä puuttuu ja mitä sanoa
       const m = M.menetelma(h.menetelma);
-      const needF = m.kentat.filter((f) => f.req && (f.t === "table" ? !M.rivit(h, f).length : h.kentat[f.k] == null || String(h.kentat[f.k]).trim() === ""));
+      const needF = M.kentat(h).filter((f) => f.req && (f.t === "table" ? !M.rivit(h, f).length : h.kentat[f.k] == null || String(h.kentat[f.k]).trim() === ""));
       const nb = $("[data-need]");
       nb.classList.toggle("hidden", !(hasContent() && needF.length));
       if (hasContent() && needF.length) { const n = $("[data-cl] .cl-n"); if (n) n.remove(); }   // puute näkyy jo selkeämmin
@@ -167,7 +170,15 @@
       if (!hasContent()) return false;
       await Model.saveHavainto(h);
       saved = true;
+      syncUrl();
       return true;
+    }
+    // Osoite kertoo kirjattavan havainnon: takaisin havaintokortilta palaa samaan havaintoon.
+    // (Ei, kun ikkuna on auki: sen historiamerkintää ei korvata.)
+    function syncUrl() {
+      const want = "#/k/" + k.id + "/kuvaus" + (saved ? "/" + h.id : "");
+      if (!alive || location.hash === want || (history.state && history.state.ksSheet)) return;
+      try { history.replaceState(null, "", want); } catch (e) { /* ei historiaa */ }
     }
     const persist = UI.debounce(async () => { await saveNow(); paintStatus(); }, 500);
     function rememberContext() {
@@ -182,7 +193,7 @@
         ta.value = DictButton.appendText(ta.value, text);
         h.sanelu = ta.value;
         persist();
-        runAuto();
+        autoP = runAuto();
       },
       onPreview: (t) => { $("[data-prev]").textContent = t || "Puhu nyt…"; },
       onState: (st, msg) => {
@@ -190,7 +201,7 @@
         live.classList.toggle("hidden", !on);
         $("[data-lst]").textContent = st === "recording" ? "Äänitetään" : dict.locked ? "Sanelu (napauta mikrofonia lopettaaksesi)" : "Sanelu: vapauta kun valmis";
         if (on) $("[data-prev]").textContent = msg || "Puhu nyt…";
-        if (st === "error" && msg) toast(msg, 4000);
+        if ((st === "error" || st === "empty") && msg) toast(msg, 4000);
         micBtn.paint();
       },
       onAudio: async (blob) => {
@@ -263,9 +274,14 @@
     /* ---------- Siirtymät ---------- */
     async function flush() {
       await pendingShots;
-      if (dict.active) { dict.stop(); await new Promise((r) => setTimeout(r, 700)); }   // odotetaan sanelun teksti
+      // Odotetaan sanelun teksti (tunnistus antaa sen pienellä viiveellä lopetuksen jälkeen)
+      if (dict.active) dict.stop();
+      for (let i = 0; i < 40 && dict.rec; i++) await new Promise((r) => setTimeout(r, 50));
       h.sanelu = ta.value;
-      persist.flush();
+      // Tunnistus valmiiksi ennen siirtymää: kirjoitettu tai juuri saneltu teksti täyttää kentät aina
+      autoSoon.cancel();
+      try { await autoP; await runAuto(); } catch (e) { console.warn(e); }
+      persist.cancel();
       await saveNow();
       if (saved) {
         await rememberContext();
@@ -285,8 +301,9 @@
       toast(nro(h.nro) + " tallennettu" + (miss.length ? " · täydennä myöhemmin: " + miss.slice(0, 2).join(", ") + (miss.length > 2 ? "…" : "") : ""), 2600);
       // Uusi havainto samaan paikkaan samalla menetelmällä
       prevId = h.id;
-      h = newObservation({ menetelma: h.menetelma });
+      h = newObservation({ menetelma: h.menetelma, kaOsa: h.kaOsa, kaCarry: true });
       saved = false;
+      syncUrl();
       paintAll();
       ta.blur();
     }
@@ -303,7 +320,7 @@
         toast("Kuvat menevät nyt havaintoon " + nro(h.nro), 2200);
       } else {
         prevId = from;
-        h = newObservation({ menetelma: h.menetelma });
+        h = newObservation({ menetelma: h.menetelma, kaOsa: h.kaOsa, kaCarry: true });
         saved = false;
       }
       try { history.replaceState(null, "", "#/k/" + k.id + "/kuvaus" + (saved ? "/" + h.id : "")); } catch (e) { /* ei historiaa */ }
@@ -319,6 +336,7 @@
       if (cur && cur.menetelma !== id) { h.suunnitelmaId = null; h.auto = Object.assign({}, h.auto, { kohta: true }); }
       Auto.manual(h, "menetelma");
       Auto.autoKohta(h); Auto.autoTunnus(h);
+      if (window.FieldFill) FieldFill.apply(h);
       paintMethods(); paintStatus();
       if (saved) persist();
     }
@@ -346,7 +364,9 @@
       else if (c === "more") MethodPicker.openSheet({ selected: h.menetelma, excludeHavainto: h.id, onSelect: selectMethod });
       else if (c === "loc") {
         Plan.locationSheet(h.sijainti, async (s) => {
-          h.sijainti = s; Auto.manual(h, "tila"); Auto.manual(h, "rakenneosa"); Auto.autoKohta(h); paintLoc(); paintStatus();
+          h.sijainti = s; Auto.manual(h, "tila"); Auto.manual(h, "rakenneosa"); Auto.autoKohta(h);
+          if (window.FieldFill) FieldFill.apply(h);          // esim. märkätilan tyyppi ja asunto tilasta
+          paintLoc(); paintStatus();
           if (saved) await Model.saveHavainto(h);
         });
       }
@@ -362,7 +382,7 @@
       $("[data-vfmsg]").innerHTML = "<div>Selaimen kameraa ei saatu käyttöön.<br>Laukaisin avaa puhelimen kamerasovelluksen.</div>";
     }
 
-    S.cleanup = () => { release(); dict.stop(); Camera.stop(); h.sanelu = ta.value; persist.flush(); };
+    S.cleanup = () => { alive = false; release(); dict.stop(); Camera.stop(); h.sanelu = ta.value; persist.flush(); };
   }
 
   window.Capture = { view };

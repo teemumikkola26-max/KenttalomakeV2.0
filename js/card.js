@@ -16,6 +16,12 @@
     return fieldInner(f, val, lbl, cls, nh);
   }
   function fieldInner(f, val, lbl, cls, nh) {
+    // Tarkistuslistan valinta sirurivinä: yksi napautus (napautus uudelleen tyhjentää)
+    if (f.t === "select" && f.ow) {
+      return '<div class="' + cls + ' chipfield" style="grid-column:1/-1">' + lbl + '<div class="chips">' +
+        f.o.map((o) => '<button type="button" class="chip' + (f.okv ? (o === f.okv ? " c-ok" : " c-note") : "") + '" data-a="chipv" data-k="' + f.k + '" data-v="' + esc(o) + '" aria-pressed="' + (o === val) + '">' + esc(o) + "</button>").join("") +
+        "</div>" + nh + "</div>";
+    }
     if (f.t === "select") {
       return '<label class="' + cls + '">' + lbl + '<select data-fk="' + f.k + '"><option value="">Valitse</option>' +
         f.o.map((o) => '<option' + (o === val ? " selected" : "") + ">" + esc(o) + "</option>").join("") + "</select>" + nh + "</label>";
@@ -42,6 +48,8 @@
     const k = S.kohde;
     const h = Model.havainto(id);
     if (!h) { location.hash = "#/k/" + k.id; return; }
+    // Tarkistuslomake: tilasta pääteltävät tiedot (märkätilan tyyppi, asunto) valmiiksi
+    if (window.FieldFill && M.menetelma(h.menetelma).lomake && FieldFill.apply(h).length) await Model.saveHavainto(h);
     await Model.ensureUrls(h.kuvat.concat(h.aanitteet || []));
     for (const f of M.menetelma(h.menetelma).kentat.filter((x) => x.t === "table")) {
       await Model.ensureUrls(M.rivit(h, f).map((r) => r._ocr && r._ocr.rajaus).filter(Boolean));
@@ -60,6 +68,7 @@
         const mem = Model.muistiGet(h.menetelma + "." + f.k);
         if (f.muista && mem && !h.kentat[f.k]) h.kentat[f.k] = mem;
       });
+      if (window.FieldFill) FieldFill.apply(h);
       const cur = Model.kohta(h.suunnitelmaId);
       if (cur && cur.menetelma !== h.menetelma) { h.suunnitelmaId = null; if (h.auto) h.auto.kohta = true; }
       Auto.manual(h, "menetelma");
@@ -80,7 +89,7 @@
     async function runAuto() {
       const changes = await Auto.apply(h);
       if (!changes.length) return;
-      const shown = changes.filter((c) => ["menetelmä", "tulos", "tila", "rakenneosa", "kenttä", "taulukko"].includes(c.kentta));
+      const shown = changes.filter((c) => ["menetelmä", "tulos", "tila", "rakenneosa", "rakennusosa", "kenttä", "taulukko"].includes(c.kentta));
       if (shown.length) toast("Sanelusta: " + shown.slice(0, 3).map((c) => c.arvo).join(", ") + (shown.length > 3 ? " ja " + (shown.length - 3) + " muuta" : ""), 3000);
       save(); paint();
     }
@@ -103,13 +112,18 @@
          Puuttuva vähimmäistieto näytetään selvästi esimerkkilauseen kanssa. Muut kentät saa
          esiin napauttamalla (+ kenttä). */
       const filled = (f) => f.t === "table" ? M.rivit(h, f).length > 0 : h.kentat[f.k] != null && String(h.kentat[f.k]).trim() !== "";
-      const shownF = m.kentat.filter((f) => filled(f) || f.req || extraFields.has(f.k));
-      const hiddenF = m.kentat.filter((f) => !shownF.includes(f));
-      const reqF = m.kentat.filter((f) => f.req), reqOk = reqF.filter(filled).length;
+      // Tarkistuslista (lomake) näyttää kaikki tilatyypin kohdat; muut menetelmät täytetyt ja vähimmäistiedot
+      const vis = M.kentat(h);
+      const shownF = vis.filter((f) => m.lomake || filled(f) || f.req || extraFields.has(f.k));
+      const hiddenF = vis.filter((f) => !shownF.includes(f));
+      const reqF = vis.filter((f) => f.req), reqOk = reqF.filter(filled).length;
+      const okF = vis.filter((f) => f.okv && !filled(f));
       const mit = m.kentat.length
         ? '<section class="card"><div class="card-h"><h2>' + esc(m.nimi) + "</h2>" +
           (reqF.length ? '<span class="meta' + (reqOk < reqF.length ? " need-meta" : "") + '">Vähimmäistiedot ' + reqOk + "/" + reqF.length + "</span>" : "") + '</div><div class="card-b">' +
           '<div class="grid2">' + shownF.map((f) => f.t === "table" ? tableHtml(f, f.req && !filled(f)) : fieldHtml(f, h.kentat[f.k] != null ? h.kentat[f.k] : "", !!(h.auto && h.auto["k:" + f.k] === "sanelu"), f.req && !filled(f))).join("") + "</div>" +
+          (okF.length ? '<button class="btn btn-block" data-a="okloput" style="margin:6px 0 4px">' + icon("ok") + "Muut kohdat kunnossa (" + okF.length + ")</button>" +
+            '<p class="hint" style="margin:0 0 8px">Merkitsee tyhjät tarkistuskohdat kunnossa-arvolla. Sanele tai valitse ensin puutteet.</p>' : "") +
           (hiddenF.length ? '<div class="chips more-fields">' + hiddenF.map((f) => '<button class="chip" data-a="addfield" data-k="' + f.k + '">+ ' + esc(f.l) + "</button>").join("") + "</div>" : "") +
           (m.kentat.some((f) => f.mittaus || (f.t === "table" && (f.sarakkeet || []).some((c) => c.mittaus)))
             ? '<p class="hint">Varmat kameraluvut ja itse kirjoitetut arvot ovat vahvistettuja. Oranssilla merkityt lukemat tarkistetaan napauttamalla riviä. Mikrofonilla merkityt rivit tulivat sanelusta: tarkista luvut, puheentunnistus voi kuulla numeron väärin.</p>'
@@ -139,6 +153,8 @@
         '<a class="link" href="#/menetelmat" style="font-size:13px;padding:0 0 6px">Muokkaa menetelmiä</a></div>' +
         '<div data-mpick style="margin-bottom:14px"></div>' +
         (k.suunnitelma.length ? '<label class="field" style="margin:0"><span>Tutkimussuunnitelman kohta</span><select data-a="kohta">' + kohtaOptions() + "</select></label>" : "") +
+        (window.Kuntoarvio && Kuntoarvio.aktiivinen() ? '<label class="field" style="margin:12px 0 0"><span>Kuntoarvion rakennusosa' + autoTag("kaOsa") + '</span><select data-a="kaosa"><option value="">Ei liitetty</option>' +
+          KAData.RYHMAT.map((r) => '<optgroup label="' + esc(r.nimi) + '">' + KAData.OSAT.filter((d) => d.r === r.id).map((d) => '<option value="' + d.id + '"' + (h.kaOsa === d.id ? " selected" : "") + ">" + esc(d.nimi) + "</option>").join("") + "</optgroup>").join("") + "</select></label>" : "") +
         "</div></section>" +
 
         mit +
@@ -308,7 +324,7 @@
         },
         onPreview: (t) => { const el = root.querySelector('[data-prev="' + target + '"]'); if (el) el.textContent = t; },
         onState: (st, msg) => {
-          if (st === "error" && msg) toast(msg, 4000);
+          if ((st === "error" || st === "empty") && msg) toast(msg, 4000);
           if (st === "recording" && msg) toast(msg, 3000);
           const b = binds[target]; if (b) b.paint();
         },
@@ -405,6 +421,7 @@
     root.onchange = (e) => {
       const t = e.target;
       if (t.matches('[data-a="kohta"]')) { h.suunnitelmaId = t.value || null; Auto.manual(h, "kohta"); save(); }
+      else if (t.matches('[data-a="kaosa"]')) { h.kaOsa = t.value || null; Auto.manual(h, "kaOsa"); save(); }
       else if (t.matches('textarea[data-t="sanelu"]')) runAuto();
       else if (t.matches("[data-tc]")) {
         const f = tableField(t.dataset.tf);
@@ -469,6 +486,21 @@
         });
         return;
       }
+      if (a === "okloput") {
+        const vis = M.kentat(h).filter((f) => f.okv && (h.kentat[f.k] == null || h.kentat[f.k] === ""));
+        vis.forEach((f) => { h.kentat[f.k] = f.okv; Auto.manual(h, "k:" + f.k); });
+        const dev = M.kentat(h).some((f) => f.okv && h.kentat[f.k] && h.kentat[f.k] !== f.okv);
+        if (!h.tulos) { h.tulos = dev ? "poikkeama" : "ok"; h.auto = h.auto || {}; h.auto.tulos = "sanelu"; }
+        save(); paint(); toast(vis.length + " kohtaa merkitty kunnossa"); return;
+      }
+      if (a === "chipv") {
+        const f = M.menetelma(h.menetelma).kentat.find((x) => x.k === b.dataset.k);
+        h.kentat[b.dataset.k] = h.kentat[b.dataset.k] === b.dataset.v ? "" : b.dataset.v;
+        Auto.manual(h, "k:" + b.dataset.k);
+        if (f && f.muista) Model.muistiSet(h.menetelma + "." + f.k, h.kentat[f.k]);
+        if (window.FieldFill && f && f.okv) FieldFill.apply(h);    // puute -> poikkeama
+        save(); paint(); return;
+      }
       if (a === "tulos") { h.tulos = h.tulos === b.dataset.v ? null : b.dataset.v; Auto.manual(h, "tulos"); save(); paint(); }
       else if (a === "men") {
         selectMethod(b.dataset.v);
@@ -497,7 +529,7 @@
           toast(target.l + ": " + s.arvo.replace(".", ",") + " " + s.u + ". Tarkista arvo.");
         }
       }
-      else if (a === "loc") Plan.locationSheet(h.sijainti, (s) => { h.sijainti = s; Auto.manual(h, "tila"); Auto.manual(h, "rakenneosa"); save(); paint(); });
+      else if (a === "loc") Plan.locationSheet(h.sijainti, (s) => { h.sijainti = s; Auto.manual(h, "tila"); Auto.manual(h, "rakenneosa"); if (window.FieldFill) FieldFill.apply(h); save(); paint(); });
       else if (a === "view") viewer(+b.dataset.i);
       else if (a === "next") {
         save.flush();
