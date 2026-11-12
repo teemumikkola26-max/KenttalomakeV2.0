@@ -8,6 +8,7 @@
      aanitteet/H01_1.webm …
      pohjapiirrokset/<kerros>.png            merkinnöin
      pohjapiirrokset/<kerros>_alkuperainen.* ilman merkintöjä
+     varmuuskopio/seuranta/MIR12_1.jpg       mittalaitteiden sijoittelukuvat (poishakua varten, ei raporttiin)
      varmuuskopio/data.json                  kohteen palautukseen
    ========================================================================= */
 (function () {
@@ -64,7 +65,30 @@
       g.fillStyle = "#fff"; g.font = "700 " + Math.round(r * 0.95) + "px sans-serif";
       g.fillText(nro(h.nro), x, y + 1);
     });
+    // olosuhdeseurannan mittalaitteet (neliö + tunnus)
+    (S.kohde.seuranta || []).filter((x) => x.nro && x.sijainti.piste && x.sijainti.kerrosId === kerros.id).forEach((x) => {
+      const lbl = Seuranta.tunnus(x);
+      g.font = "700 " + Math.round(r * 0.95) + "px sans-serif";
+      const w = g.measureText(lbl).width + r * 0.9;
+      const px = x.sijainti.piste.x * c.width, py = x.sijainti.piste.y * c.height;
+      g.fillStyle = "#1f5f8b"; g.strokeStyle = "#fff"; g.lineWidth = Math.max(2, r / 5); g.setLineDash([]);
+      g.beginPath(); g.rect(px - w / 2, py - r * 0.85, w, r * 1.7); g.fill(); g.stroke();
+      g.fillStyle = "#fff"; g.fillText(lbl, px, py + 1);
+    });
     return await new Promise((res) => c.toBlob(res, "image/png"));
+  }
+
+  function seurantaJson() {
+    const all = Seuranta.sorted().filter((x) => x.nro || x.sijainti.tilaId || x.kuvat.length);
+    if (!all.length) return null;
+    return {
+      selite: "Olosuhdeseurannan mittalaitteiden sijainnit. Mittausdata saadaan mittalaitteiden pilvipalvelusta.",
+      mittalaitteet: all.map((x) => {
+        const e = Model.kerros(x.sijainti.kerrosId), t = Model.tila(x.sijainti.tilaId);
+        return { tunnus: Seuranta.tunnus(x) || null, kerros: e ? e.nimi : null, tila: t ? Model.tilaNimi(t) : null,
+          pohjapiirros: x.sijainti.piste ? { x_pros: Math.round(x.sijainti.piste.x * 1000) / 10, y_pros: Math.round(x.sijainti.piste.y * 1000) / 10 } : null };
+      })
+    };
   }
 
   function mittausRivit(h) {
@@ -160,6 +184,7 @@
           kirjattu: new Date(h.created).toISOString()
         };
       }),
+      olosuhdeseuranta: seurantaJson(),
       avoimet_puutteet: puutteet.map((x) => x.otsikko + ": " + x.selite)
     };
   }
@@ -229,6 +254,16 @@
       L.push("**Tutkijan alustava tulkinta:** " + (h.tutkijan_alustava_tulkinta || "–"));
       L.push("");
     });
+    if (j.olosuhdeseuranta) {
+      L.push("## Olosuhdeseuranta: mittalaitteiden sijainnit");
+      L.push("");
+      L.push("Mittausdata saadaan mittalaitteiden pilvipalvelusta. Sijainnit on merkitty pohjapiirroksiin laitteen tunnuksella.");
+      L.push("");
+      L.push("| Tunnus | Kerros | Tila |");
+      L.push("|---|---|---|");
+      j.olosuhdeseuranta.mittalaitteet.forEach((x) => L.push("| " + (x.tunnus || "–") + " | " + (x.kerros || "–") + " | " + (x.tila || "–") + " |"));
+      L.push("");
+    }
     if (j.avoimet_puutteet.length) {
       L.push("## Avoimet puutteet viennin hetkellä");
       L.push("");
@@ -247,7 +282,7 @@
     "  kuvat/           kuvat, nimetty havainnon tunnuksella (H01_1.jpg);\n" +
     "                   mittarin näytön kuvat H01_lukema_1.jpg\n" +
     "  aanitteet/       sanelut äänitteinä, jos puheentunnistus ei ollut käytössä\n" +
-    "  pohjapiirrokset/ pohjapiirrokset havainto- ja tilamerkinnöin\n" +
+    "  pohjapiirrokset/ pohjapiirrokset havainto-, tila- ja mittalaitemerkinnöin\n" +
     "  varmuuskopio/    sovelluksen omat tiedot palautusta varten\n\n" +
     "OHJE RAPORTIN LAATIJALLE (MYÖS AI-TYÖKALU)\n\n" +
     "1. Mittausarvoina käytetään vain kohdan \"Mittaustulokset (vahvistettu)\" arvoja.\n" +
@@ -273,7 +308,11 @@
     "8. Tilojen nimet on osin luettu pohjakuvasta automaattisesti. Nimi on\n" +
     "   vahvistettu (nimi_vahvistettu), kun tutkija on käyttänyt tilaa havainnon\n" +
     "   sijaintina, muokannut tai kuitannut sen. Vahvistamattoman tilan nimeä ei\n" +
-    "   esitetä tutkijan toteamana; se merkitään tarvittaessa tarkistettavaksi.\n";
+    "   esitetä tutkijan toteamana; se merkitään tarvittaessa tarkistettavaksi.\n" +
+    "9. Olosuhdeseurannasta paketissa ovat vain mittalaitteiden tunnukset ja\n" +
+    "   sijainnit (tila ja merkintä pohjapiirroksessa). Mittausdata saadaan\n" +
+    "   mittalaitteiden pilvipalvelusta. Laitteiden sijoittelukuvat ovat vain\n" +
+    "   poishakua varten (varmuuskopio/seuranta/), eikä niitä käytetä raportissa.\n";
 
   async function run(keskenerainen) {
     const k = S.kohde;
@@ -320,6 +359,15 @@
           zip.file(p, f.blob);
           paths.aanitteet[h.id].push(p);
           backupFiles[f.id] = p;
+        }
+      }
+      // Mittalaitteiden sijoittelukuvat: vain varmuuskopioon (ei raportin kuviin)
+      for (const x of (k.seuranta || [])) {
+        for (let i = 0; i < x.kuvat.length; i++) {
+          const f = await DB.get("tiedostot", x.kuvat[i]);
+          if (!f) continue;
+          const p = "varmuuskopio/seuranta/" + (Seuranta.tunnus(x) || "laite_" + x.id.slice(-4)) + "_" + (i + 1) + "." + ext(f.blob.type);
+          zip.file(p, f.blob); backupFiles[f.id] = p;
         }
       }
       for (const e of k.kerrokset) {

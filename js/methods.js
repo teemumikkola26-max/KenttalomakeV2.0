@@ -97,6 +97,8 @@
         { k: "jakso", l: "Tarkastelujakso", t: "text" }
       ]
     },
+    // Olosuhdeseuranta on kohteen yhteinen mittaus: mittalaitteet kirjataan Olosuhdeseuranta-näkymässä, ei havaintoina.
+    { id: "seuranta", nimi: "Olosuhdeseuranta", lyhyt: "Seuranta", seuranta: true, kentat: [] },
     { id: "muu", nimi: "Muu menetelmä", lyhyt: "Muu", kentat: [
       { k: "nimi", l: "Menetelmän nimi", t: "text", req: true }
     ] }
@@ -150,10 +152,17 @@
               M.MENETELMAT[i] = uusi; muuttui = true;
             }
           });
+          // Uudet oletusmenetelmät (esim. olosuhdeseuranta) lisätään aiempaan asennukseen
+          OLETUKSET.filter((o) => o.seuranta && !M.MENETELMAT.some((m) => m.id === o.id)).forEach((o) => {
+            const i = M.MENETELMAT.findIndex((m) => m.id === "muu");
+            M.MENETELMAT.splice(i >= 0 ? i : M.MENETELMAT.length, 0, clone(o)); muuttui = true;
+          });
           if (muuttui) await M.save();
         }
       } catch (e) { console.warn("Menetelmien lataus epäonnistui", e); }
     },
+    /* Havainnoille valittavat menetelmät (olosuhdeseuranta ei ole havainto) */
+    havaintoMenetelmat() { return M.MENETELMAT.filter((m) => !m.piilotettu && !m.seuranta); },
     async save() {
       await DB.put("asetukset", { id: "menetelmat", lista: M.MENETELMAT, muokattu: Date.now() });
     },

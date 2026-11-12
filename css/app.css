@@ -477,3 +477,22 @@ details.vocab>summary h2::before{content:"▸";display:inline-block;width:1em;co
 details.vocab[open]>summary h2::before{transform:rotate(90deg)}
 details.vocab:not([open])>summary{border-bottom:none}
 .vb-ed{color:var(--safety);font-weight:700}
+/* Olosuhdeseuranta */
+.pin.mir{background:#1f5f8b;border-radius:5px;min-width:auto;height:auto;padding:3px 6px;font-size:11px;letter-spacing:.02em}
+.pin.mir.sel{outline:3px solid var(--safety);outline-offset:1px}
+.mir-in{display:flex;align-items:center;gap:10px;margin-top:6px}
+.mir-in b{font-size:30px;letter-spacing:.04em;color:var(--ink)}
+.mir-in input{font-size:30px;font-weight:700;width:5.2ch;text-align:center;padding:8px 6px;letter-spacing:.04em}
+.seur-thumb{width:52px;height:52px;border-radius:8px;overflow:hidden;background:var(--paper-2,#eceae3);display:flex;align-items:center;justify-content:center;flex:none;color:var(--muted)}
+.seur-thumb img{width:100%;height:100%;object-fit:cover}
+.seur-kuvat{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.seur-kuva{position:relative;width:104px;height:104px;border-radius:10px;overflow:hidden}
+.seur-kuva img{width:100%;height:100%;object-fit:cover;cursor:zoom-in}
+.seur-kuva .icon-btn{position:absolute;right:4px;top:4px;background:rgba(255,255,255,.92);width:34px;height:34px;min-height:0}
+.seur-loc{width:100%;display:flex;align-items:center;gap:10px;min-height:56px;padding:8px 14px;border:1px solid var(--line);border-radius:12px;background:var(--raised);color:var(--ink);font-size:15px;cursor:pointer;text-align:left}
+.seur-loc .sub{display:block;font-size:12.5px;color:var(--muted);margin-top:2px}
+.seur-loc.missing{border:1.5px dashed var(--note-line)}
+.seur-mini{margin-top:10px}
+.seur-link{background:var(--raised);border:1px solid var(--line);box-shadow:var(--shadow)}
+.warn-dot{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:8px;background:var(--note-line);color:#fff;font-size:11px;font-weight:700;margin-left:4px}
+.row-btns>a.btn{flex:1;justify-content:center}

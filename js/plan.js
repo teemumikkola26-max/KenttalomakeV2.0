@@ -400,6 +400,8 @@
       const p = h.sijainti.piste;
       out += '<button class="pin ' + App.pinClass(h) + '" data-obs="' + h.id + '" style="left:' + (p.x * 100) + "%;top:" + (p.y * 100) + '%' + (opts.dim ? ";opacity:.45" : "") + '" aria-label="Havainto ' + nro(h.nro) + '">' + h.nro + "</button>";
     });
+    // olosuhdeseurannan mittalaitteet
+    if (window.Seuranta && !opts.noMir) out += Seuranta.pinsHtml(kerrosId, { dim: opts.dim, except: opts.mirExcept });
     return out;
   }
 
@@ -453,6 +455,7 @@
     root.onclick = async (e) => {
       const room = e.target.closest("[data-room]");
       const obs = e.target.closest("[data-obs]");
+      const mir = e.target.closest("[data-mir]");
       const planEl = e.target.closest("[data-plan]");
       if (placingRoom && planEl) {
         const t = Model.tila(placingRoom);
@@ -461,6 +464,7 @@
       }
       if (room) { roomActions(Model.tila(room.dataset.room)); return; }
       if (obs) { obsPopup(Model.havainto(obs.dataset.obs)); return; }
+      if (mir) { location.hash = "#/k/" + k.id + "/seuranta/" + mir.dataset.mir; return; }
       const b = e.target.closest("[data-a]");
       if (!b) return;
       const a = b.dataset.a;
@@ -519,7 +523,9 @@
     return out.slice(0, n || 6);
   }
 
-  function locationSheet(sij, onDone) {
+  /* opts: noPart (ei rakenneosaa), title, hint, mirExcept (mittalaite, jonka vanha merkki piilotetaan) */
+  function locationSheet(sij, onDone, opts) {
+    opts = opts || {};
     const k = S.kohde;
     const s = JSON.parse(JSON.stringify(sij || {}));
     if (!s.kerrosId && k.kerrokset[0]) s.kerrosId = k.kerrokset[0].id;
@@ -547,7 +553,7 @@
       const recent = recentRooms(6).filter((t) => !cur || t.id !== cur.id);
       const many = rooms.length > 15;
       el.querySelector("[data-body]").innerHTML =
-        '<div class="loc-head"><h3 style="margin:0">Sijainti</h3><span class="loc-cur' + (cur ? "" : " missing") + '">' + icon("pin") +
+        '<div class="loc-head"><h3 style="margin:0">' + esc(opts.title || "Sijainti") + '</h3><span class="loc-cur' + (cur ? "" : " missing") + '">' + icon("pin") +
           esc(cur ? Model.tilaNimi(cur) : "Tila valitsematta") + "</span></div>" +
         '<label class="mp-search" style="margin:10px 0 0">' + icon("list") +
           '<input type="search" data-q value="' + esc(query) + '" placeholder="Hae tila: A101, wc, keittiö…" aria-label="Hae tila" autocomplete="off"></label>' +
@@ -557,8 +563,8 @@
           k.kerrokset.map((e) => '<button class="chip" data-k="' + e.id + '" aria-pressed="' + (e.id === s.kerrosId) + '">' + esc(e.nimi) + "</button>").join("") +
           '<button class="chip" data-a="addFloor">+ Kerros</button></div></div>' : "") +
         (kerros && kerros.planId
-          ? '<div class="sect"><span class="label">Napauta tilaa tai kohtaa pohjapiirroksessa</span><div class="plan-wrap placing" data-plan><img src="' + Model.url(kerros.planId) + '" alt="" draggable="false">' +
-              pinsHtml(kerros.id, { dim: true, except: "__none__", sel: s.tilaId }) +
+          ? '<div class="sect"><span class="label">' + esc(opts.hint || "Napauta tilaa tai kohtaa pohjapiirroksessa") + '</span><div class="plan-wrap placing" data-plan><img src="' + Model.url(kerros.planId) + '" alt="" draggable="false">' +
+              pinsHtml(kerros.id, { dim: true, except: "__none__", sel: s.tilaId, mirExcept: opts.mirExcept }) +
               (s.piste && s.piste.x != null ? '<span class="pin newpin" style="left:' + (s.piste.x * 100) + "%;top:" + (s.piste.y * 100) + '%"></span>' : "") + "</div>" +
               (s.piste ? '<button class="link" data-a="clearPt">Poista kohta</button>' : "") + "</div>"
           : "") +
@@ -568,8 +574,8 @@
             (many && !showAll ? '<button class="chip" data-a="all">Näytä kaikki ' + rooms.length + " tilaa</button>" : "") +
             '<button class="chip" data-a="addRoom">+ Uusi tila</button></div></div>'
           : kerros ? '<button class="link" data-a="all" style="margin-top:6px">Näytä kaikki ' + rooms.length + " tilaa listana</button>" : "") +
-        '<div class="sect"><span class="label">Rakenneosa (valinnainen)</span><div class="chips">' +
-          M.RAKENNEOSAT.map((r) => '<button class="chip" data-r="' + esc(r) + '" aria-pressed="' + (r === s.rakenneosa) + '">' + esc(r) + "</button>").join("") + "</div></div>" +
+        (opts.noPart ? "" : '<div class="sect"><span class="label">Rakenneosa (valinnainen)</span><div class="chips">' +
+          M.RAKENNEOSAT.map((r) => '<button class="chip" data-r="' + esc(r) + '" aria-pressed="' + (r === s.rakenneosa) + '">' + esc(r) + "</button>").join("") + "</div></div>") +
         '<div class="row-btns"><button class="btn" data-a="cancel">Peruuta</button><button class="btn btn-primary" data-a="ok">Valmis</button></div>';
       paintResults();
       const qi = el.querySelector("[data-q]");

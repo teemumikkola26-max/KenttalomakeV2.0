@@ -2,11 +2,11 @@
    - Omat tiedostot: verkko ensin (3,5 s), muuten välimuisti.
    - CDN-kirjastot (jszip, pdf.js): välimuisti ensin, ladataan valmiiksi.
    Nosta CACHE-versiota aina, kun julkaiset muutoksia. */
-const CACHE = "kuva-sanelu-v20";
+const CACHE = "kuva-sanelu-v21";
 const SHELL = [
   "./", "index.html", "css/app.css",
   "js/ui.js", "js/db.js", "js/methods.js", "js/vocab.js", "js/vocabview.js", "js/dictation.js", "js/camera.js",
-  "js/app.js", "js/plan.js", "js/check.js", "js/capture.js", "js/card.js", "js/export.js", "js/editor.js", "js/lukulaite-ocr.js", "js/meter.js", "js/methodpicker.js", "js/learn.js", "js/autofill.js", "js/fieldfill.js", "js/planrooms.js", "js/zoom.js", "js/obslist.js", "js/gallery.js", "kameraluku-testi.html",
+  "js/app.js", "js/plan.js", "js/check.js", "js/seuranta.js", "js/capture.js", "js/card.js", "js/export.js", "js/editor.js", "js/lukulaite-ocr.js", "js/meter.js", "js/methodpicker.js", "js/learn.js", "js/autofill.js", "js/fieldfill.js", "js/planrooms.js", "js/zoom.js", "js/obslist.js", "js/gallery.js", "kameraluku-testi.html",
   "manifest.webmanifest", "pbm-logo.png", "icon-192.png", "icon-512.png", "icon-maskable-512.png"
 ];
 const CDN = [

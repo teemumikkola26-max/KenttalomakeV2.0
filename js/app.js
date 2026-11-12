@@ -110,7 +110,11 @@
       return "ei_tutkittu";
     },
 
-    kohtaTehty(p) { return S.havainnot.filter((h) => h.suunnitelmaId === p.id).length; },
+    kohtaTehty(p) {
+      // Olosuhdeseurannassa tehty = kirjatut mittalaitteet
+      if (M.menetelma(p.menetelma).seuranta) return (S.kohde.seuranta || []).filter((x) => x.nro).length;
+      return S.havainnot.filter((h) => h.suunnitelmaId === p.id).length;
+    },
     kohtaValmis(p) { return !!p.pois || Model.kohtaTehty(p) >= (p.maara || 1); },
 
     kohtaNimi(p) {
@@ -245,6 +249,7 @@
       '<section class="card"><div class="card-h"><h2>Tutkimussuunnitelma</h2><a class="link" href="#/k/' + k.id + '/suunnitelma">Muokkaa</a></div>' +
       (plan || '<div class="empty">Lisää suunnitelman kohdat, niin näet kentällä mitä on tehty ja mitä puuttuu.<br><br><a class="btn btn-sm" href="#/k/' + k.id + '/suunnitelma">' + icon("plus") + "Lisää kohdat</a></div>") +
       "</section>" +
+      Seuranta.kohdeCard() +
       '<section class="card"><div class="card-h"><h2>Viimeisimmät havainnot</h2>' +
       (S.havainnot.length ? '<a class="link" href="#/k/' + k.id + '/havainnot">Kaikki ' + S.havainnot.length + "</a>" : "") + "</div>" +
       '<div class="card-b">' + (rec ? '<div class="recent">' + rec + "</div>" : '<div class="empty" style="padding:6px 0 4px">Ei vielä havaintoja.</div>') + "</div></section>" +
@@ -423,18 +428,23 @@
   function kohtaActions(p) {
     const k = S.kohde;
     const linked = S.havainnot.filter((h) => h.suunnitelmaId === p.id);
+    const seur = M.menetelma(p.menetelma).seuranta;
     sheet(
       "<h3>" + esc(Model.kohtaNimi(p)) + "</h3>" +
       "<p>" + (p.pois ? "Jätetään pois: " + esc(p.pois.syy) : "Tehty " + Model.kohtaTehty(p) + " / " + (p.maara || 1)) + "</p>" +
       '<div style="display:flex;flex-direction:column;gap:8px">' +
-      '<button class="btn btn-primary" data-a="kuva">' + icon("cam") + "Kuva + sanelu tähän kohtaan</button>" +
+      (seur ? '<button class="btn btn-primary" data-a="seur">' + icon("pin") + "Olosuhdeseuranta: mittalaitteet</button>"
+            : '<button class="btn btn-primary" data-a="kuva">' + icon("cam") + "Kuva + sanelu tähän kohtaan</button>") +
       linked.map((h) => '<button class="btn" data-h="' + h.id + '">' + nro(h.nro) + " · " + esc(Model.sijaintiTeksti(h.sijainti) || "Sijainti puuttuu") + "</button>").join("") +
       (p.pois ? '<button class="btn" data-a="palauta">Palauta tehtäväksi</button>' : '<button class="btn" data-a="pois">Jätetään pois + syy</button>') +
       '<button class="btn" data-close>Sulje</button></div>',
       (el, close) => {
-        el.querySelector('[data-a="kuva"]').addEventListener("click", () => {
+        const kv = el.querySelector('[data-a="kuva"]');
+        if (kv) kv.addEventListener("click", () => {
           close(); location.hash = "#/k/" + k.id + "/kuvaus?menetelma=" + p.menetelma + "&kohta=" + p.id;
         });
+        const sv = el.querySelector('[data-a="seur"]');
+        if (sv) sv.addEventListener("click", () => { close(); location.hash = "#/k/" + k.id + "/seuranta"; });
         el.querySelectorAll("[data-h]").forEach((b) => b.addEventListener("click", () => { close(); location.hash = "#/k/" + k.id + "/h/" + b.dataset.h; }));
         const pois = el.querySelector('[data-a="pois"]');
         if (pois) pois.addEventListener("click", async () => {
@@ -494,6 +504,7 @@
       else if (sub === "h") await Card.view(parts[3]);
       else if (sub === "pohja") await Plan.view(q);
       else if (sub === "lahto") await Check.view();
+      else if (sub === "seuranta") await Seuranta.view(parts[3] || null);
       else await viewKohde();
     } catch (err) {
       console.error(err);

@@ -44,12 +44,12 @@
   function detectMethod(t) {
     const hits = [];
     M.MENETELMAT.forEach((m) => {
-      if (m.piilotettu) return;
+      if (m.piilotettu || m.seuranta) return;
       for (const w of methodWords(m)) { if (!w.trim()) continue; const i = t.search(stemRe(w.trim())); if (i >= 0) { hits.push({ id: m.id, i }); break; } }
     });
     // Itse lisätyt menetelmät nimen perusteella (esim. "Radonmittaus")
     M.MENETELMAT.forEach((m) => {
-      if (m.piilotettu || methodWords(m).length) return;
+      if (m.piilotettu || m.seuranta || methodWords(m).length) return;
       const n = norm(m.nimi).trim();
       if (n.length >= 5) { const i = t.indexOf(" " + n.slice(0, Math.max(5, n.length - 2))); if (i >= 0) hits.push({ id: m.id, i }); }
     });

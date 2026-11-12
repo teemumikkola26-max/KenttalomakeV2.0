@@ -146,7 +146,8 @@
       '<label class="field"><span>Nimi</span><input type="text" data-m="nimi" value="' + esc(m.nimi) + '"></label>' +
       '<label class="field" style="margin:0"><span>Lyhenne <span class="u">(havaintokortin otsikossa)</span></span><input type="text" data-m="lyhyt" value="' + esc(m.lyhyt || "") + '" maxlength="14"></label>' +
       "</div></section>" +
-      '<section class="card"><div class="card-h"><h2>Sanelun tunnistus</h2>' + (Array.isArray(m.sanat) ? '<span class="meta"><b class="vb-ed">muokattu</b></span>' : "") + '</div><div class="card-b">' +
+      (m.seuranta ? '<section class="card"><div class="card-b" style="padding-top:14px"><p style="margin:0">Olosuhdeseuranta on kohteen yhteinen mittaus. Mittalaitteet (tunnus MIR1–MIR99, tila, merkintä pohjakuvaan ja kuva sijoittelusta) kirjataan kohteen <b>Olosuhdeseuranta</b>-näkymässä, eikä menetelmällä ole havaintokohtaisia kenttiä. Mittausdata tulee raportille mittalaitteiden pilvipalvelusta.</p></div></section>' : "") +
+      (m.seuranta ? "" : '<section class="card"><div class="card-h"><h2>Sanelun tunnistus</h2>' + (Array.isArray(m.sanat) ? '<span class="meta"><b class="vb-ed">muokattu</b></span>' : "") + '</div><div class="card-b">' +
       '<label class="field"><span>Tunnistussanat <span class="u">(yksi riville)</span></span><textarea data-ms="sanat" spellcheck="false" autocapitalize="off" style="min-height:140px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:14px">' + esc(Auto.methodWords(m).join("\n")) + "</textarea></label>" +
       '<p class="hint" style="margin:-4px 0 10px">Kun sanelussa on jokin näistä, havainto saa tämän menetelmän. Sana on sanan alku (<b>pintakosteu</b> osuu sanaan pintakosteusmittaus). Lyhyt sana (<b>pko</b>, <b>ra1</b>) kirjoitetaan sellaisenaan.</p>' +
       '<label class="field" style="margin:0"><span>Tunnuksen etuliite <span class="u">(esim. M, RA, MIK, MAK)</span></span><input type="text" data-ms="etuliite" value="' + esc(m.etuliite || "") + '" placeholder="' + esc(Auto.TUNNUS_PREFIX[m.id] || "ei automaattista tunnusta") + '" maxlength="6" autocapitalize="characters"></label>' +
@@ -156,7 +157,7 @@
       '<section class="card"><div class="card-h"><h2>Kentät</h2><span class="meta">' + m.kentat.length + "</span></div>" +
       (rows || '<div class="empty">Ei kenttiä. Menetelmä kirjataan silloin pelkällä kuvalla ja sanelulla.</div>') +
       '<div class="card-b" style="padding-top:10px"><button class="btn btn-block" data-a="addField">' + icon("plus") + "Lisää kenttä</button></div></section>" +
-      '<p class="hint" style="margin:0 2px 14px">Pakollinen kenttä näkyy lähtötarkistuksessa, jos se on tyhjä. Mittaustulos vaatii tutkijan vahvistuksen, ja ZIP-paketissa se on erillään muista tiedoista.</p>' +
+      '<p class="hint" style="margin:0 2px 14px">Pakollinen kenttä näkyy lähtötarkistuksessa, jos se on tyhjä. Mittaustulos vaatii tutkijan vahvistuksen, ja ZIP-paketissa se on erillään muista tiedoista.</p>') +
       '<button class="btn btn-block" data-a="hide">' + (m.piilotettu ? "Palauta valittavaksi" : "Piilota valinnoista") + "</button>" +
       (n ? "" : '<div style="height:8px"></div><button class="btn btn-danger btn-block" data-a="del">' + icon("trash") + "Poista menetelmä</button>") +
       (n ? '<p class="hint">Menetelmää on käytetty havainnoissa, joten sitä ei voi poistaa. Piilotettu menetelmä ei näy valinnoissa, mutta vanhat havainnot säilyvät.</p>' : "") +

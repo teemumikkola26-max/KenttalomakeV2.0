@@ -44,7 +44,7 @@
       if (ex) { if (tag) ex.tag = ex.tag ? ex.tag + " · " + tag : tag; return; }
       if (!id) return;
       const m = M.MENETELMAT.find((x) => x.id === id);
-      if (!m || (m.piilotettu && id !== selected)) return;
+      if (!m || m.seuranta || (m.piilotettu && id !== selected)) return;
       out.push({ id, nimi: m.nimi, tag });
     };
     add(selected, null);
@@ -94,7 +94,7 @@
 
     function paintList() {
       const q = norm(input.value);
-      const all = M.MENETELMAT.filter((m) => !m.piilotettu);
+      const all = M.havaintoMenetelmat();
       // Ensisijaisesti sanan alusta (nimi tai lyhenne), muuten mistä kohtaa tahansa nimeä.
       const wordStart = (m) => norm(m.nimi).split(/[\s/,()-]+/).some((w) => w.startsWith(q)) || norm(m.lyhyt).startsWith(q);
       let hits = all;

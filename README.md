@@ -185,6 +185,18 @@ Taulukkokentän voi lisätä mihin tahansa menetelmään menetelmäeditorissa (t
 
 **Menetelmien päivitys:** oletusmenetelmällä on versionumero (`versio` tiedostossa `js/methods.js`). Kun versio nousee, laitteelle tallennettu vanhempi versio korvataan uudella käynnistyksen yhteydessä. Itse lisätyt menetelmät eivät muutu.
 
+## Olosuhdeseuranta (`js/seuranta.js`)
+
+Olosuhdeseuranta on kohteen yhteinen mittaus, ei tilakohtainen havainto. Mittalaitteet kirjataan kohteen **Olosuhdeseuranta**-näkymässä (kohteen etusivu, tutkimussuunnitelman kohta tai pohjapiirroksen MIR-merkki). Laitteesta kirjataan vain:
+
+- **tunnus** MIR1–MIR99: laitteen oma numero syötetään käsin (ei juokseva). Sama numero ei voi olla kohteessa kahdesti.
+- **tila ja merkintä pohjakuvaan**: samalla sijaintivalinnalla kuin havainnoissa, ilman rakenneosaa.
+- **kuva sijoittelusta**: poishakijaa varten. Kuvat eivät mene raportille; ZIP-paketissa ne ovat kansiossa `varmuuskopio/seuranta/`.
+
+*Seuraava laite* -painike avaa heti uuden laitteen samaan kerrokseen. Näkymässä on kerroksittain pohjakuvat MIR-merkein ja laiteluettelo kuvineen, joten poishakija näkee, missä laitteet ovat. Lähtötarkistus näyttää laitteet, joilta puuttuu tunnus, tila, merkintä tai kuva.
+
+ZIP-paketissa `havainnot.json` (`olosuhdeseuranta`) ja `havainnot.md` sisältävät laiteluettelon (tunnus, kerros, tila, kohta pohjakuvassa), ja laitteet on merkitty pohjapiirroksiin. Mittausdata tulee raportille mittalaitteiden pilvipalvelusta. Tutkimussuunnitelman kohdassa *Olosuhdeseuranta* tehty-määrä on kirjattujen laitteiden määrä.
+
 ## Tallennus ja tietosuoja
 
 - Tiedot tallentuvat vain laitteen selaimeen (IndexedDB). Palvelinta tai pilveä ei ole.
@@ -258,6 +270,7 @@ js/zoom.js             pohjapiirroksen zoomaus, siirto ja koko näyttö
 js/obslist.js          havaintojen haku ja valinta
 js/gallery.js          galleriakuvien liittäminen ottoajan perusteella
 js/check.js            lähtötarkistus
+js/seuranta.js         olosuhdeseurannan mittalaitteet
 js/export.js           ZIP-vienti ja palautus
 sw.js                  toiminta ilman verkkoa
 ```

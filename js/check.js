@@ -46,6 +46,17 @@
         toimintoTeksti: "Täydennä"
       });
     });
+
+    (k.seuranta || []).forEach((x) => {
+      const puuttuu = Seuranta.puutteet(x);
+      if (!puuttuu.length || puuttuu.length === 4) return;   // täysin tyhjä luonnos ei ole puute
+      const t = Model.tila(x.sijainti.tilaId);
+      out.push({
+        tyyppi: "seuranta", id: x.id, otsikko: (Seuranta.tunnus(x) || "Mittalaite") + (t ? " · " + Model.tilaNimi(t) : ""),
+        selite: "Puuttuu: " + puuttuu.join(", ") + ".",
+        toimintoTeksti: "Täydennä"
+      });
+    });
     return out;
   }
 
@@ -83,6 +94,7 @@
     if (n("kohta")) parts.push(n("kohta") + " suunnitelman kohtaa tekemättä");
     if (n("tila")) parts.push(n("tila") + (n("tila") === 1 ? " tila" : " tilaa") + " tutkimatta");
     if (n("havainto")) parts.push(n("havainto") + (n("havainto") === 1 ? " havainnosta" : " havainnosta") + " puuttuu tietoja");
+    if (n("seuranta")) parts.push(n("seuranta") + (n("seuranta") === 1 ? " mittalaitteelta" : " mittalaitteelta") + " puuttuu tietoja");
     return parts.join(", ") + ".";
   }
 
@@ -97,7 +109,8 @@
     const groups = [
       ["kohta", "Tutkimussuunnitelma"],
       ["tila", "Tilat"],
-      ["havainto", "Havainnot"]
+      ["havainto", "Havainnot"],
+      ["seuranta", "Olosuhdeseuranta"]
     ];
     let body = "";
     groups.forEach(([t, title]) => {
@@ -143,6 +156,7 @@
       if (a === "do") {
         if (b.dataset.t === "kohta") App.kohtaActions(Model.kohta(id));
         else if (b.dataset.t === "tila") Plan.roomActions(Model.tila(id));
+        else if (b.dataset.t === "seuranta") location.hash = "#/k/" + k.id + "/seuranta/" + id;
         else location.hash = "#/k/" + k.id + "/h/" + id;
       } else if (a === "pois") {
         const syy = await promptSheet({ title: "Miksi kohta jätetään pois?", label: "Syy (näkyy raportissa rajauksena)", required: true, multiline: true });
