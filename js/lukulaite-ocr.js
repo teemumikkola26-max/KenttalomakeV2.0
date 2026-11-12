@@ -19,7 +19,7 @@
 (function(){
 "use strict";
 
-var TESSERACT_URL="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
+var TESSERACT_URL="lib/tesseract/tesseract.min.js";
 var DEC={T:1,RH:1,Td:1,Tw:1,a:2};
 var KEYS=["T","RH","a"];
 
@@ -187,7 +187,7 @@ function loadScript(){
   return scriptP;
 }
 function getWorker(){
-  if(!workerP)workerP=loadScript().then(function(){return window.Tesseract.createWorker("eng",1);})
+  if(!workerP)workerP=loadScript().then(function(){return window.Tesseract.createWorker("eng",1,window.UI&&UI.tessPaths?UI.tessPaths():{});})
     .then(function(w){return w.setParameters({tessedit_pageseg_mode:"6"}).then(function(){return w;});})
     .catch(function(e){workerP=null;throw e;});
   return workerP;

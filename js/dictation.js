@@ -15,6 +15,16 @@
 
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 
+  /* Puheentunnistuksen tila (config.js: puheentunnistus) */
+  const MODE = ((window.KS_CONFIG || {}).puheentunnistus) || "palvelin";
+  let PAIKALLINEN = "tuntematon";   // available | downloadable | downloading | unavailable | ei-tukea
+  async function tarkistaPaikallinen() {
+    if (!SR || typeof SR.available !== "function") { PAIKALLINEN = "ei-tukea"; return PAIKALLINEN; }
+    try { PAIKALLINEN = await SR.available({ langs: ["fi-FI"], processLocally: true }); } catch (e) { PAIKALLINEN = "ei-tukea"; }
+    return PAIKALLINEN;
+  }
+  const valmis = MODE === "laite" ? tarkistaPaikallinen() : Promise.resolve();
+
   const norm = (s) => String(s || "").toLowerCase().replace(/[^\p{L}\p{N} ]/gu, "").replace(/\s+/g, " ").trim();
 
   /* Kumulatiiviset ja toistuvat tulokset yhdeksi listaksi */
@@ -24,10 +34,13 @@
       t = String(t || "").trim();
       if (!t) continue;
       if (out.length) {
-        const a = norm(out[out.length - 1]), b = norm(t);
+        // Vertailu ilman välilyöntejä: Android voi palauttaa saman lauseen uudelleen hieman eri
+        // tavoin pilkottuna ("ilmanäyte" / "ilma näyte") koko tähänastisen tekstin kanssa.
+        const a = norm(out[out.length - 1]).replace(/ /g, ""), b = norm(t).replace(/ /g, "");
         if (b === a) continue;
-        if (b.startsWith(a)) { out[out.length - 1] = t; continue; }   // laajennus edellisestä
-        if (a.startsWith(b)) continue;                                // edellinen sisältää jo
+        const alku = a.length >= 12 ? a.slice(0, Math.floor(a.length * 0.8)) : a;
+        if (b.startsWith(a) || (b.length >= a.length && b.startsWith(alku))) { out[out.length - 1] = t; continue; }   // laajennus edellisestä
+        if (a.startsWith(b) || a.includes(b)) continue;               // edellinen sisältää jo
       }
       out.push(t);
     }
@@ -61,7 +74,7 @@
       this.mode = null;
     }
 
-    static supported() { return !!SR; }
+    static supported() { return !!SR && (MODE !== "laite" || PAIKALLINEN === "available"); }
     static available() { return !!SR || !!window.MediaRecorder; }
 
     start() {
@@ -69,6 +82,13 @@
       this.active = true;
       this.committed = []; this.finals = []; this.interim = "";
       const online = navigator.onLine !== false;
+      // Tietosuoja: "laite" = tunnistus vain puhelimessa; jos se ei ole käytettävissä, äänite (ääni ei lähde minnekään)
+      if (MODE === "laite") {
+        if (SR && PAIKALLINEN === "available") { this.mode = "speech"; this._startSpeech(); }
+        else if (window.MediaRecorder) { this.mode = "audio"; this._startAudio("Puheentunnistus puhelimessa ei ole käytössä: sanelu tallennetaan äänitteenä."); }
+        else { this.active = false; this.onState("error", "Sanelu ei ole käytettävissä. Kirjoita teksti."); }
+        return;
+      }
       if (SR && online) { this.mode = "speech"; this._startSpeech(); }
       else if (window.MediaRecorder) {
         this.mode = "audio";
@@ -124,6 +144,7 @@
     _startSpeech(restart) {
       const rec = new SR();
       rec.lang = "fi-FI";
+      if (MODE === "laite") rec.processLocally = true;      // ääni ei lähde puhelimesta
       rec.continuous = true;
       rec.interimResults = true;
       rec.maxAlternatives = 1;
@@ -242,6 +263,27 @@
     paint();
     return { paint };
   }
+
+  /* Etusivun kortti: miten sanelu käsitellään ja suomen kielipaketin lataus puhelimeen */
+  Dictation.puheKortti = async function (el) {
+    if (!el) return;
+    await valmis;
+    const esc = UI.esc;
+    let t, btn = "";
+    if (MODE === "palvelin") t = "Sanelun ääni lähetetään selaimen puheentunnistuspalveluun (Chrome: Google). Asetus on ylläpitäjän valinta (config.js).";
+    else if (PAIKALLINEN === "available") t = "Puheentunnistus tapahtuu tässä puhelimessa. Ääntä ei lähetetä mihinkään.";
+    else if (PAIKALLINEN === "downloadable" || PAIKALLINEN === "downloading") { t = "Suomen puheentunnistus voidaan ladata puhelimeen. Sen jälkeen sanelu muuttuu tekstiksi puhelimessa, myös ilman verkkoa. Siihen asti sanelut tallennetaan äänitteinä."; btn = '<button class="btn btn-sm btn-primary" data-asenna style="margin-top:10px">Lataa suomen puheentunnistus</button>'; }
+    else t = "Tämä selain ei tue suomen puheentunnistusta puhelimessa. Sanelut tallennetaan äänitteinä (ääni ei lähde puhelimesta), ja teksti kirjoitetaan tai litteroidaan raportoinnissa.";
+    el.innerHTML = '<section class="card"><div class="card-h"><h2>Sanelu ja tietosuoja</h2></div><div class="card-b"><p style="margin:0">' + esc(t) + "</p>" + btn + "</div></section>";
+    const b = el.querySelector("[data-asenna]");
+    if (b) b.addEventListener("click", async () => {
+      b.disabled = true; b.textContent = "Ladataan…";
+      try { const ok = await SR.install({ langs: ["fi-FI"], processLocally: true }); await tarkistaPaikallinen(); UI.toast(ok ? "Suomen puheentunnistus on nyt puhelimessa." : "Lataus ei onnistunut.", 3500); }
+      catch (e) { UI.toast("Lataus ei onnistunut: " + (e.message || e), 4000); }
+      Dictation.puheKortti(el);
+    });
+  };
+  Dictation.tila = () => ({ MODE, PAIKALLINEN });
 
   window.Dictation = Dictation;
   window.DictButton = { bind, appendText, collapse, buzz };

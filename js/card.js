@@ -15,16 +15,25 @@
     const cls = need ? "field need" : "field";
     return fieldInner(f, val, lbl, cls, nh);
   }
+  /* Valintalistaan voi aina kirjoittaa oman arvon (Muu…), paitsi arviointiasteikoissa (kyllä/ei, hyvä/huono) */
+  const ARVIO = /^(Kyllä|Ei|Hyvä|Tyydyttävä|Välttävä|Huono|Otettu|Ei otettu)$/;
+  const vapaa = (f) => !f.okv && !f.suljettu && !(f.o || []).every((o) => ARVIO.test(o));
   function fieldInner(f, val, lbl, cls, nh) {
+    const oma = val && !(f.o || []).includes(val);
     // Tarkistuslistan valinta sirurivinä: yksi napautus (napautus uudelleen tyhjentää)
-    if (f.t === "select" && f.ow) {
+    if (f.t === "select" && f.ow && !f.ryhmat) {
       return '<div class="' + cls + ' chipfield" style="grid-column:1/-1">' + lbl + '<div class="chips">' +
         f.o.map((o) => '<button type="button" class="chip' + (f.okv ? (o === f.okv ? " c-ok" : " c-note") : "") + '" data-a="chipv" data-k="' + f.k + '" data-v="' + esc(o) + '" aria-pressed="' + (o === val) + '">' + esc(o) + "</button>").join("") +
+        (oma ? '<button type="button" class="chip" data-a="chipv" data-k="' + f.k + '" data-v="' + esc(val) + '" aria-pressed="true">' + esc(val) + "</button>" : "") +
+        (vapaa(f) ? '<button type="button" class="chip chip-muu" data-a="muuarvo" data-k="' + f.k + '">Muu…</button>' : "") +
         "</div>" + nh + "</div>";
     }
     if (f.t === "select") {
-      return '<label class="' + cls + '">' + lbl + '<select data-fk="' + f.k + '"><option value="">Valitse</option>' +
-        f.o.map((o) => '<option' + (o === val ? " selected" : "") + ">" + esc(o) + "</option>").join("") + "</select>" + nh + "</label>";
+      const opt = (o) => '<option' + (o === val ? " selected" : "") + ">" + esc(o) + "</option>";
+      return '<label class="' + cls + '"' + (f.ryhmat ? ' style="grid-column:1/-1"' : "") + ">" + lbl + '<select data-fk="' + f.k + '"><option value="">Valitse</option>' +
+        (f.ryhmat ? f.ryhmat.map(([g, os]) => '<optgroup label="' + esc(g) + '">' + os.map(opt).join("") + "</optgroup>").join("") : f.o.map(opt).join("")) +
+        (oma ? '<option selected>' + esc(val) + "</option>" : "") +
+        (vapaa(f) ? '<option value="__muu__">Muu… (kirjoita)</option>' : "") + "</select>" + nh + "</label>";
     }
     if (f.t === "textarea") {
       return '<label class="' + cls + '" style="grid-column:1/-1">' + lbl + '<textarea data-fk="' + f.k + '" style="min-height:72px">' + esc(val || "") + "</textarea>" + nh + "</label>";
@@ -131,12 +140,14 @@
           "</div></section>"
         : "";
 
-      root.innerHTML = App.topbar({ title: nro(h.nro) + " · " + M.menetelma(h.menetelma).lyhyt, sub: Model.sijaintiTeksti(h.sijainti) || "Sijainti puuttuu", back: "#/k/" + k.id }) +
+      root.innerHTML = App.topbar({ title: nro(h) + " · " + M.menetelma(h.menetelma).lyhyt, sub: Model.sijaintiTeksti(h.sijainti) || "Sijainti puuttuu", back: "#/k/" + k.id }) +
         '<main class="view no-nav">' +
         '<div class="thumbs" style="margin-bottom:12px">' + thumbs +
         '<a class="thumb-add" href="#/k/' + k.id + "/kuvaus/" + h.id + '" aria-label="Lisää kuvia ja sanelua">' + icon("cam") + "</a></div>" +
 
         '<div data-missing>' + missingHtml() + "</div>" +
+        (h.ristiriita ? '<div class="alert">' + icon("alert") + "<div><b>Toinen tutkija muokkasi tätä havaintoa samaan aikaan.</b> Pilvessä ollut versio on alla. Korvautunut versio (" + esc([h.ristiriita.tekija, UI.pvm(h.ristiriita.aika)].filter(Boolean).join(", ")) + "): <i>" + esc(h.ristiriita.sanelu || "–") + "</i>" +
+          '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn btn-sm" data-a="rr-oma">Palauta korvautunut versio</button><button class="btn btn-sm" data-a="rr-ok">Pidä nykyinen</button></div></div></div>' : "") +
         '<section class="card"><div class="card-h"><h2>Havainto</h2>' + dictBtnHtml("sanelu") + "</div>" +
         '<div class="card-b"><textarea data-t="sanelu" aria-label="Havainto">' + esc(h.sanelu) + "</textarea>" +
         '<div class="dict-prev" data-prev="sanelu"></div>' + audio +
@@ -146,7 +157,8 @@
         '<span class="label">Sijainti</span>' +
         '<button class="btn btn-block" data-a="loc" style="justify-content:flex-start;margin-bottom:14px">' + icon("pin") + esc(Model.sijaintiTeksti(h.sijainti) || "Valitse sijainti") +
         (h.sijainti.piste ? " · merkitty pohjaan" : "") + autoTag("tila") + "</button>" +
-        '<span class="label' + (h.tulos ? "" : " missing") + '">Tulos <span class="req">*</span>' + (h.tulos ? "" : " · valitse") + '</span><div class="chips" style="margin-bottom:14px">' +
+        (m.tulosVapaa ? '<span class="label">Tulos <span class="u" style="text-transform:none;font-weight:400">(valinnainen: näytteen tulos tulee laboratoriosta)</span></span><div class="chips" style="margin-bottom:14px">'
+          : '<span class="label' + (h.tulos ? "" : " missing") + '">Tulos <span class="req">*</span>' + (h.tulos ? "" : " · valitse") + '</span><div class="chips" style="margin-bottom:14px">') +
         '<button class="chip c-note" data-a="tulos" data-v="poikkeama" aria-pressed="' + (h.tulos === "poikkeama") + '">Poikkeama' + (h.tulos === "poikkeama" ? autoTag("tulos") : "") + "</button>" +
         '<button class="chip c-ok" data-a="tulos" data-v="ok" aria-pressed="' + (h.tulos === "ok") + '">Ei huomautettavaa' + (h.tulos === "ok" ? autoTag("tulos") : "") + "</button></div>" +
         '<div style="display:flex;justify-content:space-between;align-items:baseline"><span class="label' + (h.menetelma ? "" : " missing") + '">Menetelmä <span class="req">*</span>' + (h.menetelma ? "" : " · valitse") + '</span>' +
@@ -384,6 +396,23 @@
       });
     }
 
+    /* Valinnan jälkeen: tunnus näytetyypin mukaan (MIK1, VOC1 …) ja tyyppikohtaiset kentät näkyviin */
+    function asetaValinta(f, v) {
+      if (!f) return;
+      h.kentat[f.k] = v;
+      Auto.manual(h, "k:" + f.k);
+      if (f.muista) Model.muistiSet(h.menetelma + "." + f.k, v);
+      if (f.etuliitteet) Auto.autoTunnus(h);
+      if (window.FieldFill && f.okv) FieldFill.apply(h);
+      save();
+      const riippuvia = f.etuliitteet || M.menetelma(h.menetelma).kentat.some((x) => x.kun && x.kun.k === f.k);
+      if (riippuvia || f.ow) paint();
+    }
+    async function muuArvo(f) {
+      if (!f) return;
+      const v = await UI.promptSheet({ title: f.l, label: "Kirjoita arvo", value: (f.o || []).includes(h.kentat[f.k]) ? "" : h.kentat[f.k] || "", required: true, ok: "Valmis" });
+      if (v) asetaValinta(f, v.trim()); else paint();
+    }
     root.oninput = (e) => {
       const t = e.target;
       if (t.matches("textarea[data-t]")) { h[t.dataset.t] = t.value; save(); }
@@ -409,6 +438,7 @@
         save();
       }
       else if (t.matches("[data-fk]") && t.type !== "date") {
+        if (t.tagName === "SELECT") return;                // valinta käsitellään change-tapahtumassa
         const f = M.menetelma(h.menetelma).kentat.find((x) => x.k === t.dataset.fk);
         h.kentat[t.dataset.fk] = t.value;
         Auto.manual(h, "k:" + t.dataset.fk);
@@ -430,11 +460,9 @@
         if (f && row) repaintSummary(f);
       }
       else if (t.matches("[data-fk]") && (t.tagName === "SELECT" || t.type === "date")) {
-        h.kentat[t.dataset.fk] = t.value;
-        Auto.manual(h, "k:" + t.dataset.fk);
         const f = M.menetelma(h.menetelma).kentat.find((x) => x.k === t.dataset.fk);
-        if (f && f.muista) Model.muistiSet(h.menetelma + "." + f.k, t.value);
-        save();
+        if (t.value === "__muu__") { muuArvo(f); return; }
+        asetaValinta(f, t.value);
       }
     };
     root.onclick = async (e) => {
@@ -486,6 +514,10 @@
         });
         return;
       }
+      if (a === "rr-oma" || a === "rr-ok") {
+        if (a === "rr-oma") { const o = h.ristiriita; ["sanelu", "tulkinta", "tulos", "menetelma"].forEach((x) => { h[x] = o[x]; }); h.kentat = o.kentat || {}; if (o.sijainti) h.sijainti = o.sijainti; }
+        delete h.ristiriita; save(); paint(); return;
+      }
       if (a === "okloput") {
         const vis = M.kentat(h).filter((f) => f.okv && (h.kentat[f.k] == null || h.kentat[f.k] === ""));
         vis.forEach((f) => { h.kentat[f.k] = f.okv; Auto.manual(h, "k:" + f.k); });
@@ -493,13 +525,11 @@
         if (!h.tulos) { h.tulos = dev ? "poikkeama" : "ok"; h.auto = h.auto || {}; h.auto.tulos = "sanelu"; }
         save(); paint(); toast(vis.length + " kohtaa merkitty kunnossa"); return;
       }
+      if (a === "muuarvo") { muuArvo(M.menetelma(h.menetelma).kentat.find((x) => x.k === b.dataset.k)); return; }
       if (a === "chipv") {
         const f = M.menetelma(h.menetelma).kentat.find((x) => x.k === b.dataset.k);
-        h.kentat[b.dataset.k] = h.kentat[b.dataset.k] === b.dataset.v ? "" : b.dataset.v;
-        Auto.manual(h, "k:" + b.dataset.k);
-        if (f && f.muista) Model.muistiSet(h.menetelma + "." + f.k, h.kentat[f.k]);
-        if (window.FieldFill && f && f.okv) FieldFill.apply(h);    // puute -> poikkeama
-        save(); paint(); return;
+        asetaValinta(f, h.kentat[b.dataset.k] === b.dataset.v ? "" : b.dataset.v);
+        paint(); return;
       }
       if (a === "tulos") { h.tulos = h.tulos === b.dataset.v ? null : b.dataset.v; Auto.manual(h, "tulos"); save(); paint(); }
       else if (a === "men") {
@@ -538,14 +568,15 @@
         location.hash = "#/k/" + k.id + "/kuvaus";
       }
       else if (a === "del") {
-        if (!(await confirmSheet({ title: "Poistetaanko " + nro(h.nro) + "?", text: "Havainnon kuvat ja sanelu poistetaan.", ok: "Poista havainto", danger: true }))) return;
+        if (!(await confirmSheet({ title: "Poistetaanko " + nro(h) + "?", text: "Havainnon kuvat ja sanelu poistetaan.", ok: "Poista havainto", danger: true }))) return;
         await Model.deleteHavainto(h);
         location.hash = "#/k/" + k.id;
       }
     };
 
     paint();
-    S.cleanup = () => { if (picker) picker.destroy(); stopDict(); save.flush(); Learn.learn(h).then(() => Model.saveHavainto(h)).catch(() => {}); window.removeEventListener("ks-ocr", onOcr); root.oninput = root.onchange = root.onclick = null; };
+    if (window.Sync) Sync.kesken = h.id;     // muiden muutokset tähän havaintoon haetaan vasta, kun kortti suljetaan
+    S.cleanup = () => { if (window.Sync) Sync.kesken = null; if (picker) picker.destroy(); stopDict(); save.flush(); Learn.learn(h).then(() => Model.saveHavainto(h)).catch(() => {}); window.removeEventListener("ks-ocr", onOcr); root.oninput = root.onchange = root.onclick = null; };
   }
 
   window.Card = { view };

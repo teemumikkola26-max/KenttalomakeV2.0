@@ -17,6 +17,7 @@
     let h = havaintoId ? Model.havainto(havaintoId) : null;
     let saved = !!h;
     let prevId = null;   // edellinen havainto: pikapainike "← H05" lisäkuvia varten
+    let mode = q.yk ? "yk" : "hav";   // hav = havainto, yk = yleiskuva (ei sanelua eikä havaintoa)
 
     function applyMemory(hv) {
       M.menetelma(hv.menetelma).kentat.forEach((f) => {
@@ -54,6 +55,7 @@
       '<div class="cam-top">' +
       '<button class="cam-round" data-c="close" aria-label="Tallenna ja sulje">' + icon("close") + "</button>" +
       '<button class="loc-chip" data-c="loc">' + icon("pin") + '<span class="txt"><b data-loc></b><small data-locsub></small></span><span class="ch">vaihda</span></button>' +
+      '<button class="cam-round" data-c="ohje" aria-label="Ohje">?</button>' +
       "</div>" +
       '<div class="viewfinder"><video autoplay playsinline muted></video><div class="flash"></div>' +
       '<div class="vf-msg" data-vfmsg>Käynnistetään kameraa…</div>' +
@@ -65,12 +67,14 @@
       '<div class="dict-live hidden" data-live aria-live="polite"><div class="dl-h"><span class="rec"></span><span data-lst>Sanelu</span></div><div class="dl-t" data-prev></div></div>' +
       "</div>" +
       '<div class="cam-panel">' +
+      '<div class="cam-mode" role="tablist"><button role="tab" data-mode="hav">Havainto</button><button role="tab" data-mode="yk">Yleiskuva</button></div>' +
+      '<p class="yk-info hidden" data-ykinfo>Yleiskuva tallentuu heti kohteen yleiskuviin valitun tilan kanssa. Ei sanelua eikä havaintoa.</p>' +
       '<textarea data-text rows="2" aria-label="Havainto" placeholder="Kirjoita havainto tai pidä mikrofonia pohjassa"></textarea>' +
       '<button class="cp-need hidden" data-c="need" data-need></button>' +
       '<div class="cp-meta">' +
       '<button class="meta-chip" data-c="more" aria-label="Vaihda menetelmä"><span data-mname></span>' + icon("back", "down") + "</button>" +
       '<div class="chips" data-tulos><button class="chip c-note" data-t="poikkeama">Poikkeama</button><button class="chip c-ok" data-t="ok">Ei huom.</button></div>' +
-      '<button class="card-link" data-c="card"><span data-cl>Lisää</span>' + icon("back", "flip") + "</button></div>" +
+      '<button class="card-link" data-c="card"><span data-cl>Kortti</span>' + icon("back", "flip") + "</button></div>" +
       "</div>" +
       '<div class="cam-bottom">' +
       '<button class="cam-side" data-c="next"><span class="c">' + icon("plus") + "</span>Seuraava</button>" +
@@ -103,6 +107,8 @@
       $(".meta-chip").title = m ? m.nimi + (SRC[src] ? " (" + SRC[src] + ")" : "") : "";
     }
     function paintTulos() {
+      const vapaa = h.menetelma && M.menetelma(h.menetelma).tulosVapaa;   // esim. näyte: tulos tulee laboratoriosta
+      $("[data-tulos]").classList.toggle("hidden", !!vapaa);
       root.querySelectorAll("[data-t]").forEach((b) => {
         const on = b.dataset.t === h.tulos;
         b.setAttribute("aria-pressed", String(on));
@@ -131,17 +137,18 @@
     let autoP = Promise.resolve();
     let alive = true;   // näkymä auki; myöhässä tuleva sanelu tallentuu silti havaintoon
     function paintStatus() {
-      const n = h.nro ? nro(h.nro) : "Uusi havainto";
+      if (mode === "yk") { paintReq(); return; }
+      const n = h.nro ? nro(h) : "Uusi havainto";
       $("[data-count]").textContent = n + (h.kuvat.length ? " · " + h.kuvat.length + (h.kuvat.length === 1 ? " kuva" : " kuvaa") : "");
       const prev = prevId && !hasContent() && Model.havainto(prevId);
       const pb = $("[data-c=prev]");
       pb.classList.toggle("hidden", !prev);
-      if (prev) pb.textContent = "← Lisää kuvia: " + nro(prev.nro);
+      if (prev) pb.textContent = "← Lisää kuvia: " + nro(prev);
       // Lisätiedot: vain menetelmän omat kentät (kuva, havainto, tila, menetelmä ja tulos näkyvät jo tässä)
       const miss = Check.havaintoPuutteet(h).filter((x) => !["kuva tai sanelu", "tila", "tulos", "menetelmä", "suunnitelman kohta"].includes(x));
       const fields = M.menetelma(h.menetelma).kentat.length;
       const warn = miss.length > 0 && hasContent();
-      $("[data-cl]").innerHTML = (fields ? "Mittaukset" : "Lisää") + (warn ? ' <span class="cl-n" aria-label="' + miss.length + ' puuttuu">' + miss.length + "</span>" : "");
+      $("[data-cl]").innerHTML = "Kortti" + (warn ? ' <span class="cl-n" aria-label="' + miss.length + ' puuttuu">' + miss.length + "</span>" : "");
       $(".card-link").classList.toggle("warn", warn);
       $(".card-link").setAttribute("aria-label", "Avaa havaintokortti" + (warn ? ", puuttuu: " + miss.join(", ") : "") + (fields ? ", " + fields + " kenttää" : ""));
       // Menetelmän vähimmäistiedot: mitä puuttuu ja mitä sanoa
@@ -157,12 +164,37 @@
       paintReq();
     }
     async function paintThumbs() {
+      if (mode === "yk") return paintYk();
       const last = h.kuvat.slice(-3);
       await Model.ensureUrls(last);
       $("[data-thumbs]").innerHTML = last.map((id) => '<img src="' + Model.url(id) + '" alt="">').join("");
       paintStatus();
     }
-    function paintAll() { ta.value = h.sanelu || ""; paintLoc(); paintMethods(); paintTulos(); paintThumbs(); }
+    function paintAll() { ta.value = h.sanelu || ""; paintLoc(); paintMethods(); paintTulos(); paintThumbs(); paintMode(); }
+    /* Tila: Havainto / Yleiskuva */
+    function paintMode() {
+      const yk = mode === "yk";
+      root.classList.toggle("mode-yk", yk);
+      root.querySelectorAll("[data-mode]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.mode === mode)));
+      $("[data-ykinfo]").classList.toggle("hidden", !yk);
+      if (yk) paintYk(); else paintThumbs0();
+    }
+    async function paintYk() {
+      const l = (S.kohde.yleiskuvat || []);
+      const last = l.slice(-3).map((y) => y.kuva);
+      await Model.ensureUrls(last);
+      $("[data-thumbs]").innerHTML = last.map((id) => '<img src="' + Model.url(id) + '" alt="">').join("");
+      $("[data-count]").textContent = "Yleiskuvat · " + l.length;
+      $("[data-c=prev]").classList.add("hidden");
+    }
+    function paintThumbs0() { if (mode === "hav") paintThumbs(); }
+    async function setMode(m) {
+      if (m === mode) return;
+      if (m === "yk") { await flush(); if (saved) { prevId = h.id; h = newObservation({ menetelma: h.menetelma, kaOsa: h.kaOsa, kaCarry: true, tilaId: h.sijainti.tilaId, kerrosId: h.sijainti.kerrosId }); saved = false; syncUrl(); } }
+      mode = m;
+      try { history.replaceState(null, "", "#/k/" + k.id + "/kuvaus" + (saved ? "/" + h.id : "") + (mode === "yk" ? "?yk=1" : "")); } catch (e) { /* ei historiaa */ }
+      paintAll();
+    }
 
     /* ---------- Tallennus ---------- */
     const hasContent = () => h.kuvat.length || (h.sanelu || "").trim() || (h.aanitteet || []).length;
@@ -176,6 +208,7 @@
     // Osoite kertoo kirjattavan havainnon: takaisin havaintokortilta palaa samaan havaintoon.
     // (Ei, kun ikkuna on auki: sen historiamerkintää ei korvata.)
     function syncUrl() {
+      if (window.Sync && alive) Sync.kesken = h.id;
       const want = "#/k/" + k.id + "/kuvaus" + (saved ? "/" + h.id : "");
       if (!alive || location.hash === want || (history.state && history.state.ksSheet)) return;
       try { history.replaceState(null, "", want); } catch (e) { /* ei historiaa */ }
@@ -253,6 +286,10 @@
     }
     // Kuvan käsittely ja tallennus kestää hetken: siirtymät odottavat, ettei kuva jää välistä.
     let pendingShots = Promise.resolve();
+    async function addYleiskuva(blob) {
+      await Yleiskuvat.lisaa(blob, h.sijainti);
+      paintYk();
+    }
     function shoot() {
       pendingShots = pendingShots.then(shootNow).catch(() => {});
       return pendingShots;
@@ -260,14 +297,14 @@
     async function shootNow() {
       if (!Camera.stream) {
         const files = await UI.pickFile("image/*", true, "environment");
-        for (const f of files) await addPhoto(await Camera.shrink(f));
+        for (const f of files) await (mode === "yk" ? addYleiskuva : addPhoto)(await Camera.shrink(f));
         return;
       }
       const fl = $(".flash");
       fl.classList.add("on");
       setTimeout(() => fl.classList.remove("on"), 60);
       UI.buzz(12);
-      try { await addPhoto(await Camera.capture(video)); }
+      try { await (mode === "yk" ? addYleiskuva : addPhoto)(await Camera.capture(video)); }
       catch (e) { toast(e.message || "Kuvan otto epäonnistui"); }
     }
 
@@ -291,6 +328,8 @@
     }
     async function finish(toCard) {
       await flush();
+      // Kortti avautuu myös tyhjälle havainnolle: tiedot voi täyttää kortilla
+      if (toCard && !saved) { await Model.saveHavainto(h); saved = true; await rememberContext(); }
       if (toCard && saved) location.hash = "#/k/" + k.id + "/h/" + h.id;
       else location.hash = "#/k/" + k.id;
     }
@@ -298,7 +337,7 @@
       await flush();
       if (!saved) { toast("Ota kuva tai kirjoita havainto ensin"); return; }
       const miss = Check.havaintoPuutteet(h).filter((x) => x !== "kuva tai sanelu");
-      toast(nro(h.nro) + " tallennettu" + (miss.length ? " · täydennä myöhemmin: " + miss.slice(0, 2).join(", ") + (miss.length > 2 ? "…" : "") : ""), 2600);
+      toast(nro(h) + " tallennettu" + (miss.length ? " · täydennä myöhemmin: " + miss.slice(0, 2).join(", ") + (miss.length > 2 ? "…" : "") : ""), 2600);
       // Uusi havainto samaan paikkaan samalla menetelmällä
       prevId = h.id;
       h = newObservation({ menetelma: h.menetelma, kaOsa: h.kaOsa, kaCarry: true });
@@ -317,7 +356,7 @@
         if (!target) return;
         h = target; saved = true;
         prevId = from && from !== id ? from : null;
-        toast("Kuvat menevät nyt havaintoon " + nro(h.nro), 2200);
+        toast("Kuvat menevät nyt havaintoon " + nro(h), 2200);
       } else {
         prevId = from;
         h = newObservation({ menetelma: h.menetelma, kaOsa: h.kaOsa, kaCarry: true });
@@ -337,13 +376,15 @@
       Auto.manual(h, "menetelma");
       Auto.autoKohta(h); Auto.autoTunnus(h);
       if (window.FieldFill) FieldFill.apply(h);
-      paintMethods(); paintStatus();
+      paintMethods(); paintTulos(); paintStatus();
       if (saved) persist();
     }
 
     ta.addEventListener("input", () => { h.sanelu = ta.value; persist(); autoSoon(); });
 
     root.addEventListener("click", async (e) => {
+      const md = e.target.closest("[data-mode]");
+      if (md) { setMode(md.dataset.mode); return; }
       const m = e.target.closest("[data-m]");
       if (m) { selectMethod(m.dataset.m); return; }
       const t = e.target.closest("[data-t]");
@@ -351,6 +392,7 @@
       const b = e.target.closest("[data-c]");
       if (!b) return;
       const c = b.dataset.c;
+      if (mode === "yk" && (c === "next" || c === "card" || c === "need" || c === "switch" || c === "prev" || c === "more")) return;
       if (c === "shot") shoot();
       else if (c === "next") next();
       else if (c === "prev") { if (prevId) switchTo(prevId); }
@@ -361,6 +403,7 @@
       }
       else if (c === "card" || c === "need") finish(true);
       else if (c === "close") finish(false);
+      else if (c === "ohje") naytaOhje(true);
       else if (c === "more") MethodPicker.openSheet({ selected: h.menetelma, excludeHavainto: h.id, onSelect: selectMethod });
       else if (c === "loc") {
         Plan.locationSheet(h.sijainti, async (s) => {
@@ -374,6 +417,27 @@
 
     paintAll();
     const release = UI.keepAwake();
+    naytaOhje();
+
+    /* Ensikäytön ohje: näytetään kerran, ohjeen saa uudelleen ?-painikkeesta */
+    function naytaOhje(force) {
+      let nahty = false;
+      try { nahty = localStorage.getItem("ks.ohje.kuvaus") === "1"; } catch (e) { /* ohita */ }
+      if (nahty && !force) return;
+      const g = document.createElement("div");
+      g.className = "cam-guide";
+      g.innerHTML = '<div class="cg-box"><h3>Näin kirjaat havainnon</h3><ol>' +
+        "<li><b>Valitse tila</b> yläreunasta (tai sano se sanelussa).</li>" +
+        "<li><b>Ota kuva</b> laukaisimesta. Kuvia voi ottaa useita.</li>" +
+        "<li><b>Pidä mikrofonia pohjassa</b> ja kerro havainto. Vapauta, kun olet valmis.</li>" +
+        "<li><b>Seuraava</b> tallentaa ja aloittaa uuden havainnon samassa tilassa.</li>" +
+        "<li><b>Kortti</b> avaa kaikki tiedot ja mittauskentät. Sen voi avata myös ilman kuvaa.</li>" +
+        "<li><b>Yleiskuva</b>-välilehdellä otat kuvia ilman havaintoa (julkisivut, tilat).</li></ol>" +
+        '<p class="hint" style="color:#ddd;margin:0 0 14px">Kaikki tallentuu heti. Sanelusta täyttöä voi säätää Sanasto-sivulla.</p>' +
+        '<button class="btn btn-primary" data-ok>Selvä</button></div>';
+      root.appendChild(g);
+      g.querySelector("[data-ok]").addEventListener("click", () => { try { localStorage.setItem("ks.ohje.kuvaus", "1"); } catch (e) { /* ohita */ } g.remove(); });
+    }
 
     try {
       await Camera.start(video);
@@ -382,7 +446,7 @@
       $("[data-vfmsg]").innerHTML = "<div>Selaimen kameraa ei saatu käyttöön.<br>Laukaisin avaa puhelimen kamerasovelluksen.</div>";
     }
 
-    S.cleanup = () => { alive = false; release(); dict.stop(); Camera.stop(); h.sanelu = ta.value; persist.flush(); };
+    S.cleanup = () => { alive = false; if (window.Sync) Sync.kesken = null; release(); dict.stop(); Camera.stop(); h.sanelu = ta.value; persist.flush(); };
   }
 
   window.Capture = { view };

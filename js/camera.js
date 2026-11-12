@@ -74,7 +74,7 @@
       }
       const w = bmp.width, h = bmp.height;
       const s = Math.min(1, (maxEdge || MAX_EDGE) / Math.max(w, h));
-      if (s === 1 && blob.type === "image/jpeg" && blob.size < 3.5e6) return blob;
+      // Kuva piirretään aina uudelleen: sijainti- ja laitetiedot (EXIF/GPS) eivät päädy tallenteisiin.
       const c = document.createElement("canvas");
       c.width = Math.round(w * s); c.height = Math.round(h * s);
       c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);

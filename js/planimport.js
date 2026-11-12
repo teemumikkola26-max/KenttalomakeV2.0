@@ -23,8 +23,8 @@
   "use strict";
   const { icon, esc, toast, sheet } = UI;
 
-  const PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
-  const PDFJS_WORKER = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  const PDFJS = "lib/pdf.min.js";
+  const PDFJS_WORKER = "lib/pdf.worker.min.js";
 
   // Suunnitelmien ja tarjousten sanamuodot (sanelun sanojen lisäksi). Muokattavissa Sanasto-sivulla.
   Vocab.define("suunnitelma", { group: "Tutkimussuunnitelma (PDF)", title: "Suunnitelman sanat", type: "map",
@@ -49,7 +49,7 @@
     await UI.loadScript(PDFJS);
     const lib = window.pdfjsLib;
     lib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
-    const pdf = await lib.getDocument({ data: await file.arrayBuffer() }).promise;
+    const pdf = await lib.getDocument({ data: await file.arrayBuffer(), isEvalSupported: false }).promise;
     const lines = [];
     for (let p = 1; p <= Math.min(pdf.numPages, 30); p++) {
       const page = await pdf.getPage(p);

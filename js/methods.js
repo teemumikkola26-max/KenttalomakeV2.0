@@ -21,6 +21,32 @@
 (function () {
   "use strict";
 
+  /* Näytetyypit ryhmittäin (materiaali-, ilma- ja pinta/pölynäytteet) */
+  const NAYTTEET = [
+    ["Materiaalinäytteet", ["Mikrobi, materiaali", "VOC, materiaali (mikrokammio)", "Asbesti, materiaali", "PAH, materiaali", "PCB, materiaali", "Klooratut parafiinit, materiaali", "Ftalaatit ja TXIB, materiaali"]],
+    ["Ilmanäytteet", ["Mikrobi, ilma (Andersen)", "VOC, ilma (Tenax)", "Formaldehydi, ilma", "Kloorianisolit, ilma", "PAH, ilma", "Asbesti, ilma"]],
+    ["Pinta- ja pölynäytteet", ["Laskeumapöly (kuidut)", "Pölyn koostumus (geeliteippi)", "Pyyhintäpöly", "VOC, pintaemissio (FLEC)"]],
+    ["Muu", ["Muu näyte"]]
+  ];
+  const NAYTE_ETULIITE = {
+    "Mikrobi, materiaali": "MIK", "VOC, materiaali (mikrokammio)": "VOC", "Asbesti, materiaali": "AS", "PAH, materiaali": "PAH", "PCB, materiaali": "PCB",
+    "Klooratut parafiinit, materiaali": "CP", "Ftalaatit ja TXIB, materiaali": "FT", "Mikrobi, ilma (Andersen)": "MIKI", "VOC, ilma (Tenax)": "VOCI",
+    "Formaldehydi, ilma": "FA", "Kloorianisolit, ilma": "KA", "PAH, ilma": "PAHI", "Asbesti, ilma": "ASI", "Laskeumapöly (kuidut)": "LAS",
+    "Pölyn koostumus (geeliteippi)": "GT", "Pyyhintäpöly": "PY", "VOC, pintaemissio (FLEC)": "FLEC", "Muu näyte": "N"
+  };
+  // Sanelusta näytetyyppi: tarkempi ilmaus ensin ("mikrobi-ilmanäyte" ennen "mikrobi")
+  const NAYTE_OW = [
+    ["mikrobi ilma", "Mikrobi, ilma (Andersen)"], ["mikrobi-ilma", "Mikrobi, ilma (Andersen)"], ["mikrobiilma", "Mikrobi, ilma (Andersen)"], ["andersen", "Mikrobi, ilma (Andersen)"],
+    ["voc ilma", "VOC, ilma (Tenax)"], ["voc-ilma", "VOC, ilma (Tenax)"], ["tenax", "VOC, ilma (Tenax)"], ["formaldehy", "Formaldehydi, ilma"], ["kloorianisol", "Kloorianisolit, ilma"],
+    ["pah ilma", "PAH, ilma"], ["pah-ilma", "PAH, ilma"], ["asbesti ilma", "Asbesti, ilma"], ["asbesti-ilma", "Asbesti, ilma"], ["asbestikuitu ilma", "Asbesti, ilma"],
+    ["flec", "VOC, pintaemissio (FLEC)"], ["pintaemissio", "VOC, pintaemissio (FLEC)"], ["laskeuma", "Laskeumapöly (kuidut)"], ["kuitunäyt", "Laskeumapöly (kuidut)"],
+    ["geeliteip", "Pölyn koostumus (geeliteippi)"], ["teippinäyt", "Pölyn koostumus (geeliteippi)"], ["pölyn koostum", "Pölyn koostumus (geeliteippi)"], ["pölynkoostum", "Pölyn koostumus (geeliteippi)"],
+    ["pyyhintä", "Pyyhintäpöly"], ["pyyhkäis", "Pyyhintäpöly"], ["mikrokammio", "VOC, materiaali (mikrokammio)"], ["voc materiaali", "VOC, materiaali (mikrokammio)"], ["voc-materiaali", "VOC, materiaali (mikrokammio)"], ["voc", "VOC, materiaali (mikrokammio)"],
+    ["asbest", "Asbesti, materiaali"], ["pah", "PAH, materiaali"], ["pcb", "PCB, materiaali"], ["parafiin", "Klooratut parafiinit, materiaali"], ["sccp", "Klooratut parafiinit, materiaali"], ["mccp", "Klooratut parafiinit, materiaali"],
+    ["ftalaat", "Ftalaatit ja TXIB, materiaali"], ["txib", "Ftalaatit ja TXIB, materiaali"],
+    ["mikrobi", "Mikrobi, materiaali"], ["mikrobinäyt", "Mikrobi, materiaali"], ["homenäyt", "Mikrobi, materiaali"], ["suoraviljel", "Mikrobi, materiaali"], ["mik", "Mikrobi, materiaali"]
+  ];
+
   const OLETUKSET = [
     { id: "aisti", nimi: "Aistinvarainen tarkastelu", lyhyt: "Aistinv.", kentat: [] },
     {
@@ -66,10 +92,25 @@
       ]
     },
     {
-      id: "nayte", nimi: "Materiaalinäyte", lyhyt: "Näyte", kentat: [
+      /* Näytteenotto: näytetyypit laboratorion (esim. Labroc, FINAS T314) analyysien mukaan.
+         Näytetyyppi päättää tyyppikohtaiset kentät ja tunnuksen etuliitteen (MIK1, VOC1, AS1 …).
+         Tulos ei ole kentällä pakollinen: näytteen tulos tulee laboratoriosta. */
+      id: "nayte", nimi: "Näytteenotto", lyhyt: "Näyte", versio: 2, tulosVapaa: true, kentat: [
+        { k: "tyyppi", l: "Näytetyyppi", t: "select", req: true, kaikkialla: true, o: NAYTTEET.flatMap((r) => r[1]),
+          ryhmat: NAYTTEET, etuliitteet: NAYTE_ETULIITE, ow: NAYTE_OW },
         { k: "tunnus", l: "Näytteen tunnus", t: "text", req: true },
-        { k: "tyyppi", l: "Näytteen tyyppi", t: "select", o: ["Mikrobi, materiaali", "Kuitu", "Haitta-aine", "VOC", "Muu"], req: true },
-        { k: "materiaali", l: "Materiaali", t: "text", req: true }
+        { k: "materiaali", l: "Materiaali", t: "text", req: true, kun: { k: "tyyppi", v: NAYTTEET[0][1] } },
+        { k: "kohta", l: "Rakenne / näytteenottokohta", t: "text", kun: { k: "tyyppi", v: NAYTTEET[0][1] } },
+        { k: "kerain", l: "Keräin / näytteenottoväline", t: "select", muista: true, kun: { k: "tyyppi", v: NAYTTEET[1][1] },
+          o: ["Andersen 6-vaihe", "Andersen 1-vaihe", "Tenax-putki", "DNPH-putki", "Suodatin"] ,
+          ow: [["andersen 6", "Andersen 6-vaihe"], ["kuusivaih", "Andersen 6-vaihe"], ["andersen 1", "Andersen 1-vaihe"], ["yksivaih", "Andersen 1-vaihe"], ["andersen", "Andersen 6-vaihe"], ["tenax", "Tenax-putki"], ["dnph", "DNPH-putki"], ["suodat", "Suodatin"]], kaikkialla: true },
+        { k: "ilmamaara", l: "Ilmamäärä", u: "l", t: "num", kun: { k: "tyyppi", v: NAYTTEET[1][1] } },
+        { k: "aika", l: "Näytteenottoaika", u: "min", t: "num", kun: { k: "tyyppi", v: NAYTTEET[1][1] } },
+        { k: "ulko", l: "Ulkoilman vertailunäyte", t: "select", o: ["Otettu", "Ei otettu"], kun: { k: "tyyppi", v: ["Mikrobi, ilma (Andersen)"] },
+          ow: [["ei ulko", "Ei otettu"], ["ulkoilman vertailu", "Otettu"], ["ulkoilmanäyt", "Otettu"], ["ulkoa", "Otettu"]], kaikkialla: true },
+        { k: "pinta", l: "Näytteen pinta / keräyskohta", t: "text", kun: { k: "tyyppi", v: NAYTTEET[2][1] } },
+        { k: "keraysaika", l: "Keräysaika", u: "vrk", t: "num", kun: { k: "tyyppi", v: ["Laskeumapöly (kuidut)"] } },
+        { k: "lab", l: "Laboratorio", t: "text", muista: true }
       ]
     },
     {
@@ -101,19 +142,19 @@
        Tarkistuslista: kentän "kun" näyttää kentän vain tietylle tilatyypille, "okv" on kunnossa-arvo
        (Muut kohdat kunnossa -painike), "ow" valinnan sanelusanat ja "sanat" kentän sanelusanat. */
     {
-      id: "mtk", nimi: "Märkätilakartoitus", lyhyt: "Märkätila", lomake: true, laskenta: "asunto", sisaltaa: ["pintakosteus", "aisti"], kentat: [
+      id: "mtk", nimi: "Märkätilakartoitus", lyhyt: "Märkätila", versio: 2, lomake: true, laskenta: "asunto", sisaltaa: ["pintakosteus", "aisti"], kentat: [
         { k: "asunto", l: "Asunto", t: "text", req: true, muista: true },
         { k: "mtila", l: "Märkätila", t: "select", req: true, tilasta: true, o: ["Pesuhuone", "Sauna", "Erillinen WC", "Keittiö"],
           ow: [["pesuhuone", "Pesuhuone"], ["kylpyhuone", "Pesuhuone"], ["suihku", "Pesuhuone"], ["sauna", "Sauna"], ["löylyhuone", "Sauna"], ["erillinen wc", "Erillinen WC"], ["vessa", "Erillinen WC"], ["wc", "Erillinen WC"], ["keittiö", "Keittiö"], ["allaskaap", "Keittiö"]] },
-        { k: "lattia", l: "Lattiapinnoite", t: "select", o: ["Keraaminen laatta", "Muovimatto", "Muu"], kun: { k: "mtila", v: ["Pesuhuone", "Sauna", "Erillinen WC"] },
+        { k: "lattia", l: "Lattiapinnoite", t: "select", o: ["Keraaminen laatta", "Muovimatto", "Vinyylilaatta", "Klinkkeri", "Mikrosementti / pinnoite", "Epoksi- tai massalattia", "Maalattu betoni", "Muu"], kun: { k: "mtila", v: ["Pesuhuone", "Sauna", "Erillinen WC"] },
           sanat: ["lattia", "lattiassa", "lattialla"], ow: [["laatt", "Keraaminen laatta"], ["laato", "Keraaminen laatta"], ["klinkkeri", "Keraaminen laatta"], ["muovimat", "Muovimatto"], ["matto", "Muovimatto"]] },
         { k: "lattia_kl", l: "Lattian kunto", t: "select", o: ["Hyvä", "Välttävä", "Huono"], kun: { k: "mtila", v: ["Pesuhuone", "Sauna", "Erillinen WC"] },
           sanat: ["lattia", "lattian"], ow: [["huono", "Huono"], ["heikko", "Huono"], ["välttäv", "Välttävä"], ["kulunut", "Välttävä"], ["hyvä", "Hyvä"], ["hyvässä", "Hyvä"]] },
-        { k: "seina", l: "Seinäpinnoite", t: "select", o: ["Keraaminen laatta", "Muovimatto", "Puupaneeli", "Maalattu levy", "Muu"], kun: { k: "mtila", v: ["Pesuhuone", "Sauna", "Erillinen WC"] },
+        { k: "seina", l: "Seinäpinnoite", t: "select", o: ["Keraaminen laatta", "Muovimatto", "Märkätilatapetti", "Märkätilalevy", "Mikrosementti / pinnoite", "Maalattu rappaus / betoni", "Lasitiili", "Puupaneeli", "Maalattu levy", "Muu"], kun: { k: "mtila", v: ["Pesuhuone", "Sauna", "Erillinen WC"] },
           sanat: ["seinä", "seinät", "seinissä", "seinillä"], ow: [["laatt", "Keraaminen laatta"], ["laato", "Keraaminen laatta"], ["muovimat", "Muovimatto"], ["paneel", "Puupaneeli"], ["maalat", "Maalattu levy"]] },
         { k: "seina_kl", l: "Seinien kunto", t: "select", o: ["Hyvä", "Välttävä", "Huono"], kun: { k: "mtila", v: ["Pesuhuone", "Sauna", "Erillinen WC"] },
           sanat: ["seinä", "seinät", "seinien"], ow: [["huono", "Huono"], ["heikko", "Huono"], ["välttäv", "Välttävä"], ["kulunut", "Välttävä"], ["hyvä", "Hyvä"], ["hyvässä", "Hyvä"]] },
-        { k: "katto", l: "Kattopinnoite", t: "select", o: ["Puupaneeli", "Maalattu levy", "Muu"], kun: { k: "mtila", v: ["Pesuhuone", "Sauna", "Erillinen WC"] },
+        { k: "katto", l: "Kattopinnoite", t: "select", o: ["Puupaneeli", "Maalattu levy", "Muovipaneeli", "Metallikasetti", "Maalattu betoni", "Märkätilalevy", "Muu"], kun: { k: "mtila", v: ["Pesuhuone", "Sauna", "Erillinen WC"] },
           sanat: ["katto", "katossa", "katon"], ow: [["paneel", "Puupaneeli"], ["maalat", "Maalattu levy"]] },
         { k: "katto_kl", l: "Katon kunto", t: "select", o: ["Hyvä", "Välttävä", "Huono"], kun: { k: "mtila", v: ["Pesuhuone", "Sauna", "Erillinen WC"] },
           sanat: ["katto", "katon"], ow: [["huono", "Huono"], ["heikko", "Huono"], ["välttäv", "Välttävä"], ["kulunut", "Välttävä"], ["hyvä", "Hyvä"], ["hyvässä", "Hyvä"]] },

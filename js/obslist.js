@@ -15,7 +15,7 @@
 
   function haystack(h) {
     return norm([
-      nro(h.nro), "h" + h.nro, h.kentat && h.kentat.tunnus,
+      nro(h), "h" + h.nro, UI.nroLyhyt(h), h.kentat && h.kentat.tunnus,
       Model.sijaintiTeksti(h.sijainti), M.menetelma(h.menetelma).nimi, M.menetelma(h.menetelma).lyhyt,
       h.tulos ? M.TULOKSET[h.tulos] : "", h.sanelu, h.tulkinta
     ].filter(Boolean).join(" "));
@@ -48,10 +48,10 @@
       '<button class="orow-main" data-oid="' + h.id + '">' +
       '<span class="thumb" style="width:56px;height:56px;flex:0 0 auto">' + (u ? '<img src="' + u + '" alt="">' : '<span class="nophoto">' + icon("cam") + "</span>") +
       (h.kuvat.length > 1 ? '<span class="no">' + h.kuvat.length + "</span>" : "") + (miss ? '<span class="warn">!</span>' : "") + "</span>" +
-      '<span class="grow"><span class="t">' + nro(h.nro) + (h.kentat && h.kentat.tunnus ? " · " + esc(h.kentat.tunnus) : "") + " · " + esc(Model.sijaintiTeksti(h.sijainti) || "Sijainti puuttuu") + "</span>" +
+      '<span class="grow"><span class="t">' + nro(h) + (h.kentat && h.kentat.tunnus ? " · " + esc(h.kentat.tunnus) : "") + " · " + esc(Model.sijaintiTeksti(h.sijainti) || "Sijainti puuttuu") + "</span>" +
       '<span class="s">' + esc(M.menetelma(h.menetelma).nimi + (h.tulos ? " · " + M.TULOKSET[h.tulos] : "")) + "</span>" +
       '<span class="s snip">' + esc(snip ? (snip.length > 90 ? snip.slice(0, 90) + "…" : snip) : "Ei sanelua") + "</span></span></button>" +
-      (opts.camera ? '<button class="icon-btn" data-ocam="' + h.id + '" aria-label="Lisää kuvia havaintoon ' + nro(h.nro) + '">' + icon("cam") + "</button>" : "") +
+      (opts.camera ? '<button class="icon-btn" data-ocam="' + h.id + '" aria-label="Lisää kuvia havaintoon ' + nro(h) + '">' + icon("cam") + "</button>" : "") +
       "</div>";
   }
 

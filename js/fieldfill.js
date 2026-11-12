@@ -152,7 +152,7 @@
   /* Tarkistuslistan valinta: haetaan lauseenosasta, jossa kentän sana on ("saumoissa rakoja",
      "kaadot riittävät", "ei tulvakynnystä"). Näin yhdessä sanelussa voi kuitata monta kohtaa. */
   function selectInClauses(f, t) {
-    const ws = wordsFor(f);
+    const ws = f.kaikkialla ? [] : wordsFor(f);       // kaikkialla: valinnan sana riittää (esim. "mikrobi-ilmanäyte")
     const clauses = String(t).split(/[.,;:!?]|\s(?:ja|sekä|mutta)\s/);
     for (const c of clauses) {
       const cc = " " + c.trim() + " ";
@@ -305,10 +305,11 @@
     const Model = (window.App && App.Model) || window.Model;
     const m = M.menetelma(h.menetelma);
     if (!m || !m.kentat.length) return [];
-    const hasText = !!(h.sanelu || "").trim();
+    const paalla = !window.Auto || Auto.enabled();
+    const hasText = paalla && !!(h.sanelu || "").trim();
     // Ilman sanelua täytetään vain tilasta pääteltävät (märkätilan tyyppi, asunto)
     if (!hasText && !m.kentat.some((f) => f.tilasta || f.k === "asunto")) return [];
-    const t = prep(h.sanelu || "");
+    const t = prep(paalla ? h.sanelu || "" : "");
     h.auto = h.auto || {};
     const changes = [];
     // Taulukot: ensimmäinen ryhmitelty taulukko saa mittausrivit, ryhmittelemätön olosuhteet

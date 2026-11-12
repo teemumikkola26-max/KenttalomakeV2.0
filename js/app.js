@@ -25,7 +25,8 @@
         nimi: o.nimi || "", osoite: "", projektinro: "", tutkija: o.tutkija || "",
         pvm: new Date().toISOString().slice(0, 10),
         kerrokset: [], tilat: [], suunnitelma: [],
-        muisti: {}, viimeisin: null, seuraavaNro: 1
+        muisti: {}, viimeisin: null, seuraavaNro: 1,
+        pilvi: !!(window.Cloud && Cloud.kirjautunut)      // kirjautuneena kohde synkronoidaan pilveen
       };
     },
     newHavainto(kohde, preset) {
@@ -48,12 +49,21 @@
     async saveKohde() {
       S.kohde.updated = Date.now();
       await DB.put("kohteet", S.kohde);
+      if (S.kohde.pilvi && window.Sync) Sync.soon();
     },
     async saveHavainto(h) {
       if (!h.nro) {
-        h.nro = S.kohde.seuraavaNro || 1;
-        S.kohde.seuraavaNro = h.nro + 1;
-        await Model.saveKohde();
+        const u = S.kohde.pilvi && window.Cloud ? Cloud.user() : null;
+        if (u && u.sarja) {
+          // Pilvikohteessa tutkijakohtainen kenttäsarja (TM-05): kaksi offline-tutkijaa ei saa samaa numeroa.
+          // Raportille (ZIP) havainnot numeroidaan uudelleen juoksevasti H01, H02 …
+          h.sarja = u.sarja; h.tekija = u.id; h.tekijaNimi = u.nimi || u.email;
+          h.nro = S.havainnot.filter((x) => x.sarja === u.sarja).reduce((mx, x) => Math.max(mx, x.nro || 0), 0) + 1;
+        } else {
+          h.nro = S.kohde.seuraavaNro || 1;
+          S.kohde.seuraavaNro = h.nro + 1;
+          await Model.saveKohde();
+        }
       }
       h.updated = Date.now();
       // Mittausarvot ovat vahvistettuja, kun yhtään kameralukua ei ole kesken, epäonnistunut
@@ -69,9 +79,11 @@
       // Pohjakuvasta tunnistettu tila vahvistuu, kun se on havainnon sijaintina (tutkija on paikalla ja näkee nimen)
       const tt = h.sijainti && h.sijainti.tilaId && Model.tila(h.sijainti.tilaId);
       if (tt && window.Plan && Plan.confirmRoom(tt, "havainto")) await Model.saveKohde();
-      S.havainnot.sort((a, b) => a.nro - b.nro);
+      S.havainnot.sort((a, b) => (a.created || 0) - (b.created || 0));
+      if (S.kohde.pilvi && window.Sync) Sync.soon();
     },
     async deleteHavainto(h) {
+      if (S.kohde.pilvi && window.Sync) setTimeout(() => Sync.soon(), 0);
       for (const f of h.kuvat.concat(h.aanitteet || [])) await DB.del("tiedostot", f);
       for (const v of Object.values(h.kentat || {})) {
         if (!Array.isArray(v)) continue;
@@ -147,7 +159,9 @@
     async ensureUrls(ids) {
       const need = ids.filter((id) => id && !S.urls.has(id));
       for (const id of need) {
-        const f = await DB.get("tiedostot", id);
+        let f = await DB.get("tiedostot", id);
+        // Toisen tutkijan kuva: haetaan pilvestä ja tallennetaan laitteelle
+        if (!f && S.kohde && S.kohde.pilvi && window.Sync) f = await Sync.haeTiedosto(S.kohde.id, id).catch(() => null);
         if (f && f.blob) S.urls.set(id, URL.createObjectURL(f.blob));
       }
     },
@@ -163,7 +177,8 @@
     if (!k) return false;
     Model.resetUrls();
     S.kohde = k;
-    S.havainnot = (await DB.byKohde("havainnot", id)).sort((a, b) => a.nro - b.nro);
+    S.havainnot = (await DB.byKohde("havainnot", id)).sort((a, b) => (a.created || 0) - (b.created || 0));
+    if (k.pilvi) { k.avattu = Date.now(); DB.put("kohteet", k); }      // vain laitteella: siivous vanhoista kohteista
     return true;
   }
 
@@ -200,7 +215,8 @@
   /* Varmuuskopion tila: onko kohteessa muutoksia viimeisen ZIP-viennin jälkeen */
   function vientiTila(k, hav) {
     const muutos = Math.max(k.updated || 0, ...(hav || []).map((h) => h.updated || 0));
-    const tyhja = !(hav || []).length && !(k.seuranta || []).length;
+    if (k.pilvi) return { msg: "" };      // pilvikohde: tiedot ovat pilvessä (synkronoinnin tila kohteessa)
+    const tyhja = !(hav || []).length && !(k.seuranta || []).length && !(k.yleiskuvat || []).length;
     if (tyhja) return { msg: "" };
     if (!k.viety) return { msg: "Ei vielä viety: tiedot vain tällä laitteella", cls: "warn" };
     if (muutos > k.viety + 3000) return { msg: "Muutoksia viennin " + UI.pvm(k.viety) + " jälkeen: vie uusi paketti", cls: "warn" };
@@ -218,22 +234,31 @@
       const hav = await DB.byKohde("havainnot", k.id);
       const st = vientiTila(k, hav);
       rows += '<a class="row" href="#/k/' + k.id + '" style="text-decoration:none;color:inherit"><div class="grow"><div class="t">' + esc(k.nimi || "Nimetön kohde") +
-        '</div><div class="s">' + esc([k.osoite, k.pvm ? UI.pvm(k.pvm) : "", hav.length + " havaintoa"].filter(Boolean).join(" · ")) + "</div>" +
+        '</div><div class="s">' + esc([k.osoite, k.pvm ? UI.pvm(k.pvm) : "", hav.length + " havaintoa", k.pilvi ? "pilvessä" : ""].filter(Boolean).join(" · ")) + "</div>" +
         (st.msg ? '<div class="s vienti ' + st.cls + '">' + esc(st.msg) + "</div>" : "") + "</div>" + icon("back", "flip") + "</a>";
     }
     app().innerHTML = topbar({ title: "Kuva + sanelu", sub: "Kenttähavainnot kuvina ja saneluina" }) +
       '<main class="view no-nav">' +
-      (Dictation.supported() ? "" : '<div class="alert info">' + icon("alert") + "<div>Tämä selain ei tue puheentunnistusta. Sanelut tallennetaan äänitteinä, ja tekstin voi kirjoittaa tai sanella näppäimistön mikrofonilla.</div></div>") +
-      '<section class="card"><div class="card-h"><h2>Kohteet</h2><span class="meta">' + kohteet.length + "</span></div>" +
-      (rows || '<div class="empty">Ei vielä kohteita. Aloita lisäämällä kohde.</div>') + "</section>" +
-      '<button class="btn btn-primary btn-block" data-act="newKohde">' + icon("plus") + "Uusi kohde</button>" +
+      (Dictation.supported() || (Dictation.tila && Dictation.tila().MODE === "laite") ? "" : '<div class="alert info">' + icon("alert") + "<div>Tämä selain ei tue puheentunnistusta. Sanelut tallennetaan äänitteinä, ja tekstin voi kirjoittaa tai sanella näppäimistön mikrofonilla.</div></div>") +
+      (window.CloudUI ? CloudUI.accountHtml() : "") +
+      '<button class="btn btn-primary btn-block" data-act="newKohde" style="margin-bottom:14px">' + icon("plus") + "Uusi kohde</button>" +
+      (kohteet.length ? '<section class="card"><div class="card-h"><h2>Kohteet</h2><span class="meta">' + kohteet.length + "</span></div>" + rows + "</section>"
+        : '<section class="card"><div class="card-h"><h2>Näin pääset alkuun</h2></div><div class="card-b"><ol class="start-steps">' +
+          "<li><b>Uusi kohde.</b> Anna tutkimussuunnitelma tai tarjous PDF:nä, niin menetelmät tulevat suunnitelmaan. Voit myös ohittaa sen.</li>" +
+          "<li><b>Pohjakuva.</b> Lisää pohjapiirros, niin tilat tunnistetaan ja havainnot voi merkitä kuvaan.</li>" +
+          "<li><b>Kuva + sanelu.</b> Ota kuva, pidä mikrofonia pohjassa ja kerro havainto. <i>Seuraava</i> tallentaa ja aloittaa uuden.</li>" +
+          "<li><b>Lähtötarkistus ja vienti.</b> Ennen lähtöä sovellus näyttää, mitä puuttuu. ZIP-paketti menee raportointiin.</li></ol></div></section>") +
+      '<details class="card vocab"><summary class="card-h"><h2>Asetukset ja työkalut</h2></summary><div class="card-b">' +
+      '<a class="btn btn-block" href="#/menetelmat">' + icon("list") + "Menetelmät</a>" +
+      '<div style="height:10px"></div><a class="btn btn-block" href="#/sanasto">' + icon("edit") + "Sanasto ja sanelun täyttö</a>" +
       '<div style="height:10px"></div><button class="btn btn-block" data-act="restore">' + icon("upload") + "Palauta varmuuskopio (ZIP)</button>" +
-      '<div style="height:10px"></div><a class="btn btn-block" href="#/menetelmat">' + icon("list") + "Menetelmät</a>" +
-      '<div style="height:10px"></div><a class="btn btn-block" href="#/sanasto">' + icon("edit") + "Sanasto</a>" +
-      '<p class="hint">Tiedot tallentuvat vain tälle laitteelle. Vie kohde ZIP-pakettina raportointia ja varmuuskopiota varten.' +
-      (est && est.usage ? " Käytössä " + (est.usage / 1048576).toFixed(0) + " Mt." : "") + "</p>" +
+      '<p class="hint">' + (window.Cloud && Cloud.enabled ? "Kirjaukset tallentuvat ensin tähän puhelimeen ja siirtyvät organisaation pilveen (vain kohteen tiimi näkee ne). ZIP-paketti viedään raportointia varten." : "Tiedot tallentuvat vain tälle laitteelle. Vie kohde ZIP-pakettina raportointia ja varmuuskopiota varten.") +
+      (est && est.usage ? " Käytössä " + (est.usage / 1048576).toFixed(0) + " Mt." : "") + "</p></div></details>" +
+      '<div data-puhe></div>' +
       '<p class="hint" style="text-align:center;margin-top:18px">Versio ' + esc(window.APP_VERSION) + ' · <a href="kameraluku-testi.html">Kameraluvun testi</a></p>' +
       "</main>";
+    if (window.CloudUI) CloudUI.bindHome(app());
+    if (window.Dictation && Dictation.puheKortti) Dictation.puheKortti(app().querySelector("[data-puhe]"));
   }
 
   /* ---------------- Näkymä: kohde ---------------- */
@@ -258,7 +283,7 @@
       const u = Model.url(h.kuvat[0]);
       rec += '<button class="item" data-act="openH" data-id="' + h.id + '"><span class="thumb">' +
         (u ? '<img src="' + u + '" alt="">' : "") + '<span class="dot" style="background:var(--pin-' + (h.tulos === "poikkeama" ? "note" : h.tulos === "ok" ? "ok" : "neutral") + ')"></span>' +
-        '<span class="no">' + nro(h.nro) + "</span>" +
+        '<span class="no">' + nro(h) + "</span>" +
         (Check.havaintoPuutteet(h).length ? '<span class="warn" title="Tietoja puuttuu">!</span>' : "") + "</span>" +
         esc(Model.sijaintiTeksti(h.sijainti) || "Sijainti puuttuu") + "</button>";
     }
@@ -269,12 +294,13 @@
       right: '<a class="tb-act" href="#/k/' + k.id + '/tiedot" style="text-decoration:none;color:inherit">Tiedot</a>'
     }) +
       (pr.all ? '<div class="progress"><span class="bar"><span style="width:' + Math.round((pr.done / pr.all) * 100) + '%"></span></span>' + pr.done + " / " + pr.all + "</div>" : "") +
-      '<main class="view">' +
+      '<main class="view">' + (window.CloudUI ? CloudUI.syncBarHtml(k) : "") +
       '<section class="card"><div class="card-h"><h2>Tutkimussuunnitelma</h2><a class="link" href="#/k/' + k.id + '/suunnitelma">Muokkaa</a></div>' +
       (plan || '<div class="empty">Lisää suunnitelman kohdat, niin näet kentällä mitä on tehty ja mitä puuttuu.<br><br><a class="btn btn-sm" href="#/k/' + k.id + '/suunnitelma">' + icon("plus") + "Lisää kohdat</a></div>") +
       "</section>" +
       Kuntoarvio.kohdeCard() +
       Seuranta.kohdeCard() +
+      Yleiskuvat.kohdeCard() +
       (Kuntoarvio.aktiivinen() ? "" : '<a class="row seur-link" href="#/k/' + k.id + '/kuntoarvio" style="text-decoration:none;color:inherit;margin:-4px 0 12px;border-radius:12px">' +
         icon("list") + '<div class="grow"><div class="t">Kuntoarvio</div><div class="s">Rakennusosat, kuntoluokat ja käyttöiät</div></div>' + icon("back", "flip") + "</a>") +
       '<section class="card"><div class="card-h"><h2>Viimeisimmät havainnot</h2>' +
@@ -339,6 +365,7 @@
       f("nimi", "Kohteen nimi") + f("osoite", "Osoite") + f("projektinro", "Projektinumero") + f("tutkija", "Tutkija") + f("pvm", "Tutkimuspäivä", "date") +
       '<p class="hint">Jos aineisto käytetään julkaistavassa työssä, anonymisoi kohteen nimi ja osoite ennen vientiä.</p>' +
       "</div></section>" +
+      (window.CloudUI ? CloudUI.tiimiHtml(k) : "") +
       '<section class="card"><div class="card-h"><h2>Vienti ja varmuuskopio</h2></div><div class="card-b">' +
       (vientiTila(k, S.havainnot).msg ? '<p class="hint vienti ' + vientiTila(k, S.havainnot).cls + '" style="margin:0 0 10px">' + esc(vientiTila(k, S.havainnot).msg) + "</p>" : "") +
       '<button class="btn btn-block" data-act="export">' + icon("download") + "Vie ZIP-paketti</button>" +
@@ -348,6 +375,7 @@
       "</main>";
     const save = UI.debounce(() => Model.saveKohde(), 400);
     app().querySelectorAll("[data-k]").forEach((inp) => inp.addEventListener("input", () => { k[inp.dataset.k] = inp.value; save(); }));
+    if (window.CloudUI) CloudUI.bindTiimi(app(), k);
   }
 
   /* ---------------- Näkymä: tutkimussuunnitelma ---------------- */
@@ -489,7 +517,7 @@
       '<div style="display:flex;flex-direction:column;gap:8px">' +
       (kam ? '<button class="btn btn-primary" data-a="ka">' + icon("list") + "Avaa kuntoarvio</button>" : seur ? '<button class="btn btn-primary" data-a="seur">' + icon("pin") + "Olosuhdeseuranta: mittalaitteet</button>"
             : '<button class="btn btn-primary" data-a="kuva">' + icon("cam") + "Kuva + sanelu tähän kohtaan</button>") +
-      linked.map((h) => '<button class="btn" data-h="' + h.id + '">' + nro(h.nro) + " · " + esc(Model.sijaintiTeksti(h.sijainti) || "Sijainti puuttuu") + "</button>").join("") +
+      linked.map((h) => '<button class="btn" data-h="' + h.id + '">' + nro(h) + " · " + esc(Model.sijaintiTeksti(h.sijainti) || "Sijainti puuttuu") + "</button>").join("") +
       (p.pois ? '<button class="btn" data-a="palauta">Palauta tehtäväksi</button>' : '<button class="btn" data-a="pois">Jätetään pois + syy</button>') +
       '<button class="btn" data-close>Sulje</button></div>',
       (el, close) => {
@@ -541,6 +569,7 @@
     if (S.cleanup) { try { S.cleanup(); } catch (e) { /* ohita */ } S.cleanup = null; }
     const { parts, q } = parseHash();
     try {
+      if (window.CloudUI && CloudUI.tarvitaanKirjautuminen()) { CloudUI.loginView(); return; }
       if (parts[0] === "sanasto") { await VocabView.view(); return; }
       if (parts[0] === "menetelmat") {
         if (parts[1]) await Editor.viewMethod(decodeURIComponent(parts[1])); else await Editor.viewList();
@@ -562,6 +591,7 @@
       else if (sub === "lahto") await Check.view();
       else if (sub === "seuranta") await Seuranta.view(parts[3] || null);
       else if (sub === "kuntoarvio") await Kuntoarvio.view(parts[3] || null);
+      else if (sub === "yleiskuvat") await Yleiskuvat.view();
       else await viewKohde();
     } catch (err) {
       console.error(err);
@@ -588,7 +618,9 @@
     await M.load();
     await Learn.load();
     await Vocab.load();
+    if (window.Cloud) { try { await Cloud.init(); } catch (e) { console.warn("Pilvi", e); } }
     render();
+    if (window.Sync && Cloud.enabled) { Sync.start(); Sync.siivoa(false).catch(() => {}); }
     if ("serviceWorker" in navigator && location.protocol !== "file:") {
       navigator.serviceWorker.register("sw.js").then((reg) => {
         // Tarkistetaan päivitys myös, kun sovellus palaa näkyviin (esim. kotinäytöltä avattuna).

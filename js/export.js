@@ -8,6 +8,7 @@
      aanitteet/H01_1.webm …
      pohjapiirrokset/<kerros>.png            merkinnöin
      pohjapiirrokset/<kerros>_alkuperainen.* ilman merkintöjä
+     yleiskuvat/YK01_OH1.jpg …                yleiskuvat (ei havaintoa, tila nimessä)
      varmuuskopio/seuranta/MIR12_1.jpg       mittalaitteiden sijoittelukuvat (poishakua varten, ei raporttiin)
      varmuuskopio/data.json                  kohteen palautukseen
    ========================================================================= */
@@ -16,7 +17,7 @@
   const { toast, nro } = UI;
   const { S, Model } = App;
 
-  const JSZIP = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+  const JSZIP = "lib/jszip.min.js";
   const FORMAT = "kuva-sanelu/1";
 
   function safe(s) {
@@ -30,6 +31,22 @@
     if (/mp4|aac|m4a/.test(type)) return "m4a";
     if (/ogg/.test(type)) return "ogg";
     return "bin";
+  }
+  /* Raportin numerointi: havainnot juoksevasti H01, H02 … kirjausjärjestyksessä. Kentän tutkijakohtaiset
+     sarjat (TM-05) jäävät vain varmuuskopioon, eivät raportille. */
+  /* Tiedosto laitteelta tai pilvestä (toisen tutkijan kuva). Puuttuvat lasketaan. */
+  let puuttuvat = 0;
+  async function getFile(id) {
+    let f = await DB.get("tiedostot", id);
+    if (!f && S.kohde.pilvi && window.Sync) f = await Sync.haeTiedosto(S.kohde.id, id).catch(() => null);
+    if (!f) puuttuvat++;
+    return f;
+  }
+  let RN = (h) => nro(h.nro);
+  function raporttiNumerot() {
+    const map = new Map();
+    S.havainnot.slice().sort((a, b) => (a.created || 0) - (b.created || 0)).forEach((h, i) => map.set(h.id, nro(i + 1)));
+    RN = (h) => map.get(h.id) || nro(h.nro);
   }
   function fmtNum(v) { const s = String(v); return /^-?\d+(\.\d+)?$/.test(s) ? s.replace(".", ",") : s; }
 
@@ -63,7 +80,7 @@
       g.strokeStyle = "#fff"; g.lineWidth = Math.max(2, r / 5);
       g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); g.stroke();
       g.fillStyle = "#fff"; g.font = "700 " + Math.round(r * 0.95) + "px sans-serif";
-      g.fillText(nro(h.nro), x, y + 1);
+      g.fillText(RN(h), x, y + 1);
     });
     // olosuhdeseurannan mittalaitteet (neliö + tunnus)
     (S.kohde.seuranta || []).filter((x) => x.nro && x.sijainti.piste && x.sijainti.kerrosId === kerros.id).forEach((x) => {
@@ -149,7 +166,7 @@
       tutkimussuunnitelma: k.suunnitelma.map((p) => ({
         menetelma: M.menetelma(p.menetelma).nimi, tarkennus: p.kuvaus, maara: p.maara || 1,
         tehty: Model.kohtaTehty(p), jatetaan_pois: p.pois ? p.pois.syy : null,
-        havainnot: S.havainnot.filter((h) => h.suunnitelmaId === p.id).map((h) => nro(h.nro))
+        havainnot: S.havainnot.filter((h) => h.suunnitelmaId === p.id).map((h) => RN(h))
       })),
       tilat: k.tilat.map((t) => {
         const e = Model.kerros(t.kerrosId);
@@ -161,7 +178,7 @@
         const e = Model.kerros(h.sijainti.kerrosId), t = Model.tila(h.sijainti.tilaId), p = Model.kohta(h.suunnitelmaId);
         const rivit = mittausRivit(h);
         return {
-          tunnus: nro(h.nro),
+          tunnus: RN(h),
           kuntoarvion_osa: h.kaOsa && window.Kuntoarvio && Kuntoarvio.osa(h.kaOsa) ? Kuntoarvio.osa(h.kaOsa).nimi : null,
           sijainti: { kerros: e ? e.nimi : null, tila: t ? Model.tilaNimi(t) : null, rakenneosa: h.sijainti.rakenneosa || null,
             pohjapiirros: h.sijainti.piste ? { x_pros: Math.round(h.sijainti.piste.x * 1000) / 10, y_pros: Math.round(h.sijainti.piste.y * 1000) / 10 } : null },
@@ -186,7 +203,8 @@
         };
       }),
       olosuhdeseuranta: seurantaJson(),
-      kuntoarvio: window.Kuntoarvio ? Kuntoarvio.vienti() : null,
+      yleiskuvat: (paths.yleiskuvat || []).length ? paths.yleiskuvat : null,
+      kuntoarvio: window.Kuntoarvio ? Kuntoarvio.vienti(RN) : null,
       avoimet_puutteet: puutteet.map((x) => x.otsikko + ": " + x.selite)
     };
   }
@@ -271,14 +289,24 @@
         if (o.ryhma !== ryh) { ryh = o.ryhma; L.push("### " + ryh); L.push(""); }
         if (o.kuntoluokka == null && !o.huomiot && !o.havainnot.length) { L.push("- " + o.osa + (o.koodi ? " (" + o.koodi + ")" : "") + ": ei arvioitu"); return; }
         L.push("- **" + o.osa + (o.koodi ? " (" + o.koodi + ")" : "") + "**: kuntoluokka " + (o.kuntoluokka == null ? "–" : o.kuntoluokka) +
-          (o.rakenne ? "; rakenne: " + o.rakenne : "") + (o.vuosi ? "; vuosi: " + o.vuosi : "") +
-          (o.kayttoika_laskettu ? "; " + o.kayttoika_laskettu + " (laskettu, lähde " + (o.kayttoian_lahde || "–") + ")" : "") +
-          (o.tarkastusvali ? "; tarkastusväli " + o.tarkastusvali : "") + (o.kunnossapitojakso ? "; kunnossapitojakso " + o.kunnossapitojakso : "") +
           (o.pts_ehdokas ? "; PTS-ehdokas" : "") + (o.valittomasti_korjattava ? "; VÄLITTÖMÄSTI KORJATTAVA" : "") +
           (o.lisatutkimus ? "; lisätutkimus" : "") + (o.asiantuntija_arvio_suositeltava ? "; asiantuntija-arvio suositeltava" : "") +
           (o.havainnot.length ? "; havainnot " + o.havainnot.join(", ") : ""));
+        (o.rakenteet || []).forEach((r) => L.push("  - Rakenne: " + r.rakenne + (r.missa ? " (" + r.missa + ")" : "") + (r.vuosi ? "; vuosi " + r.vuosi : "") +
+          (r.kayttoika_laskettu ? "; " + r.kayttoika_laskettu + " (laskettu, lähde " + (r.kayttoian_lahde || "–") + ")" : "") +
+          (r.tarkastusvali ? "; tarkastusväli " + r.tarkastusvali : "") + (r.kunnossapitojakso ? "; kunnossapitojakso " + r.kunnossapitojakso : "")));
         if (o.huomiot) L.push("  - Arvioijan huomiot: " + o.huomiot);
       });
+      L.push("");
+    }
+    if (j.yleiskuvat) {
+      L.push("## Yleiskuvat");
+      L.push("");
+      L.push("Kuvat ilman havaintoa (kansio yleiskuvat/). Tila on tutkijan kuvaushetkellä valitsema.");
+      L.push("");
+      L.push("| Kuva | Kerros | Tila | Kuvateksti |");
+      L.push("|---|---|---|---|");
+      j.yleiskuvat.forEach((y) => L.push("| " + y.tunnus + " | " + (y.kerros || "–") + " | " + (y.tila || "–") + " | " + (y.kuvateksti || "") + " |"));
       L.push("");
     }
     if (j.olosuhdeseuranta) {
@@ -344,7 +372,10 @@
     "   sovelluksen laskema käyttöikätaulukosta ja rakennus- tai uusimisvuodesta;\n" +
     "   lähde on merkitty. PTS-ehdokkaat ovat ehdotuksia PTS-taulukkoon, eivät\n" +
     "   päätöksiä. LVIA- ja sähköosat on arvioitu pintapuolisesti rakennusteknisenä;\n" +
-    "   kohdat, joissa asiantuntija-arvio on suositeltava, esitetään lisätutkimuksina.\n";
+    "   kohdat, joissa asiantuntija-arvio on suositeltava, esitetään lisätutkimuksina.\n" +
+    "11. Yleiskuvat (kansio yleiskuvat/) ovat kuvia ilman havaintoa tai sanelua, esim.\n" +
+    "   julkisivut ja tilojen yleisnäkymät. Niistä ei tehdä havaintoja eikä\n" +
+    "   johtopäätöksiä; ne liitetään raporttiin kohteen kuvaukseen.\n";
 
   /* Viennin ajankohta: etusivu muistuttaa, jos kohteessa on vientiä uudempia muutoksia (puhelimen
      katoaminen tai rikkoutuminen ei vie kenttäpäivän työtä) */
@@ -356,6 +387,10 @@
   async function run(keskenerainen) {
     const k = S.kohde;
     toast("Kootaan pakettia…", 6000);
+    // Pilvikohde: muiden tutkijoiden viimeisimmät kirjaukset mukaan ennen vientiä
+    if (S.kohde.pilvi && window.Sync && Cloud.kirjautunut && navigator.onLine) { try { await Sync.syncKohde(S.kohde.id); } catch (e) { console.warn(e); } }
+    raporttiNumerot();
+    puuttuvat = 0;
     try {
       await UI.loadScript(JSZIP);
       const zip = new JSZip();
@@ -365,9 +400,9 @@
       for (const h of S.havainnot) {
         paths.kuvat[h.id] = [];
         for (let i = 0; i < h.kuvat.length; i++) {
-          const f = await DB.get("tiedostot", h.kuvat[i]);
+          const f = await getFile(h.kuvat[i]);
           if (!f) continue;
-          const p = "kuvat/" + nro(h.nro) + "_" + (i + 1) + "." + ext(f.blob.type);
+          const p = "kuvat/" + RN(h) + "_" + (i + 1) + "." + ext(f.blob.type);
           zip.file(p, f.blob);
           paths.kuvat[h.id].push(p);
           backupFiles[f.id] = p;
@@ -378,23 +413,23 @@
           for (const r of M.rivit(h, f)) {
             if (!r._ocr) continue;
             li++;
-            const fk = r._ocr.kuva && await DB.get("tiedostot", r._ocr.kuva);
+            const fk = r._ocr.kuva && await getFile(r._ocr.kuva);
             if (fk) {
-              const p = "kuvat/" + nro(h.nro) + "_lukema_" + li + "." + ext(fk.blob.type);
+              const p = "kuvat/" + RN(h) + "_lukema_" + li + "." + ext(fk.blob.type);
               zip.file(p, fk.blob); paths.lukemat[r.id] = p; backupFiles[fk.id] = p;
             }
-            const fr = r._ocr.rajaus && await DB.get("tiedostot", r._ocr.rajaus);
+            const fr = r._ocr.rajaus && await getFile(r._ocr.rajaus);
             if (fr) {
-              const p = "varmuuskopio/rajaukset/" + nro(h.nro) + "_" + li + "." + ext(fr.blob.type);
+              const p = "varmuuskopio/rajaukset/" + RN(h) + "_" + li + "." + ext(fr.blob.type);
               zip.file(p, fr.blob); backupFiles[fr.id] = p;
             }
           }
         }
         paths.aanitteet[h.id] = [];
         for (let i = 0; i < (h.aanitteet || []).length; i++) {
-          const f = await DB.get("tiedostot", h.aanitteet[i]);
+          const f = await getFile(h.aanitteet[i]);
           if (!f) continue;
-          const p = "aanitteet/" + nro(h.nro) + "_" + (i + 1) + "." + ext(f.blob.type);
+          const p = "aanitteet/" + RN(h) + "_" + (i + 1) + "." + ext(f.blob.type);
           zip.file(p, f.blob);
           paths.aanitteet[h.id].push(p);
           backupFiles[f.id] = p;
@@ -403,15 +438,28 @@
       // Mittalaitteiden sijoittelukuvat: vain varmuuskopioon (ei raportin kuviin)
       for (const x of (k.seuranta || [])) {
         for (let i = 0; i < x.kuvat.length; i++) {
-          const f = await DB.get("tiedostot", x.kuvat[i]);
+          const f = await getFile(x.kuvat[i]);
           if (!f) continue;
           const p = "varmuuskopio/seuranta/" + (Seuranta.tunnus(x) || "laite_" + x.id.slice(-4)) + "_" + (i + 1) + "." + ext(f.blob.type);
           zip.file(p, f.blob); backupFiles[f.id] = p;
         }
       }
+      // Yleiskuvat: kansio yleiskuvat/, järjestys kerros – tila – ottoaika
+      paths.yleiskuvat = [];
+      if (window.Yleiskuvat) {
+        const yl = Yleiskuvat.jarjestetty();
+        for (let i = 0; i < yl.length; i++) {
+          const y = yl[i], f = await getFile(y.kuva);
+          if (!f) continue;
+          const t = y.sijainti.tilaId && Model.tila(y.sijainti.tilaId), ker = Model.kerros(y.sijainti.kerrosId);
+          const p = "yleiskuvat/" + Yleiskuvat.tunnus(i) + (t ? "_" + safe(t.tunnus || t.nimi) : "") + "." + ext(f.blob.type);
+          zip.file(p, f.blob); backupFiles[f.id] = p;
+          paths.yleiskuvat.push({ tunnus: Yleiskuvat.tunnus(i), tiedosto: p, kerros: ker ? ker.nimi : null, tila: t ? Model.tilaNimi(t) : null, kuvateksti: y.kuvateksti || "", otettu: new Date(y.created).toISOString() });
+        }
+      }
       for (const e of k.kerrokset) {
         if (!e.planId) continue;
-        const f = await DB.get("tiedostot", e.planId);
+        const f = await getFile(e.planId);
         if (!f) continue;
         const base = "pohjapiirrokset/" + safe(e.nimi);
         const orig = base + "_alkuperainen." + ext(f.blob.type);
@@ -420,7 +468,12 @@
         try { zip.file(base + ".png", await planWithPins(e, f.blob)); } catch (err) { console.warn(err); }
       }
 
-      const puutteet = keskenerainen ? Check.puutteet() : [];
+      // Puutelistan otsikoissa raportin numero (H01), ei kentän tutkijakohtaista sarjaa (TM-05)
+      const puutteet = (keskenerainen ? Check.puutteet() : []).map((x) => {
+        const h = x.tyyppi === "havainto" && Model.havainto(x.id);
+        return h ? Object.assign({}, x, { otsikko: x.otsikko.replace(nro(h), RN(h)) }) : x;
+      });
+      if (puuttuvat) puutteet.push({ otsikko: "Tiedostoja puuttuu", selite: puuttuvat + " kuvaa tai äänitettä ei saatu (ei verkkoyhteyttä). Vie paketti uudelleen verkossa." });
       const j = buildJson(paths, puutteet, keskenerainen);
       zip.file("havainnot.json", JSON.stringify(j, null, 2));
       zip.file("havainnot.md", buildMd(j));

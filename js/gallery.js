@@ -95,7 +95,7 @@
     const optHtml = (p) =>
       '<option value="">Ei liitetä</option><option value="__new"' + (p.pick ? "" : " selected") + ">Uusi havainto</option>" +
       opts.map((h) => '<option value="' + h.id + '"' + (h.id === p.pick ? " selected" : "") + ">" +
-        esc(nro(h.nro) + " · " + hhmm(h.created) + " · " + (Model.sijaintiTeksti(h.sijainti) || M.menetelma(h.menetelma).nimi)) + "</option>").join("");
+        esc(nro(h) + " · " + hhmm(h.created) + " · " + (Model.sijaintiTeksti(h.sijainti) || M.menetelma(h.menetelma).nimi)) + "</option>").join("");
 
     const cleanup = () => photos.forEach((p) => URL.revokeObjectURL(p.url));
     sheet(

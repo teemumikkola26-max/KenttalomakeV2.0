@@ -646,8 +646,15 @@
     // Samannimisille tunnukset: MH1, MH2 (jos tilanumeroa ei ole), asunnoittain
     const byName = {};
     out.forEach((c) => { const k = (c.asunto || "") + "|" + c.nimi; (byName[k] = byName[k] || []).push(c); });
+    const YKSI = /^(keittiö|olohuone|sauna|löylyhuone|kodinhoitohuone|tuulikaappi|kuisti)$/i;
     Object.values(byName).forEach((list) => {
       if (list.length < 2) return;
+      // Tiloja, joita on asunnossa yleensä vain yksi: ei numeroida KE1/KE2, vaan varmin jää ja muut tarkistetaan
+      if (YKSI.test(list[0].nimi || "") && !list.some((c) => c.tunnus || c.numero)) {
+        list.sort((a, b) => rank(b) - rank(a));
+        list.slice(1).forEach((c) => { c.varma = false; c.syy = list[0].nimi + " löytyi " + list.length + " kertaa – yleensä vain yksi. Onko tämä oikea?"; });
+        return;
+      }
       list.sort((a, b) => a.y - b.y || a.x - b.x);
       list.forEach((c, i) => { if (!c.tunnus) c.tunnus = (c.abbr || upPlain(c.nimi).slice(0, 3)) + (i + 1); });
     });
@@ -701,13 +708,13 @@
   }
 
   /* ---------- Lähde 2: tekstintunnistus ---------- */
-  const TESS = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
+  const TESS = "lib/tesseract/tesseract.min.js";
   let workerP = null;
   function worker(progress) {
     if (!workerP) {
-      workerP = UI.loadScript(TESS).then(() => window.Tesseract.createWorker("fin", 1, {
+      workerP = UI.loadScript(TESS).then(() => window.Tesseract.createWorker("fin", 1, Object.assign(UI.tessPaths(), {
         logger: (m) => { if (worker.onprogress && m && m.status) worker.onprogress(m); }
-      })).then(async (w) => { await w.setParameters({ tessedit_pageseg_mode: "11", preserve_interword_spaces: "1" }); return w; })
+      }))).then(async (w) => { await w.setParameters({ tessedit_pageseg_mode: "11", preserve_interword_spaces: "1" }); return w; })
         .catch((e) => { workerP = null; throw e; });
     }
     worker.onprogress = progress;

@@ -222,6 +222,16 @@
     const f = m.kentat.find((x) => x.k === "tunnus" && x.t === "text");
     if (!f || (h.kentat.tunnus && !(h.auto && h.auto.tunnus))) return false;
     const used = S.havainnot.filter((x) => x.id !== h.id && x.menetelma === h.menetelma && x.kentat && x.kentat.tunnus).map((x) => String(x.kentat.tunnus));
+    // Näytetyypin oma etuliite (MIK, VOC, AS …) ensin; numerointi etuliitteittäin
+    const tf = m.kentat.find((x) => x.etuliitteet && h.kentat[x.k]);
+    const tyyppiPrefix = tf ? tf.etuliitteet[h.kentat[tf.k]] || null : null;
+    if (tyyppiPrefix) {
+      const re = new RegExp("^" + tyyppiPrefix + "(\\d+)$", "i");
+      const mx = used.reduce((a, u) => { const q = String(u).match(re); return q ? Math.max(a, +q[1]) : a; }, 0);
+      const v = tyyppiPrefix + (mx + 1);
+      if (h.kentat.tunnus === v || (h.kentat.tunnus && String(h.kentat.tunnus).startsWith(tyyppiPrefix) && /^\D+\d+$/.test(h.kentat.tunnus) && String(h.kentat.tunnus).match(/^\D+/)[0] === tyyppiPrefix)) return false;
+      h.kentat.tunnus = v; h.auto = Object.assign({}, h.auto, { tunnus: true }); return true;
+    }
     let prefix = (m.etuliite && m.etuliite.trim().toUpperCase()) || TUNNUS_PREFIX[m.id] || (m.lyhyt || "P").replace(/[^A-Za-zÅÄÖåäö]/g, "").slice(0, 3).toUpperCase() || "P";
     let max = 0;
     used.forEach((u) => {
@@ -237,8 +247,12 @@
 
   /* ---------- Kaikki yhdellä kertaa ---------- */
   /* Palauttaa listan muutoksista: [{ kentta, arvo }] */
+  /* Tutkija voi ottaa sanelusta täytön pois käytöstä (Sanasto-sivu). Sanelu tallentuu silti. */
+  function enabled() { try { return localStorage.getItem("ks.autofill") !== "0"; } catch (e) { return true; } }
+  function setEnabled(on) { try { localStorage.setItem("ks.autofill", on ? "1" : "0"); } catch (e) { /* ohita */ } }
   async function apply(h) {
     h.auto = h.auto || {};
+    if (!enabled()) return [];
     const t = norm(h.sanelu);
     const changes = [];
     const canSet = (key, cur) => !cur || h.auto[key];
@@ -257,7 +271,8 @@
         changes.push({ kentta: "menetelmä", arvo: M.menetelma(pred.id).nimi + " (opittu)" });
       }
     }
-    const tul = detectTulos(t);
+    // Näytteenotossa tulos tulee laboratoriosta: "mikrobi" ei ole kentällä poikkeama
+    const tul = h.menetelma && M.menetelma(h.menetelma).tulosVapaa ? null : detectTulos(t);
     if (tul && canSet("tulos", h.tulos) && tul !== h.tulos) {
       h.tulos = tul; h.auto.tulos = "sanelu";
       changes.push({ kentta: "tulos", arvo: M.TULOKSET[tul] });
@@ -315,5 +330,5 @@
   Vocab.define("tilat", { group: "Sanelu: sijainti", title: "Tilojen nimet", type: "map", defaults: ROOM_DEF,
     help: "sana = tilan nimi. Jos kohteessa ei vielä ole tilaa, se luodaan tällä nimellä. Kohteen omat tilat ja tunnukset (A101) tunnistetaan aina." });
 
-  window.Auto = { METHOD_WORDS, methodWords, TUNNUS_PREFIX, apply, manual, markCarried, autoKohta, autoTunnus, _detect: { detectMethod, detectTulos, detectPart, detectRoom, norm, stemRe } };
+  window.Auto = { enabled, setEnabled, METHOD_WORDS, methodWords, TUNNUS_PREFIX, apply, manual, markCarried, autoKohta, autoTunnus, _detect: { detectMethod, detectTulos, detectPart, detectRoom, norm, stemRe } };
 })();

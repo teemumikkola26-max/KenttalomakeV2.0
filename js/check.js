@@ -41,7 +41,7 @@
       const puuttuu = havaintoPuutteet(h);
       if (!puuttuu.length) return;
       out.push({
-        tyyppi: "havainto", id: h.id, otsikko: nro(h.nro) + " · " + (Model.sijaintiTeksti(h.sijainti) || m.nimi),
+        tyyppi: "havainto", id: h.id, otsikko: nro(h) + " · " + (Model.sijaintiTeksti(h.sijainti) || m.nimi),
         selite: "Puuttuu: " + puuttuu.join(", ") + ".",
         toimintoTeksti: "Täydennä"
       });
@@ -69,7 +69,7 @@
     if (!h.kuvat.length && !h.sanelu && !(h.aanitteet || []).length) puuttuu.push("kuva tai sanelu");
     if (!h.sijainti || !h.sijainti.tilaId) puuttuu.push("tila");
     if (!h.menetelma) puuttuu.push("menetelmä");
-    if (!h.tulos) puuttuu.push("tulos");
+    if (!h.tulos && !M.menetelma(h.menetelma).tulosVapaa) puuttuu.push("tulos");     // näytteen tulos tulee laboratoriosta
     M.kentat(h).forEach((f) => {
       if (f.t === "table") {
         const rows = M.rivit(h, f);

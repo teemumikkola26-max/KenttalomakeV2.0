@@ -6,8 +6,8 @@
   const { icon, esc, toast, sheet, confirmSheet, promptSheet, nro } = UI;
   const { S, Model } = App;
 
-  const PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
-  const PDFJS_WORKER = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  const PDFJS = "lib/pdf.min.js";
+  const PDFJS_WORKER = "lib/pdf.worker.min.js";
   const KERROSEHDOTUKSET = ["Kellari", "1. krs", "2. krs", "3. krs", "Ullakko", "Ryömintätila"];
 
   let currentFloor = null;
@@ -18,7 +18,7 @@
     await UI.loadScript(PDFJS);
     const lib = window.pdfjsLib;
     lib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
-    const pdf = await lib.getDocument({ data: await file.arrayBuffer() }).promise;
+    const pdf = await lib.getDocument({ data: await file.arrayBuffer(), isEvalSupported: false }).promise;
     let pageNo = 1;
     if (pdf.numPages > 1) {
       pageNo = await new Promise((resolve) => {
@@ -147,6 +147,13 @@
     return { nNew, nUpd };
   }
 
+  // Sama tunnus kahdesti (esim. MH2 luettu kahdesti): molemmat tarkistukseen
+  function merkitseKaksoset(rows) {
+    const tun = {};
+    rows.forEach((r) => { const t = normName(r.tunnus || ""); if (t) (tun[t] = tun[t] || []).push(r); });
+    Object.values(tun).forEach((l) => { if (l.length > 1) l.forEach((r) => { r.varma = false; r.syy = "tunnus " + r.tunnus + " löytyi " + l.length + " kertaa – korjaa tai hylkää ylimääräinen"; }); });
+  }
+
   async function reviewRooms(kerros, res) {
     await Model.ensureUrls([kerros.planId]);
     const existing = S.kohde.tilat.filter((t) => t.kerrosId === kerros.id);
@@ -155,6 +162,7 @@
       (!c.tunnus && normName(t.nimi) === normName(c.nimi) && !existing.some((o) => o !== t && normName(o.nimi) === normName(c.nimi))));
     const sorted = res.tilat.slice().sort((a, b) => (a.asunto || "").localeCompare(b.asunto || "", "fi", { numeric: true }) || (a.tunnus || "").localeCompare(b.tunnus || "", "fi", { numeric: true }));
     const rows = sorted.map((c, i) => Object.assign({}, c, { i, olemassa: match(c) }));
+    merkitseKaksoset(rows);
     const auto = rows.filter((r) => r.varma), check = rows.filter((r) => !r.varma);
     const lahde = res.lahde === "pdf" ? "pohjakuva (PDF:n teksti)" : "pohjakuva (tekstintunnistus)";
 
@@ -254,6 +262,55 @@
     t.tunnistus.vahvistettu = true; t.tunnistus.vahvistus = how; t.tunnistus.vahvistettuAika = Date.now();
     if (window.PlanRooms && t.tunnistus.avain) PlanRooms.confirm(t.tunnistus.avain, t.nimi);
     return true;
+  }
+
+  /* "Mikä tila tämä on?" – pohjakuvan kohta, jossa ei ole tunnistettua tilaa.
+     Yleisimmät tilat yhdellä napautuksella, oma nimi tai lyhenne (VH2 -> Vaatehuone) tai lähin tila. */
+  const YLEISET_TILAT = ["Olohuone", "Keittiö", "Makuuhuone", "Kylpyhuone", "Pesuhuone", "Sauna", "WC", "Eteinen", "Tuulikaappi", "Kodinhoitohuone", "Vaatehuone", "Varasto", "Tekninen tila", "Käytävä", "Porrashuone", "Toimisto", "Luokka", "Kellari", "Ullakko"];
+  function kysyTila(p, kerrosId, lahimmat) {
+    return new Promise((resolve) => {
+      let done = false;
+      sheet("<h3>Mikä tila tämä on?</h3>" +
+        '<p class="hint" style="margin:-4px 0 10px">Kohdassa ei ole tunnistettua tilaa. Tila lisätään pohjakuvaan tähän kohtaan.</p>' +
+        '<div class="chips" style="margin-bottom:12px">' + YLEISET_TILAT.map((n) => '<button class="chip" data-n="' + esc(n) + '">' + esc(n) + "</button>").join("") + "</div>" +
+        '<div style="display:flex;gap:8px"><input type="text" data-oma placeholder="Oma nimi tai tunnus, esim. VH2 tai A12 Luokka" autocomplete="off" style="flex:1;min-width:0"><button class="btn btn-primary" data-lisaa>Lisää</button></div>' +
+        (lahimmat.length ? '<span class="label" style="margin-top:14px;display:block">Vai onko se jokin näistä?</span><div class="chips">' +
+          lahimmat.map((t) => '<button class="chip" data-t="' + t.id + '">' + esc(Model.tilaNimi(t)) + "</button>").join("") + "</div>" : "") +
+        '<div class="row-btns" style="margin-top:14px"><button class="btn" data-close>Vain kohta, tila myöhemmin</button></div>',
+        (el, close) => {
+          const luo = async (txt) => {
+            txt = String(txt || "").trim();
+            if (!txt) return;
+            // "VH2", "A12 Luokka", "Luokka": tunnus ja nimi erikseen; lyhenne avataan sanaston mukaan
+            let tunnus = "", nimi = txt;
+            const m = txt.match(/^([A-ZÅÄÖa-zåäö]{1,4}\s?\d{1,4}[a-zA-Z]?)(?:\s+(.+))?$/);
+            if (m) {
+              tunnus = m[1].toUpperCase().replace(/\s+/g, "");
+              const ab = window.PlanRooms ? PlanRooms.matchAbbr(tunnus.replace(/\d+[A-Z]?$/, "")) : null;
+              nimi = m[2] ? m[2].charAt(0).toUpperCase() + m[2].slice(1) : (ab && ab.nimi) || "";
+            } else if (window.PlanRooms) {
+              const ab = PlanRooms.matchAbbr(txt.toUpperCase());
+              if (ab && ab.nimi) { tunnus = txt.toUpperCase(); nimi = ab.nimi; }
+              else nimi = txt.charAt(0).toUpperCase() + txt.slice(1);
+            }
+            const t = { id: DB.uid("t_"), tunnus, nimi, kerrosId, pos: { x: p.x, y: p.y }, merkinta: null,
+              tunnistus: { lahde: "kasin", raaka: txt, vahvistettu: true, vahvistus: "lisatty", aika: Date.now() } };
+            S.kohde.tilat.push(t);
+            await Model.saveKohde();
+            done = true; close(); resolve(t);
+          };
+          el.addEventListener("click", (e) => {
+            const b = e.target.closest("button");
+            if (!b) return;
+            if (b.dataset.n) luo(b.dataset.n);
+            else if (b.dataset.t) { done = true; close(); resolve(Model.tila(b.dataset.t)); }
+            else if (b.dataset.lisaa != null) luo(el.querySelector("[data-oma]").value);
+          });
+          el.querySelector("[data-oma]").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); luo(e.target.value); } });
+        },
+        { onClose: () => { if (!done) resolve(null); } }
+      );
+    });
   }
 
   async function addFloor() {
@@ -374,7 +431,7 @@
   }
 
   function obsPopup(h) {
-    sheet("<h3>" + nro(h.nro) + " · " + esc(Model.sijaintiTeksti(h.sijainti)) + "</h3>" +
+    sheet("<h3>" + nro(h) + " · " + esc(Model.sijaintiTeksti(h.sijainti)) + "</h3>" +
       "<p>" + esc(M.menetelma(h.menetelma).nimi + (h.tulos ? " · " + M.TULOKSET[h.tulos] : "")) + "</p>" +
       (h.sanelu ? '<p style="color:var(--ink)">' + esc(h.sanelu.length > 220 ? h.sanelu.slice(0, 220) + "…" : h.sanelu) + "</p>" : "") +
       '<div class="row-btns"><button class="btn" data-c>' + icon("cam") + 'Lisää kuva</button><button class="btn btn-primary" data-o>Avaa</button></div>',
@@ -398,7 +455,7 @@
     }
     S.havainnot.filter((h) => h.sijainti && h.sijainti.piste && h.sijainti.kerrosId === kerrosId && h.id !== opts.except).forEach((h) => {
       const p = h.sijainti.piste;
-      out += '<button class="pin ' + App.pinClass(h) + '" data-obs="' + h.id + '" style="left:' + (p.x * 100) + "%;top:" + (p.y * 100) + '%' + (opts.dim ? ";opacity:.45" : "") + '" aria-label="Havainto ' + nro(h.nro) + '">' + h.nro + "</button>";
+      out += '<button class="pin ' + App.pinClass(h) + '" data-obs="' + h.id + '" style="left:' + (p.x * 100) + "%;top:" + (p.y * 100) + '%' + (opts.dim ? ";opacity:.45" : "") + '" aria-label="Havainto ' + nro(h) + '">' + UI.nroLyhyt(h) + "</button>";
     });
     // olosuhdeseurannan mittalaitteet
     if (window.Seuranta && !opts.noMir) out += Seuranta.pinsHtml(kerrosId, { dim: opts.dim, except: opts.mirExcept });
@@ -596,8 +653,16 @@
         if (rp) s.tilaId = rp.dataset.room;
         else {
           const kk = Model.kerros(s.kerrosId), near = k.tilat.filter((t) => t.kerrosId === s.kerrosId && t.pos)
-            .map((t) => ({ t, d: Math.hypot(t.pos.x - p.x, (t.pos.y - p.y) * ((kk && kk.h && kk.w) ? kk.h / kk.w : 1)) })).sort((a, b) => a.d - b.d)[0];
-          if (near && near.d < 0.04 && !s.tilaId) s.tilaId = near.t.id;
+            .map((t) => ({ t, d: Math.hypot(t.pos.x - p.x, (t.pos.y - p.y) * ((kk && kk.h && kk.w) ? kk.h / kk.w : 1)) })).sort((a, b) => a.d - b.d);
+          if (near[0] && near[0].d < 0.04 && !s.tilaId) s.tilaId = near[0].t.id;
+          else if (!s.tilaId) {
+            // Kohta tunnistamattomassa tilassa tai merkintöjen ulkopuolella: kysytään heti, mikä tila on
+            paint();
+            el.parentNode.style.display = "none";
+            const t = await kysyTila(p, s.kerrosId, near.slice(0, 4).map((x) => x.t));
+            el.parentNode.style.display = "";
+            if (t) s.tilaId = t.id;
+          }
         }
         paint(); return;
       }
@@ -633,5 +698,5 @@
     paint();
   }
 
-  window.Plan = { view, locationSheet, searchRooms, recentRooms, roomActions, pinsHtml, detectRooms, reviewRooms, confirmRoom };
+  window.Plan = { view, locationSheet, kysyTila, searchRooms, recentRooms, roomActions, pinsHtml, detectRooms, reviewRooms, confirmRoom };
 })();

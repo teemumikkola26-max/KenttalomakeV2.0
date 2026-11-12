@@ -2,7 +2,7 @@
    ui.js – yhteiset apuvälineet: kuvakkeet, escapointi, ikkunat, ilmoitukset
    ========================================================================= */
 /* Sovelluksen versio: nosta yhdessä sw.js:n CACHE-version kanssa. */
-window.APP_VERSION = "25";
+window.APP_VERSION = "27";
 
 (function () {
   "use strict";
@@ -209,7 +209,17 @@ window.APP_VERSION = "25";
 
   function buzz(ms) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) { /* ohita */ } }
 
-  function nro(n) { return "H" + String(n).padStart(2, "0"); }
+  /* Tekstintunnistuksen tiedostot sovelluksen omasta lib-kansiosta (ei CDN:stä) */
+  function tessPaths() {
+    const base = new URL("lib/", location.href).href;
+    return { workerPath: base + "tesseract/worker.min.js", corePath: base + "tesseract/", langPath: base + "tessdata", gzip: true, workerBlobURL: false };
+  }
+  /* Havainnon tunnus kentällä: H05 tai pilvikohteessa tutkijan sarja TM-05 (raportille numeroidaan uudelleen) */
+  function nro(n) {
+    if (n && typeof n === "object") return n.sarja ? n.sarja + "-" + String(n.nro || "?").padStart(2, "0") : "H" + String(n.nro || "?").padStart(2, "0");
+    return "H" + String(n).padStart(2, "0");
+  }
+  const nroLyhyt = (h) => (h.sarja ? h.sarja : "") + (h.nro || "");
 
-  window.UI = { icon, esc, toast, hideToast, closeAllSheets, sheet, confirmSheet, promptSheet, pickFile, loadScript, debounce, pvm, nro, showSelected, keepAwake, buzz };
+  window.UI = { tessPaths, icon, esc, toast, hideToast, closeAllSheets, sheet, confirmSheet, promptSheet, pickFile, loadScript, debounce, pvm, nro, nroLyhyt, showSelected, keepAwake, buzz };
 })();
