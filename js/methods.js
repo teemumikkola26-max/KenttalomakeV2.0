@@ -300,7 +300,19 @@
       });
     },
     /* Kenttä näkyy, kun sen ehto täyttyy (esim. tulvakynnys vain pesuhuoneelle ja WC:lle) */
-    nakyy(h, f) { return !f.kun || (f.kun.v || []).includes(h.kentat && h.kentat[f.kun.k]); },
+    /* Onko kohteessa asuntoja? Omakotitalossa Asunto-kenttää ei kysytä. Tutkijan valinta (kohde.asuntoja)
+       voittaa; muuten päätellään kuntoarvion perustiedoista. Tuntematon = kysytään. */
+    eiAsuntoja(k) {
+      if (!k) return false;
+      if (k.asuntoja === false) return true;
+      if (k.asuntoja === true) return false;
+      const pt = (k.kuntoarvio && k.kuntoarvio.perustiedot) || {};
+      return String(pt.huoneistoja || "").trim() === "1" || /omakoti|pientalo|erillistalo|vapaa-ajan|mökki/i.test(pt.rakennustyyppi || "");
+    },
+    nakyy(h, f) {
+      if (f.k === "asunto" && window.App && M.eiAsuntoja(App.S.kohde)) return false;
+      return !f.kun || (f.kun.v || []).includes(h.kentat && h.kentat[f.kun.k]);
+    },
     kentat(h) { return M.menetelma(h.menetelma).kentat.filter((f) => M.nakyy(h, f)); },
     rivit(h, f) { return Array.isArray(h.kentat[f.k]) ? h.kentat[f.k] : []; },
     ryhmaSarake(f) { return (f.sarakkeet || []).find((c) => c.ryhma) || null; },

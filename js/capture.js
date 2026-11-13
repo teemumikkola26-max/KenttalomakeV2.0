@@ -426,7 +426,8 @@
     // olemassa olevaa havaintoa tai kuvaus avattiin tietylle suunnitelman kohdalle.
     if (mode === "hav" && !saved && !q.menetelma && !q.kohta && !q.kaosa && Asetukset.get("pv.milloin") !== "ei") pikavalinta(true);
 
-    /* Pikavalinta: tila (jos valitaan itse) ja menetelmä yhdellä näytöllä. Menetelmän napautus sulkee. */
+    /* Pikavalinta: tila (jos valitaan itse) ja menetelmä yhdellä näytöllä. Menetelmän napautus sulkee.
+       Molemmissa on hakukenttä: kirjoitus rajaa listaa, ja jos osumaa ei ole, sama kenttä lisää uuden. */
     function pikavalinta(alku) {
       const pvT = Asetukset.get("pv.tila");
       const kysyM = !Auto.paalla("menetelma"), kysyT = !Auto.paalla("tila") && pvT !== "ei" && (pvT === "aina" || !h.sijainti.tilaId);
@@ -434,48 +435,117 @@
       const vanha = root.querySelector(".qp"); if (vanha) vanha.remove();
       const g = document.createElement("div");
       g.className = "qp";
-      const tilat = () => {
+      const norm = (x) => String(x || "").toLowerCase().replace(/\s+/g, " ").trim();
+      // Edellinen tila = viimeksi tallennetun havainnon tila
+      const edell = (S.havainnot || []).slice().sort((a, b) => b.updated - a.updated).map((x) => x.sijainti && x.sijainti.tilaId).find(Boolean) || null;
+      const viimeisetTilat = () => {
         const ids = [];
-        if (h.sijainti.tilaId) ids.push(h.sijainti.tilaId);
+        if (edell) ids.push(edell);
+        if (h.sijainti.tilaId && !ids.includes(h.sijainti.tilaId)) ids.push(h.sijainti.tilaId);
         (S.havainnot || []).slice().sort((a, b) => b.updated - a.updated).forEach((x) => { const t = x.sijainti && x.sijainti.tilaId; if (t && !ids.includes(t)) ids.push(t); });
-        return ids.slice(0, 7).map((id) => Model.tila(id)).filter(Boolean);
+        return ids.slice(0, 6).map((id) => Model.tila(id)).filter(Boolean);
       };
-      const paint = () => {
-        const sugg = Asetukset.get("pv.suunnitelma") ? MethodPicker.ehdotukset(h.menetelma, h.id) : [];
-        const muut = M.havaintoMenetelmat().filter((m) => !sugg.some((x) => x.id === m.id));
-        g.innerHTML = '<div class="qp-box">' +
-          (kysyT ? '<div class="qp-h">Tila</div><div class="qp-chips">' +
-            tilat().map((t) => '<button class="qp-chip" data-qt="' + t.id + '" aria-pressed="' + (t.id === h.sijainti.tilaId) + '">' + esc(Model.tilaNimi(t)) + "</button>").join("") +
-            '<button class="qp-chip qp-more" data-qt="__muu">' + (tilat().length ? "Muu tila…" : "Valitse tila…") + "</button></div>" : "") +
-          (kysyM ? '<div class="qp-h">' + (alku ? "Mitä kirjaat?" : "Seuraavan havainnon menetelmä") + '</div><div class="qp-grid">' +
+      g.innerHTML = '<div class="qp-box">' +
+        (kysyT ? '<div class="qp-h">Tila</div>' +
+          '<div class="qp-find"><input type="search" data-qts placeholder="Hae tai lisää tila, esim. VH2 tai Varasto" autocomplete="off" enterkeyhint="done"></div>' +
+          '<div class="qp-chips" data-qtl></div>' : "") +
+        (kysyM ? '<div class="qp-h">' + (alku ? "Mitä kirjaat?" : "Seuraavan havainnon menetelmä") + "</div>" +
+          '<div class="qp-find"><input type="search" data-qms placeholder="Hae tai lisää menetelmä" autocomplete="off" enterkeyhint="done"></div>' +
+          '<div data-qml></div>' : '<button class="btn btn-primary" data-qok style="width:100%;margin-top:12px">Valmis</button>') +
+        '<button class="qp-skip" data-qskip>' + (kysyM ? "Valitse myöhemmin" : "Ohita") + "</button></div>";
+      const tIn = g.querySelector("[data-qts]"), mIn = g.querySelector("[data-qms]");
+
+      function paintT() {
+        if (!kysyT) return;
+        const q = norm(tIn.value);
+        let l, lisaa = "";
+        if (q) {
+          const kaikki = S.kohde.tilat.filter((t) => norm(Model.tilaNimi(t)).includes(q) || norm(t.tunnus) === q);
+          // Nykyisen kerroksen tilat ensin
+          l = kaikki.sort((a, b) => (a.kerrosId === h.sijainti.kerrosId ? 0 : 1) - (b.kerrosId === h.sijainti.kerrosId ? 0 : 1)).slice(0, 8);
+          if (!kaikki.some((t) => norm(Model.tilaNimi(t)) === q || norm(t.tunnus) === q)) lisaa = '<button class="qp-chip qp-add" data-qtnew>+ Lisää tila ”' + esc(tIn.value.trim()) + "”</button>";
+        } else l = viimeisetTilat();
+        g.querySelector("[data-qtl]").innerHTML =
+          l.map((t) => '<button class="qp-chip" data-qt="' + t.id + '" aria-pressed="' + (t.id === h.sijainti.tilaId) + '">' + esc(Model.tilaNimi(t)) +
+            (!q && t.id === edell ? " <small>edellinen</small>" : "") + "</button>").join("") + lisaa +
+          (q ? "" : '<button class="qp-chip qp-more" data-qt="__muu">Pohjakuvasta…</button>') +
+          (q && !l.length && !lisaa ? '<span class="qp-none">Ei osumia</span>' : "");
+      }
+      function paintM() {
+        if (!kysyM) return;
+        const q = norm(mIn.value);
+        const all = M.havaintoMenetelmat();
+        let html;
+        if (q) {
+          const hits = all.filter((m) => norm(m.nimi).includes(q) || norm(m.lyhyt).includes(q) || (m.sanat || []).some((w) => norm(w).includes(q)));
+          const exact = all.some((m) => norm(m.nimi) === q);
+          html = '<div class="qp-grid qp-small">' + hits.map((m) => '<button class="qp-m" data-qm="' + esc(m.id) + '">' + esc(m.nimi) + "</button>").join("") +
+            (exact ? "" : '<button class="qp-m qp-more" data-qmnew>+ Lisää menetelmä ”' + esc(mIn.value.trim()) + "”</button>") + "</div>";
+        } else {
+          const sugg = Asetukset.get("pv.suunnitelma") ? MethodPicker.ehdotukset(h.menetelma, h.id) : [];
+          const muut = all.filter((m) => !sugg.some((x) => x.id === m.id));
+          html = (sugg.length ? '<div class="qp-grid">' +
             sugg.map((x, i) => '<button class="qp-m' + (i === 0 && x.id === h.menetelma ? " qp-first" : "") + '" data-qm="' + esc(x.id) + '">' + esc(x.nimi) +
-              (x.id === h.menetelma && !alku ? '<small>sama kuin edellä</small>' : x.tag ? "<small>" + esc(x.tag) + "</small>" : "") + "</button>").join("") +
-            "</div>" +
+              (x.id === h.menetelma && !alku ? "<small>sama kuin edellä</small>" : x.tag ? "<small>" + esc(x.tag) + "</small>" : "") + "</button>").join("") + "</div>" : "") +
             (muut.length && sugg.length ? '<div class="qp-h">Muut menetelmät</div>' : "") +
             '<div class="qp-grid qp-small">' + muut.map((m) => '<button class="qp-m" data-qm="' + esc(m.id) + '">' + esc(m.nimi) + "</button>").join("") +
-            '<button class="qp-m qp-more" data-qm="__hae">Hae tai lisää uusi…</button></div>' : '<button class="btn btn-primary" data-qok style="width:100%;margin-top:12px">Valmis</button>') +
-          '<button class="qp-skip" data-qskip>' + (kysyM ? "Valitse myöhemmin" : "Ohita") + "</button></div>";
-      };
-      paint();
+            '<button class="qp-m qp-yk" data-qyk>' + icon("image") + "Yleiskuva<small>ei havaintoa</small></button></div>";
+        }
+        g.querySelector("[data-qml]").innerHTML = html;
+      }
+      paintT(); paintM();
       root.appendChild(g);
       const sulje = () => { g.remove(); paintAll(); };
+      function asetaTila(t) {
+        h.sijainti.tilaId = t.id; h.sijainti.kerrosId = t.kerrosId; h.sijainti.piste = null;
+        Auto.manual(h, "tila"); Auto.autoKohta(h); if (window.FieldFill) FieldFill.apply(h);
+        paintLoc(); paintStatus();
+        if (tIn) { tIn.value = ""; tIn.blur(); }
+        if (!kysyM) { sulje(); return; }
+        paintT();
+      }
+      async function uusiTila() {
+        const t = await Plan.luoTila(tIn.value, h.sijainti.kerrosId, null);
+        if (t) { toast("Tila lisätty: " + Model.tilaNimi(t)); asetaTila(t); }
+      }
+      async function uusiMenetelma() {
+        const m = await MethodPicker.luo(mIn.value);
+        if (m) { toast("Menetelmä lisätty. Kenttiä voi lisätä Menetelmät-sivulla.", 3000); selectMethod(m.id, true); sulje(); }
+      }
+      if (tIn) {
+        tIn.addEventListener("input", paintT);
+        tIn.addEventListener("keydown", (e) => {
+          if (e.key !== "Enter") return;
+          e.preventDefault();
+          const eka = g.querySelector("[data-qtl] [data-qt]:not([data-qt='__muu'])");
+          if (norm(tIn.value) && eka) asetaTila(Model.tila(eka.dataset.qt)); else if (norm(tIn.value)) uusiTila();
+        });
+      }
+      if (mIn) {
+        mIn.addEventListener("input", paintM);
+        mIn.addEventListener("keydown", (e) => {
+          if (e.key !== "Enter") return;
+          e.preventDefault();
+          const eka = g.querySelector("[data-qml] [data-qm]");
+          if (norm(mIn.value) && eka) { selectMethod(eka.dataset.qm, true); sulje(); } else if (norm(mIn.value)) uusiMenetelma();
+        });
+      }
       g.addEventListener("click", (e) => {
+        if (e.target.closest("[data-qtnew]")) { uusiTila(); return; }
+        if (e.target.closest("[data-qmnew]")) { uusiMenetelma(); return; }
+        if (e.target.closest("[data-qyk]")) { g.remove(); setMode("yk"); return; }
         const tb = e.target.closest("[data-qt]");
         if (tb) {
           if (tb.dataset.qt === "__muu") {
-            Plan.locationSheet(h.sijainti, (sij) => { h.sijainti = sij; Auto.manual(h, "tila"); Auto.autoKohta(h); paintLoc(); paintStatus(); paint(); if (!kysyM && h.sijainti.tilaId) sulje(); });
+            Plan.locationSheet(h.sijainti, (sij) => { h.sijainti = sij; Auto.manual(h, "tila"); Auto.autoKohta(h); paintLoc(); paintStatus(); paintT(); if (!kysyM && h.sijainti.tilaId) sulje(); });
             return;
           }
           const t = Model.tila(tb.dataset.qt);
-          if (t) { h.sijainti.tilaId = t.id; h.sijainti.kerrosId = t.kerrosId; h.sijainti.piste = null; Auto.manual(h, "tila"); Auto.autoKohta(h); if (window.FieldFill) FieldFill.apply(h); paintLoc(); paintStatus(); }
-          if (!kysyM) { sulje(); return; }
-          paint(); return;
+          if (t) asetaTila(t);
+          return;
         }
         const mb = e.target.closest("[data-qm]");
-        if (mb) {
-          if (mb.dataset.qm === "__hae") { MethodPicker.openSheet({ selected: h.menetelma, excludeHavainto: h.id, onSelect: (id) => { selectMethod(id, true); sulje(); } }); return; }
-          selectMethod(mb.dataset.qm, true); sulje(); return;
-        }
+        if (mb) { selectMethod(mb.dataset.qm, true); sulje(); return; }
         if (e.target.closest("[data-qskip],[data-qok]")) sulje();
       });
     }

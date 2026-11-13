@@ -268,6 +268,28 @@
   /* "Mikä tila tämä on?" – pohjakuvan kohta, jossa ei ole tunnistettua tilaa.
      Yleisimmät tilat yhdellä napautuksella, oma nimi tai lyhenne (VH2 -> Vaatehuone) tai lähin tila. */
   const YLEISET_TILAT = ["Olohuone", "Keittiö", "Makuuhuone", "Kylpyhuone", "Pesuhuone", "Sauna", "WC", "Eteinen", "Tuulikaappi", "Kodinhoitohuone", "Vaatehuone", "Varasto", "Tekninen tila", "Käytävä", "Porrashuone", "Toimisto", "Luokka", "Kellari", "Ullakko"];
+  /* Uusi tila tekstistä: "VH2", "A12 Luokka", "Luokka". Tunnus ja nimi erotetaan, lyhenne avataan sanastosta. */
+  async function luoTila(txt, kerrosId, pos) {
+    txt = String(txt || "").trim();
+    if (!txt) return null;
+    let tunnus = "", nimi = txt;
+    const m = txt.match(/^([A-ZÅÄÖa-zåäö]{1,4}\s?\d{1,4}[a-zA-Z]?)(?:\s+(.+))?$/);
+    if (m) {
+      tunnus = m[1].toUpperCase().replace(/\s+/g, "");
+      const ab = window.PlanRooms ? PlanRooms.matchAbbr(tunnus.replace(/\d+[A-Z]?$/, "")) : null;
+      nimi = m[2] ? m[2].charAt(0).toUpperCase() + m[2].slice(1) : (ab && ab.nimi) || "";
+    } else if (window.PlanRooms) {
+      const ab = PlanRooms.matchAbbr(txt.toUpperCase());
+      if (ab && ab.nimi) { tunnus = txt.toUpperCase(); nimi = ab.nimi; }
+      else nimi = txt.charAt(0).toUpperCase() + txt.slice(1);
+    }
+    const t = { id: DB.uid("t_"), tunnus, nimi, kerrosId: kerrosId || (S.kohde.kerrokset[0] && S.kohde.kerrokset[0].id) || null, pos: pos ? { x: pos.x, y: pos.y } : null, merkinta: null,
+      tunnistus: { lahde: "kasin", raaka: txt, vahvistettu: true, vahvistus: "lisatty", aika: Date.now() } };
+    S.kohde.tilat.push(t);
+    await Model.saveKohde();
+    return t;
+  }
+
   function kysyTila(p, kerrosId, lahimmat) {
     return new Promise((resolve) => {
       let done = false;
@@ -280,24 +302,8 @@
         '<div class="row-btns" style="margin-top:14px"><button class="btn" data-close>Vain kohta, tila myöhemmin</button></div>',
         (el, close) => {
           const luo = async (txt) => {
-            txt = String(txt || "").trim();
-            if (!txt) return;
-            // "VH2", "A12 Luokka", "Luokka": tunnus ja nimi erikseen; lyhenne avataan sanaston mukaan
-            let tunnus = "", nimi = txt;
-            const m = txt.match(/^([A-ZÅÄÖa-zåäö]{1,4}\s?\d{1,4}[a-zA-Z]?)(?:\s+(.+))?$/);
-            if (m) {
-              tunnus = m[1].toUpperCase().replace(/\s+/g, "");
-              const ab = window.PlanRooms ? PlanRooms.matchAbbr(tunnus.replace(/\d+[A-Z]?$/, "")) : null;
-              nimi = m[2] ? m[2].charAt(0).toUpperCase() + m[2].slice(1) : (ab && ab.nimi) || "";
-            } else if (window.PlanRooms) {
-              const ab = PlanRooms.matchAbbr(txt.toUpperCase());
-              if (ab && ab.nimi) { tunnus = txt.toUpperCase(); nimi = ab.nimi; }
-              else nimi = txt.charAt(0).toUpperCase() + txt.slice(1);
-            }
-            const t = { id: DB.uid("t_"), tunnus, nimi, kerrosId, pos: { x: p.x, y: p.y }, merkinta: null,
-              tunnistus: { lahde: "kasin", raaka: txt, vahvistettu: true, vahvistus: "lisatty", aika: Date.now() } };
-            S.kohde.tilat.push(t);
-            await Model.saveKohde();
+            const t = await luoTila(txt, kerrosId, p);
+            if (!t) return;
             done = true; close(); resolve(t);
           };
           el.addEventListener("click", (e) => {
@@ -699,5 +705,5 @@
     paint();
   }
 
-  window.Plan = { view, locationSheet, kysyTila, searchRooms, recentRooms, roomActions, pinsHtml, detectRooms, reviewRooms, confirmRoom };
+  window.Plan = { view, locationSheet, kysyTila, luoTila, searchRooms, recentRooms, roomActions, pinsHtml, detectRooms, reviewRooms, confirmRoom };
 })();

@@ -174,6 +174,7 @@
     const root = document.getElementById("app");
     root.innerHTML = App.topbar({ title: "Kuntoarvio", sub: p.n + " / " + p.all + " rakennusosaa arvioitu · " + k.nimi, back: "#/k/" + k.id }) +
       '<main class="view">' +
+      KaLahto.kortti() +
       '<details class="card vocab" ' + (a.perustiedot.rakennusvuosi ? "" : "open") + '><summary class="card-h"><h2>Perustiedot ja rajaukset</h2><span class="meta">' + esc(a.perustiedot.rakennusvuosi || "") + '</span></summary><div class="card-b">' +
         '<div class="grid2">' + PERUS.map(([f, l, ph]) => '<label class="field"><span>' + l + '</span><input type="text" data-pt="' + f + '" value="' + esc(a.perustiedot[f] || "") + '" placeholder="' + esc(ph) + '"' + (f === "rakennusvuosi" || f === "huoneistoja" || f === "pintaala" ? ' inputmode="numeric"' : "") + "></label>").join("") + "</div>" +
         '<label class="field"><span>Tehdyt kunnossapito- ja muutostyöt</span><textarea data-pt="korjaukset" placeholder="Yksi työ riville, esim. 2015 vesikaton uusiminen">' + esc(a.perustiedot.korjaukset || "") + "</textarea></label>" +
@@ -212,7 +213,13 @@
       else if (t.dataset.ka === "rajaukset") { a.rajaukset = t.value; save(); }
       else if (t.dataset.ka === "ptsVuodet") { const n = parseInt(t.value, 10); if (n > 0) { a.ptsVuodet = n; save(); } }
     };
-    S.cleanup = () => { save.flush(); root.oninput = null; };
+    const uudelleen = () => { const y = window.scrollY; view().then(() => window.scrollTo(0, y)); };
+    root.onclick = (e) => {
+      if (e.target.closest("[data-lahto-add]")) { save.flush(); KaLahto.lisaa(uudelleen); return; }
+      const d = e.target.closest("[data-lahto-del]");
+      if (d) KaLahto.poista(d.dataset.lahtoDel, uudelleen);
+    };
+    S.cleanup = () => { save.flush(); root.oninput = root.onclick = null; };
   }
 
   /* ---------- Näkymä: rakennusosa ---------- */
@@ -371,7 +378,7 @@
   }
 
   /* Vienti: rakennusosat raporttipohjan järjestyksessä */
-  function vienti(rn) {
+  function vienti(rn, lahtoPolut) {
     rn = rn || UI.nro;
     if (!S.kohde || !S.kohde.kuntoarvio) return null;
     const a = ka();
@@ -379,14 +386,15 @@
       selite: "Kuntoarvio rakennusosittain (raporttipohjan järjestys). Kuntoluokka on arvioijan arvio koko osasta; osassa voi olla useita rakenteita; käyttöikälaskelma on sovelluksen laskema taulukon ja vuosiluvun perusteella.",
       kuntoluokat: D.KUNTOLUOKAT.map((x) => x.k + " = " + x.s),
       perustiedot: a.perustiedot, rajaukset: a.rajaukset || "", pts_jakso_v: a.ptsVuodet || 10,
+      lahtotiedot: (a.lahtotiedot || []).map((x) => ({ tiedosto: (lahtoPolut && lahtoPolut[x.id]) || x.nimi, nimi: x.nimi, laji: x.laji, sivuja: x.sivuja, luettu: x.tapa, materiaalimerkinnat: x.otteet && x.otteet.length ? x.otteet : undefined })),
       osat: D.OSAT.map((d) => {
         const o = siirra(a.osat[d.id]) || {}, l = o.ei ? null : laskelma(d.id);
         return {
           ryhma: ryhma(d.r).nimi, koodi: d.koodi, osa: d.nimi,
           kuntoluokka: o.ei ? "ei koske kohdetta" : (o.kl || null),
           kuntoluokka_selite: o.kl ? D.KUNTOLUOKAT.find((x) => x.k === o.kl).s : null,
-          rakenteet: o.ei ? [] : laskelmat(d.id).filter((x) => x.rk.nimike).map(({ rk, l: lr }) => ({
-            rakenne: rk.nimike, missa: rk.missa || null,
+          rakenteet: o.ei ? [] : laskelmat(d.id).filter((x) => x.rk.nimike || x.rk.vuosi).map(({ rk, l: lr }) => ({
+            rakenne: rk.nimike || "materiaali kirjaamatta", missa: rk.missa || null, lahtotiedosta: rk.lahde || undefined,
             vuosi: rk.vuosi || (a.perustiedot.rakennusvuosi ? a.perustiedot.rakennusvuosi + " (rakennusvuosi)" : null),
             kayttoika_laskettu: lr && lr.txt ? lr.txt : null, tarkastusvali: lr ? lr.r.tv || null : null, kunnossapitojakso: lr ? lr.r.kp || null : null, kayttoian_lahde: lr ? lr.r.lahde || null : null,
             pts_ehdokas: !!(lr && lr.pts) })),

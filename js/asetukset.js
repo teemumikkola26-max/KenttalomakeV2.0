@@ -23,7 +23,7 @@
 
     { ryhma: "Pikavalinta", ohje: "Ikkuna uuden havainnon alussa. Näkyy, kun menetelmä tai tila valitaan itse." },
     { k: "pv.milloin", t: "valinta", d: "aina", nimi: "Milloin pikavalinta avautuu", o: [["aina", "Jokaiselle uudelle havainnolle"], ["alussa", "Vain kun kuvaus avataan"], ["ei", "Ei koskaan (valinta paneelista)"]] },
-    { k: "pv.tila", t: "valinta", d: "auto", nimi: "Tila pikavalinnassa", o: [["auto", "Kun tila valitaan itse ja se puuttuu"], ["aina", "Aina, kun tila valitaan itse"], ["ei", "Ei koskaan"]] },
+    { k: "pv.tila", t: "valinta", d: "aina", nimi: "Tila pikavalinnassa", o: [["aina", "Aina, kun tila valitaan itse (edellinen valmiina)"], ["auto", "Vain kun tila puuttuu"], ["ei", "Ei koskaan"]] },
     { k: "pv.suunnitelma", t: "bool", d: true, nimi: "Suunnitelman menetelmät isoina painikkeina", ohje: "Tekemättömät menetelmät ja edellinen ylimpänä." },
     { k: "pv.sama", t: "bool", d: true, nimi: "Seuraava jatkaa samalla menetelmällä", ohje: "Uusi havainto saa edellisen menetelmän valmiiksi; pikavalinnassa se on ylimpänä." },
 

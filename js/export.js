@@ -8,6 +8,7 @@
      aanitteet/H01_1.webm …
      pohjapiirrokset/<kerros>.png            merkinnöin
      pohjapiirrokset/<kerros>_alkuperainen.* ilman merkintöjä
+     lahtotiedot/isannoitsijantodistus.pdf …  kuntoarvion lähtötietoasiakirjat alkuperäisinä
      yleiskuvat/YK01_OH1.jpg …                yleiskuvat (ei havaintoa, tila nimessä)
      varmuuskopio/seuranta/MIR12_1.jpg       mittalaitteiden sijoittelukuvat (poishakua varten, ei raporttiin)
      varmuuskopio/data.json                  kohteen palautukseen
@@ -204,7 +205,7 @@
       }),
       olosuhdeseuranta: seurantaJson(),
       yleiskuvat: (paths.yleiskuvat || []).length ? paths.yleiskuvat : null,
-      kuntoarvio: window.Kuntoarvio ? Kuntoarvio.vienti(RN) : null,
+      kuntoarvio: window.Kuntoarvio ? Kuntoarvio.vienti(RN, paths.lahto) : null,
       avoimet_puutteet: puutteet.map((x) => x.otsikko + ": " + x.selite)
     };
   }
@@ -284,10 +285,19 @@
       Object.keys(PT).forEach((x) => { if (pt[x]) L.push("- " + PT[x] + ": " + String(pt[x]).replace(/\n+/g, "; ")); });
       if (ka.rajaukset) L.push("- Rajaukset: " + ka.rajaukset.replace(/\n+/g, "; "));
       L.push("");
+      if ((ka.lahtotiedot || []).length) {
+        L.push("### Lähtötietoasiakirjat");
+        L.push("");
+        ka.lahtotiedot.forEach((x) => {
+          L.push("- " + x.tiedosto + " (" + [x.laji, x.sivuja > 1 ? x.sivuja + " sivua" : ""].filter(Boolean).join(", ") + ")");
+          if (x.materiaalimerkinnat) L.push("  - Piirustuksesta luettuja merkintöjä (tekstintunnistus, tarkista piirustuksesta): " + x.materiaalimerkinnat.join("; "));
+        });
+        L.push("");
+      }
       let ryh = "";
       ka.osat.forEach((o) => {
         if (o.ryhma !== ryh) { ryh = o.ryhma; L.push("### " + ryh); L.push(""); }
-        if (o.kuntoluokka == null && !o.huomiot && !o.havainnot.length) { L.push("- " + o.osa + (o.koodi ? " (" + o.koodi + ")" : "") + ": ei arvioitu"); return; }
+        if (o.kuntoluokka == null && !o.huomiot && !o.havainnot.length && !(o.rakenteet || []).length) { L.push("- " + o.osa + (o.koodi ? " (" + o.koodi + ")" : "") + ": ei arvioitu"); return; }
         L.push("- **" + o.osa + (o.koodi ? " (" + o.koodi + ")" : "") + "**: kuntoluokka " + (o.kuntoluokka == null ? "–" : o.kuntoluokka) +
           (o.pts_ehdokas ? "; PTS-ehdokas" : "") + (o.valittomasti_korjattava ? "; VÄLITTÖMÄSTI KORJATTAVA" : "") +
           (o.lisatutkimus ? "; lisätutkimus" : "") + (o.asiantuntija_arvio_suositeltava ? "; asiantuntija-arvio suositeltava" : "") +
@@ -373,6 +383,9 @@
     "   lähde on merkitty. PTS-ehdokkaat ovat ehdotuksia PTS-taulukkoon, eivät\n" +
     "   päätöksiä. LVIA- ja sähköosat on arvioitu pintapuolisesti rakennusteknisenä;\n" +
     "   kohdat, joissa asiantuntija-arvio on suositeltava, esitetään lisätutkimuksina.\n" +
+    "12. Kuntoarvion lähtötiedot (kansio lahtotiedot/) ovat tilaajan toimittamia asiakirjoja.\n" +
+    "   Sovellus on poiminut niistä perustietoja ja korjaushistoriaa tutkijan hyväksymänä.\n" +
+    "   Lue asiakirjat kokonaan ja käytä niitä raportin lähtötietoina; merkitse lähde.\n" +
     "11. Yleiskuvat (kansio yleiskuvat/) ovat kuvia ilman havaintoa tai sanelua, esim.\n" +
     "   julkisivut ja tilojen yleisnäkymät. Niistä ei tehdä havaintoja eikä\n" +
     "   johtopäätöksiä; ne liitetään raporttiin kohteen kuvaukseen.\n";
@@ -443,6 +456,14 @@
           const p = "varmuuskopio/seuranta/" + (Seuranta.tunnus(x) || "laite_" + x.id.slice(-4)) + "_" + (i + 1) + "." + ext(f.blob.type);
           zip.file(p, f.blob); backupFiles[f.id] = p;
         }
+      }
+      // Kuntoarvion lähtötietoasiakirjat: kansio lahtotiedot/ alkuperäisinä tiedostoina
+      paths.lahto = {};
+      for (const x of ((k.kuntoarvio && k.kuntoarvio.lahtotiedot) || [])) {
+        const f = await getFile(x.tiedosto);
+        if (!f) continue;
+        const p = "lahtotiedot/" + safe(x.nimi.replace(/\.[a-z0-9]+$/i, "")) + "." + ((x.nimi.match(/\.([a-z0-9]+)$/i) || [])[1] || ext(f.blob.type)).toLowerCase();
+        zip.file(p, f.blob); backupFiles[f.id] = p; paths.lahto[x.id] = p;
       }
       // Yleiskuvat: kansio yleiskuvat/, järjestys kerros – tila – ottoaika
       paths.yleiskuvat = [];

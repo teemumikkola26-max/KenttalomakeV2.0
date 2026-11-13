@@ -164,5 +164,16 @@
     };
   }
 
-  window.MethodPicker = { mount, ehdotukset, openSheet };
+  /* Uusi menetelmä nimestä (pikavalinnan haku) */
+  async function luo(raw) {
+    raw = String(raw || "").trim();
+    if (!raw) return null;
+    const nimi = raw.charAt(0).toUpperCase() + raw.slice(1);
+    const m = { id: DB.uid("m_"), nimi, lyhyt: nimi.slice(0, 12), kentat: [] };
+    M.MENETELMAT.push(m);
+    await M.save();
+    return m;
+  }
+
+  window.MethodPicker = { luo, mount, ehdotukset, openSheet };
 })();

@@ -130,6 +130,11 @@
       const mit = m.kentat.length
         ? '<section class="card"><div class="card-h"><h2>' + esc(m.nimi) + "</h2>" +
           (reqF.length ? '<span class="meta' + (reqOk < reqF.length ? " need-meta" : "") + '">Vähimmäistiedot ' + reqOk + "/" + reqF.length + "</span>" : "") + '</div><div class="card-b">' +
+          (m.kentat.some((f) => f.k === "asunto")
+            ? (M.eiAsuntoja(k)
+              ? '<p class="hint" style="margin:0 0 10px">Kohteessa ei ole asuntoja, joten asuntoa ei kysytä. <button class="link" data-a="asuntoja" data-v="1">Kohteessa on asuntoja</button></p>'
+              : (h.kentat.asunto ? "" : '<button class="chip" data-a="asuntoja" data-v="0" style="margin:0 0 10px">Ei asuntoja (esim. omakotitalo)</button>'))
+            : "") +
           '<div class="grid2">' + shownF.map((f) => f.t === "table" ? tableHtml(f, f.req && !filled(f)) : fieldHtml(f, h.kentat[f.k] != null ? h.kentat[f.k] : "", !!(h.auto && h.auto["k:" + f.k] === "sanelu"), f.req && !filled(f))).join("") + "</div>" +
           (okF.length ? '<button class="btn btn-block" data-a="okloput" style="margin:6px 0 4px">' + icon("ok") + "Muut kohdat kunnossa (" + okF.length + ")</button>" +
             '<p class="hint" style="margin:0 0 8px">Merkitsee tyhjät tarkistuskohdat kunnossa-arvolla. Sanele tai valitse ensin puutteet.</p>' : "") +
@@ -469,7 +474,14 @@
       const b = e.target.closest("[data-a]");
       if (!b || b.tagName === "SELECT" || b.type === "checkbox") return;
       const a = b.dataset.a;
-      if (a === "tgrp") { valittuRyhma[b.dataset.f] = b.dataset.v; repaintTable(tableField(b.dataset.f)); return; }
+      if (a === "asuntoja") {
+        k.asuntoja = b.dataset.v === "1";
+        if (!k.asuntoja) delete h.kentat.asunto;
+        await Model.saveKohde(); save(); paint();
+        UI.toast(k.asuntoja ? "Asunto kysytään tässä kohteessa" : "Asuntoa ei kysytä tässä kohteessa");
+        return;
+      }
+            if (a === "tgrp") { valittuRyhma[b.dataset.f] = b.dataset.v; repaintTable(tableField(b.dataset.f)); return; }
       if (a === "tgrpnew") {
         const f = tableField(b.dataset.f), g = M.ryhmaSarake(f);
         const v = await UI.promptSheet({ title: "Uusi " + g.l.toLowerCase(), label: g.l + (g.u ? " (" + g.u + ")" : ""), required: true, ok: "Lisää" });

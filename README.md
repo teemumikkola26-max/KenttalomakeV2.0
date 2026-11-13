@@ -273,6 +273,19 @@ Kaikki säädettävät toiminnot ovat yhdellä sivulla (etusivu → Asetukset ja
 
 Kun menetelmä valitaan itse, uuden havainnon alussa avautuu pikavalinta: suunnitelman tekemättömät ja edellinen menetelmä isoina painikkeina, muut alla. Itse tehdyt valinnat kerryttävät opetusaineistoa (Learn).
 
+## Kuntoarvion lähtötiedot asiakirjoista (`js/kalahto.js`)
+
+Kuntoarvion sivulla *Lähtötiedot → Lisää asiakirjoja* ottaa PDF- ja kuvatiedostoja (isännöitsijäntodistus, yhtiöjärjestys, kunnossapitotarveselvitys, energiatodistus, rakennusselostus, piirustukset). Teksti luetaan puhelimessa: PDF:n tekstikerros, ja jos sitä ei ole, tekstintunnistus (enintään 8 sivua). Mitään ei lähetetä verkkoon.
+
+Sovellus ehdottaa poimittuja tietoja, ja tutkija hyväksyy ne lähdeotteen kanssa:
+- perustiedot (rakennusvuosi, tyyppi, pinta-ala, huoneistot, perustukset, runko, julkisivu, vesikatto, lämmitys)
+- tehdyt kunnossapito- ja muutostyöt (vuosi + työ)
+- rakennusosien rakenteet (esim. bitumikermikate → Vesikatteet) ja uusimisvuodet
+
+Poiminta on sääntöpohjainen (`poimi`), eli se löytää selväsanaiset tiedot tekstiasiakirjoista. Piirustuksista luetaan materiaalimerkinnät otteiksi; rakennetyyppejä ei tulkita. Asiakirjat tallentuvat kohteelle ja viedään ZIP-pakettiin kansioon `lahtotiedot/`, jolloin raportointivaiheen työkalu voi lukea ne kokonaan.
+
+Märkätilakartoituksen Asunto-kenttä jää pois, kun kohteessa ei ole asuntoja (kortin painike *Ei asuntoja*, tai kuntoarvion perustiedoissa huoneistoja 1 / omakotitalo).
+
 ## Yleiskuvat (`js/yleiskuvat.js`)
 
 Kameranäkymässä on kaksi välilehteä: **Havainto** ja **Yleiskuva**. Yleiskuva-tilassa jokainen laukaisu tallentuu heti kohteen yleiskuviin valitun tilan kanssa, ilman sanelua ja havaintoa. Kohteen sivulla *Yleiskuvat* näyttää kuvat tiloittain; kuvalle voi lisätä kuvatekstin tai vaihtaa tilan. ZIP-paketissa kuvat ovat kansiossa `yleiskuvat/` (YK01_OH1.jpg …), ja luettelo on `havainnot.md`:ssä ja `havainnot.json`:ssa. Yleiskuvat synkronoituvat pilveen kuten muutkin kohteen tiedot.
