@@ -16,7 +16,8 @@
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 
   /* Puheentunnistuksen tila (config.js: puheentunnistus) */
-  const MODE = ((window.KS_CONFIG || {}).puheentunnistus) || "palvelin";
+  const OMA = window.Asetukset ? Asetukset.get("sanelu.puhe") : "oletus";   // laitekohtainen valinta voittaa
+  const MODE = OMA && OMA !== "oletus" ? OMA : ((window.KS_CONFIG || {}).puheentunnistus) || "palvelin";
   let PAIKALLINEN = "tuntematon";   // available | downloadable | downloading | unavailable | ei-tukea
   /* Puhelimessa tapahtuva tunnistus on selaimissa uusi ominaisuus, ja se voi kaataa välilehden.
      Kutsun ajaksi asetetaan merkki; jos merkki on jäljellä seuraavalla käynnistyksellä, välilehti
@@ -231,11 +232,12 @@
      ----------------------------------------------------------------------- */
   const TAP_MS = 350;
 
-  function buzz(ms) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) { /* ohita */ } }
+  function buzz(ms) { try { if (navigator.vibrate && (!window.Asetukset || Asetukset.get("sanelu.varina"))) navigator.vibrate(ms); } catch (e) { /* ohita */ } }
 
   function bind(btn, dict, o) {
     o = o || {};
-    const labels = { idle: o.idle || "Pidä: sanele", holding: o.holding || "Vapauta: valmis", locked: o.locked || "Lopeta" };
+    const napauta = window.Asetukset && Asetukset.get("sanelu.tapa") === "napauta";
+    const labels = { idle: o.idle || (napauta ? "Sanele" : "Pidä: sanele"), holding: o.holding || "Vapauta: valmis", locked: o.locked || "Lopeta" };
     let downAt = 0, pid = null;
 
     function paint() {
@@ -255,6 +257,7 @@
       try { btn.setPointerCapture(pid); } catch (err) { /* ohita */ }
       downAt = Date.now();
       dict.start();
+      if (napauta) dict.locked = true;        // napautustila: päälle, seuraava napautus lopettaa
       if (dict.active) buzz(15);
       paint();
     });
@@ -262,6 +265,7 @@
       if (pid === null || (e && e.pointerId !== pid)) return;
       pid = null;
       if (!dict.active) { paint(); return; }
+      if (napauta) { paint(); return; }
       if (Date.now() - downAt < TAP_MS) { dict.locked = true; paint(); return; }   // lyhyt napautus: lukitse
       dict.stop(); buzz(10); paint();
     };
@@ -285,7 +289,7 @@
     const esc = UI.esc;
     let t, btn = "";
     if (MODE === "laite" && kaatui()) { t = "Puhelimessa tapahtuva puheentunnistus kaatoi selaimen välilehden (" + (LS.get("ks.sr.kaatui") === "sanelu" ? "saneltaessa" : "tarkistuksessa") + "), joten se on poistettu käytöstä tällä laitteella. Sanelut tallennetaan äänitteinä; ääni ei lähde puhelimesta."; btn = '<button class="btn btn-sm" data-uudelleen style="margin-top:10px">Kokeile uudelleen</button>'; }
-    else if (MODE === "palvelin") t = "Sanelun ääni lähetetään selaimen puheentunnistuspalveluun (Chrome: Google). Asetus on ylläpitäjän valinta (config.js).";
+    else if (MODE === "palvelin") t = "Sanelun ääni lähetetään selaimen puheentunnistuspalveluun (Chrome: Google). " + (OMA === "palvelin" ? "Valittu tämän laitteen asetuksista." : "Asetus on ylläpitäjän valinta (config.js).");
     else if (PAIKALLINEN === "available") t = "Puheentunnistus tapahtuu tässä puhelimessa. Ääntä ei lähetetä mihinkään.";
     else if (PAIKALLINEN === "downloadable" || PAIKALLINEN === "downloading") { t = "Suomen puheentunnistus voidaan ladata puhelimeen. Sen jälkeen sanelu muuttuu tekstiksi puhelimessa, myös ilman verkkoa. Siihen asti sanelut tallennetaan äänitteinä."; btn = '<button class="btn btn-sm btn-primary" data-asenna style="margin-top:10px">Lataa suomen puheentunnistus</button>'; }
     else t = "Tämä selain ei tue suomen puheentunnistusta puhelimessa. Sanelut tallennetaan äänitteinä (ääni ei lähde puhelimesta), ja teksti kirjoitetaan tai litteroidaan raportoinnissa.";

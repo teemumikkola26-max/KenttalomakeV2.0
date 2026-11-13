@@ -6,8 +6,9 @@
 (function () {
   "use strict";
 
-  const MAX_EDGE = 2048;   // kuvan pidempi sivu pikseleinä
-  const QUALITY = 0.85;
+  // Kuvan pidempi sivu ja JPEG-laatu: Asetukset (kamera.koko, kamera.laatu)
+  const MAX = () => parseInt((window.Asetukset && Asetukset.get("kamera.koko")) || "2048", 10) || 2048;
+  const Q = () => parseFloat((window.Asetukset && Asetukset.get("kamera.laatu")) || "0.85") || 0.85;
 
   const Camera = {
     stream: null,
@@ -53,11 +54,11 @@
       }
       const w = video.videoWidth, h = video.videoHeight;
       if (!w || !h) throw new Error("Kamera ei ole valmis.");
-      const s = Math.min(1, MAX_EDGE / Math.max(w, h));
+      const s = Math.min(1, MAX() / Math.max(w, h));
       const c = document.createElement("canvas");
       c.width = Math.round(w * s); c.height = Math.round(h * s);
       c.getContext("2d").drawImage(video, 0, 0, c.width, c.height);
-      return await new Promise((res) => c.toBlob(res, "image/jpeg", QUALITY));
+      return await new Promise((res) => c.toBlob(res, "image/jpeg", Q()));
     },
 
     /* Pienentää kuvan ja kääntää sen EXIF-suunnan mukaan. */
@@ -73,12 +74,12 @@
         });
       }
       const w = bmp.width, h = bmp.height;
-      const s = Math.min(1, (maxEdge || MAX_EDGE) / Math.max(w, h));
+      const s = Math.min(1, (maxEdge || MAX()) / Math.max(w, h));
       // Kuva piirretään aina uudelleen: sijainti- ja laitetiedot (EXIF/GPS) eivät päädy tallenteisiin.
       const c = document.createElement("canvas");
       c.width = Math.round(w * s); c.height = Math.round(h * s);
       c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
-      return await new Promise((res) => c.toBlob(res, "image/jpeg", QUALITY));
+      return await new Promise((res) => c.toBlob(res, "image/jpeg", Q()));
     }
   };
 

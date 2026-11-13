@@ -249,8 +249,9 @@
           "<li><b>Kuva + sanelu.</b> Ota kuva, pidä mikrofonia pohjassa ja kerro havainto. <i>Seuraava</i> tallentaa ja aloittaa uuden.</li>" +
           "<li><b>Lähtötarkistus ja vienti.</b> Ennen lähtöä sovellus näyttää, mitä puuttuu. ZIP-paketti menee raportointiin.</li></ol></div></section>") +
       '<details class="card vocab"><summary class="card-h"><h2>Asetukset ja työkalut</h2></summary><div class="card-b">' +
-      '<a class="btn btn-block" href="#/menetelmat">' + icon("list") + "Menetelmät</a>" +
-      '<div style="height:10px"></div><a class="btn btn-block" href="#/sanasto">' + icon("edit") + "Sanasto ja sanelun täyttö</a>" +
+      '<a class="btn btn-block" href="#/asetukset">' + icon("edit") + "Asetukset</a>" +
+      '<div style="height:10px"></div><a class="btn btn-block" href="#/menetelmat">' + icon("list") + "Menetelmät</a>" +
+      '<div style="height:10px"></div><a class="btn btn-block" href="#/sanasto">' + icon("edit") + "Sanasto</a>" +
       '<div style="height:10px"></div><button class="btn btn-block" data-act="restore">' + icon("upload") + "Palauta varmuuskopio (ZIP)</button>" +
       '<p class="hint">' + (window.Cloud && Cloud.enabled ? "Kirjaukset tallentuvat ensin tähän puhelimeen ja siirtyvät organisaation pilveen (vain kohteen tiimi näkee ne). ZIP-paketti viedään raportointia varten." : "Tiedot tallentuvat vain tälle laitteelle. Vie kohde ZIP-pakettina raportointia ja varmuuskopiota varten.") +
       (est && est.usage ? " Käytössä " + (est.usage / 1048576).toFixed(0) + " Mt." : "") + "</p></div></details>" +
@@ -571,6 +572,7 @@
     try {
       if (window.CloudUI && CloudUI.tarvitaanKirjautuminen()) { CloudUI.loginView(); return; }
       if (parts[0] === "sanasto") { await VocabView.view(); return; }
+      if (parts[0] === "asetukset") { await Asetukset.view(); return; }
       if (parts[0] === "menetelmat") {
         if (parts[1]) await Editor.viewMethod(decodeURIComponent(parts[1])); else await Editor.viewList();
         return;

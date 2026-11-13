@@ -39,6 +39,7 @@
       }
       // Oletus: aistinvarainen tarkastelu (yleisin havainto). Sanelu tai napautus vaihtaa sen.
       // (Kun menetelmä valitaan itse, se kysytään pikavalinnalla eikä oletusta aseteta.)
+      if (preset && preset.eiMenetelmaa && !Auto.paalla("menetelma")) n.menetelma = null;
       if (!n.menetelma && Auto.paalla("menetelma") && M.MENETELMAT.some((m) => m.id === "aisti" && !m.piilotettu)) n.menetelma = "aisti";
       if (n.menetelma) applyMemory(n);
       Auto.markCarried(n);          // edellisestä tuotu konteksti saa vaihtua sanelun mukaan
@@ -341,12 +342,12 @@
       toast(nro(h) + " tallennettu" + (miss.length ? " · täydennä myöhemmin: " + miss.slice(0, 2).join(", ") + (miss.length > 2 ? "…" : "") : ""), 2600);
       // Uusi havainto samaan paikkaan samalla menetelmällä
       prevId = h.id;
-      h = newObservation({ menetelma: h.menetelma, kaOsa: h.kaOsa, kaCarry: true });
+      h = newObservation(Asetukset.get("pv.sama") ? { menetelma: h.menetelma, kaOsa: h.kaOsa, kaCarry: true } : { kaOsa: h.kaOsa, kaCarry: true, eiMenetelmaa: true });
       saved = false;
       syncUrl();
       paintAll();
       ta.blur();
-      pikavalinta(false);
+      if (Asetukset.get("pv.milloin") === "aina") pikavalinta(false);
     }
 
     /* Vaihto toiseen havaintoon kesken kuvauksen (lisäkuvat aiempaan havaintoon) */
@@ -419,16 +420,17 @@
     });
 
     paintAll();
-    const release = UI.keepAwake();
+    const release = Asetukset.get("kamera.valve") ? UI.keepAwake() : () => {};
     naytaOhje();
     // Uusi havainto: pikavalinta, jos menetelmä (tai tila) valitaan itse. Ei, kun jatketaan
     // olemassa olevaa havaintoa tai kuvaus avattiin tietylle suunnitelman kohdalle.
-    if (mode === "hav" && !saved && !q.menetelma && !q.kohta && !q.kaosa) pikavalinta(true);
+    if (mode === "hav" && !saved && !q.menetelma && !q.kohta && !q.kaosa && Asetukset.get("pv.milloin") !== "ei") pikavalinta(true);
 
     /* Pikavalinta: tila (jos valitaan itse) ja menetelmä yhdellä näytöllä. Menetelmän napautus sulkee. */
     function pikavalinta(alku) {
-      const kysyM = !Auto.paalla("menetelma"), kysyT = !Auto.paalla("tila");
-      if (!kysyM && !(kysyT && !h.sijainti.tilaId)) return;
+      const pvT = Asetukset.get("pv.tila");
+      const kysyM = !Auto.paalla("menetelma"), kysyT = !Auto.paalla("tila") && pvT !== "ei" && (pvT === "aina" || !h.sijainti.tilaId);
+      if (!kysyM && !kysyT) return;
       const vanha = root.querySelector(".qp"); if (vanha) vanha.remove();
       const g = document.createElement("div");
       g.className = "qp";
@@ -439,7 +441,7 @@
         return ids.slice(0, 7).map((id) => Model.tila(id)).filter(Boolean);
       };
       const paint = () => {
-        const sugg = MethodPicker.ehdotukset(h.menetelma, h.id);
+        const sugg = Asetukset.get("pv.suunnitelma") ? MethodPicker.ehdotukset(h.menetelma, h.id) : [];
         const muut = M.havaintoMenetelmat().filter((m) => !sugg.some((x) => x.id === m.id));
         g.innerHTML = '<div class="qp-box">' +
           (kysyT ? '<div class="qp-h">Tila</div><div class="qp-chips">' +

@@ -259,11 +259,19 @@ Olosuhdeseuranta on kohteen yhteinen mittaus, ei tilakohtainen havainto. Mittala
 
 ZIP-paketissa `havainnot.json` (`olosuhdeseuranta`) ja `havainnot.md` sisältävät laiteluettelon (tunnus, kerros, tila, kohta pohjakuvassa), ja laitteet on merkitty pohjapiirroksiin. Mittausdata tulee raportille mittalaitteiden pilvipalvelusta. Tutkimussuunnitelman kohdassa *Olosuhdeseuranta* tehty-määrä on kirjattujen laitteiden määrä.
 
-## Sanelusta täyttö ja pikavalinta
+## Asetukset (`js/asetukset.js`, sivu #/asetukset)
 
-Sanasto-sivulla valitaan, mitkä tiedot päätellään sanelusta: menetelmä, tila ja rakenneosa, tulos sekä mittausarvot ja kentät. Valinta on laitekohtainen. Oletuksena menetelmä valitaan itse ja muut täytetään sanelusta.
+Kaikki säädettävät toiminnot ovat yhdellä sivulla (etusivu → Asetukset ja työkalut → Asetukset). Asetukset ovat laitekohtaisia (localStorage `ks.asetukset`); tallessa ovat vain oletuksesta poikkeavat arvot.
 
-Kun menetelmä valitaan itse, uuden havainnon alussa avautuu pikavalinta: suunnitelman tekemättömät ja edellinen menetelmä isoina painikkeina, muut alla. Seuraava-painikkeen jälkeen ylimpänä on "sama kuin edellä", joten sarja jatkuu yhdellä napautuksella. Jos myös tila valitaan itse, samassa näkymässä ovat viimeksi käytetyt tilat. Itse tehdyt valinnat kerryttävät opetusaineistoa (Learn), joten tunnistuksen voi myöhemmin ottaa uudelleen käyttöön.
+- **Täytetään sanelusta:** menetelmä, opittu menetelmäennuste, tila, rakenneosa, tulos, mittausarvot ja kentät, kuntoarvion rakennusosa, tunnusten numerointi
+- **Pikavalinta:** milloin avautuu (jokaiselle / vain alussa / ei koskaan), tila pikavalinnassa, suunnitelman menetelmät ylimpänä, Seuraava jatkaa samalla menetelmällä
+- **Sanelu:** pidä pohjassa / napauta, puheentunnistus (ylläpitäjän asetus / palvelin / laite), värinä
+- **Kamera:** kuvan koko, JPEG-laatu, näyttö päällä
+- **Tarkistus ja pohjakuva:** tulos pakollinen, tunnistettujen tilojen lisäys
+
+*Kopioi asetukset* tuottaa JSON-tekstin muutetuista asetuksista; sen voi liittää toiseen puhelimeen (*Liitä asetukset*) tai tehdä siitä sovelluksen oletukset muuttamalla `SCHEMA`n `d`-arvot.
+
+Kun menetelmä valitaan itse, uuden havainnon alussa avautuu pikavalinta: suunnitelman tekemättömät ja edellinen menetelmä isoina painikkeina, muut alla. Itse tehdyt valinnat kerryttävät opetusaineistoa (Learn).
 
 ## Yleiskuvat (`js/yleiskuvat.js`)
 

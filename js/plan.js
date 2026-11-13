@@ -163,6 +163,7 @@
     const sorted = res.tilat.slice().sort((a, b) => (a.asunto || "").localeCompare(b.asunto || "", "fi", { numeric: true }) || (a.tunnus || "").localeCompare(b.tunnus || "", "fi", { numeric: true }));
     const rows = sorted.map((c, i) => Object.assign({}, c, { i, olemassa: match(c) }));
     merkitseKaksoset(rows);
+    if (Asetukset.get("pohja.tilat") === "kaikki") rows.forEach((r) => { r.varma = false; });
     const auto = rows.filter((r) => r.varma), check = rows.filter((r) => !r.varma);
     const lahde = res.lahde === "pdf" ? "pohjakuva (PDF:n teksti)" : "pohjakuva (tekstintunnistus)";
 
