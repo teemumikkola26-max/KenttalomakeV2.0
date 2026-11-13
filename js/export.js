@@ -204,6 +204,11 @@
         };
       }),
       olosuhdeseuranta: seurantaJson(),
+      lahtotiedot: KaLahto.siirra(k).length ? KaLahto.siirra(k).map((x) => {
+        const pp = x.piirustus || {};
+        return { tiedosto: (paths.lahto && paths.lahto[x.id]) || x.nimi, laji: x.laji, kuvaus: x.kuvaus || [pp.laji, pp.sisalto, pp.toimenpide, pp.vuosi, pp.numero, pp.suunnittelija].filter(Boolean).join(", ") || undefined, luettu: x.tapa };
+      }) : null,
+      huomioitavaa_lahtotiedoista: (k.huomiot || []).length ? k.huomiot.map((h) => ({ teksti: h.teksti, lahde: h.lahde || undefined })) : null,
       yleiskuvat: (paths.yleiskuvat || []).length ? paths.yleiskuvat : null,
       kuntoarvio: window.Kuntoarvio ? Kuntoarvio.vienti(RN, paths.lahto) : null,
       avoimet_puutteet: puutteet.map((x) => x.otsikko + ": " + x.selite)
@@ -285,16 +290,7 @@
       Object.keys(PT).forEach((x) => { if (pt[x]) L.push("- " + PT[x] + ": " + String(pt[x]).replace(/\n+/g, "; ")); });
       if (ka.rajaukset) L.push("- Rajaukset: " + ka.rajaukset.replace(/\n+/g, "; "));
       L.push("");
-      if ((ka.lahtotiedot || []).length) {
-        L.push("### Lähtötietoasiakirjat");
-        L.push("");
-        ka.lahtotiedot.forEach((x) => {
-          const pp = x.piirustus || {};
-          L.push("- " + x.tiedosto + " (" + [x.laji, pp.laji, pp.toimenpide, pp.paivays || pp.vuosi, pp.numero, pp.suunnittelija, x.sivuja > 1 ? x.sivuja + " sivua" : ""].filter(Boolean).join(", ") + ")");
-          if (x.materiaalimerkinnat) L.push("  - Piirustuksesta luettuja merkintöjä (tekstintunnistus, tarkista piirustuksesta): " + x.materiaalimerkinnat.join("; "));
-        });
-        L.push("");
-      }
+
       let ryh = "";
       ka.osat.forEach((o) => {
         if (o.ryhma !== ryh) { ryh = o.ryhma; L.push("### " + ryh); L.push(""); }
@@ -308,6 +304,19 @@
           (r.tarkastusvali ? "; tarkastusväli " + r.tarkastusvali : "") + (r.kunnossapitojakso ? "; kunnossapitojakso " + r.kunnossapitojakso : "")));
         if (o.huomiot) L.push("  - Arvioijan huomiot: " + o.huomiot);
       });
+      L.push("");
+    }
+    if (j.lahtotiedot || j.huomioitavaa_lahtotiedoista) {
+      L.push("## Lähtötiedot");
+      L.push("");
+      L.push("Tilaajan toimittamat asiakirjat (kansio lahtotiedot/). Sovellukseen poimitut tiedot on tutkija hyväksynyt; lue asiakirjat kokonaan ja merkitse lähde.");
+      L.push("");
+      (j.lahtotiedot || []).forEach((x) => L.push("- " + x.tiedosto + " (" + [x.laji, x.kuvaus].filter(Boolean).join("; ") + ")"));
+      if (j.huomioitavaa_lahtotiedoista) {
+        L.push("");
+        L.push("Huomioitavaa lähtötiedoista:");
+        j.huomioitavaa_lahtotiedoista.forEach((h) => L.push("- " + h.teksti + (h.lahde ? " (" + h.lahde + ")" : "")));
+      }
       L.push("");
     }
     if (j.yleiskuvat) {
@@ -460,7 +469,7 @@
       }
       // Kuntoarvion lähtötietoasiakirjat: kansio lahtotiedot/ alkuperäisinä tiedostoina
       paths.lahto = {};
-      for (const x of ((k.kuntoarvio && k.kuntoarvio.lahtotiedot) || [])) {
+      for (const x of KaLahto.siirra(k)) {
         const f = await getFile(x.tiedosto);
         if (!f) continue;
         const p = "lahtotiedot/" + safe(x.nimi.replace(/\.[a-z0-9]+$/i, "")) + "." + ((x.nimi.match(/\.([a-z0-9]+)$/i) || [])[1] || ext(f.blob.type)).toLowerCase();

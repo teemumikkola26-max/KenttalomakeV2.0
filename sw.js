@@ -4,12 +4,12 @@
      tekstintunnistuksen moottori ja kielidata ensimmäisellä käytöllä (oma, pysyvä välimuisti).
    - Pilvi (Supabase) ja kirjautuminen eivät kulje välimuistin kautta.
    Nosta CACHE-versiota aina, kun julkaiset muutoksia. */
-const CACHE = "kuva-sanelu-v32";
+const CACHE = "kuva-sanelu-v33";
 const LIBCACHE = "kuva-sanelu-lib-1";      // nosta, kun lib/-tiedostot päivitetään
 const SHELL = [
   "./", "index.html", "css/app.css",
   "js/config.js", "js/ui.js", "js/asetukset.js", "js/db.js", "js/methods.js", "js/vocab.js", "js/vocabview.js", "js/dictation.js", "js/camera.js",
-  "js/cloud.js", "js/app.js", "js/sync.js", "js/cloudui.js", "js/plan.js", "js/check.js", "js/seuranta.js", "js/yleiskuvat.js", "js/planimport.js", "js/kuntoarvio-data.js", "js/kalahto.js", "js/kuntoarvio.js",
+  "js/cloud.js", "js/app.js", "js/sync.js", "js/cloudui.js", "js/plan.js", "js/check.js", "js/seuranta.js", "js/yleiskuvat.js", "js/planimport.js", "js/kuntoarvio-data.js", "js/kalahto.js", "js/paketti.js", "js/kuntoarvio.js",
   "js/capture.js", "js/card.js", "js/export.js", "js/editor.js", "js/lukulaite-ocr.js", "js/meter.js", "js/methodpicker.js", "js/learn.js", "js/autofill.js",
   "js/fieldfill.js", "js/planrooms.js", "js/zoom.js", "js/obslist.js", "js/gallery.js", "kameraluku-testi.html",
   "manifest.webmanifest", "pbm-logo.png", "icon-192.png", "icon-512.png", "icon-maskable-512.png"

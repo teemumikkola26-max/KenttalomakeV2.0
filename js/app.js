@@ -302,6 +302,7 @@
       Kuntoarvio.kohdeCard() +
       Seuranta.kohdeCard() +
       Yleiskuvat.kohdeCard() +
+      Paketti.kohdeKortti() +
       (Kuntoarvio.aktiivinen() ? "" : '<a class="row seur-link" href="#/k/' + k.id + '/kuntoarvio" style="text-decoration:none;color:inherit;margin:-4px 0 12px;border-radius:12px">' +
         icon("list") + '<div class="grow"><div class="t">Kuntoarvio</div><div class="s">Rakennusosat, kuntoluokat ja käyttöiät</div></div>' + icon("back", "flip") + "</a>") +
       '<section class="card"><div class="card-h"><h2>Viimeisimmät havainnot</h2>' +

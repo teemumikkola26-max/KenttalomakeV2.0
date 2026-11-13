@@ -55,7 +55,11 @@
   async function setPlan(kerros) {
     const files = await UI.pickFile("image/*,application/pdf", false);
     if (!files.length) return;
-    const f = files[0];
+    return asetaPohja(kerros, files[0]);
+  }
+  /* Pohjakuva tiedostosta (myös lähtötietopaketin tuonnista). Tilojen tunnistus ajetaan perään:
+     paketista tulleet tilat saavat sijaintinsa, kun tunnistettu nimi osuu olemassa olevaan tilaan. */
+  async function asetaPohja(kerros, f, eiTunnistusta) {
     toast("Käsitellään pohjakuvaa…", 4000);
     try {
       let blob, tokens = [];
@@ -69,8 +73,9 @@
       if (old) await DB.del("tiedostot", old);
       await Model.saveKohde();
       toast("Pohjakuva lisätty");
-      App.render();
-      detectRooms(kerros, blob, false, f.type && f.type.startsWith("image/") ? f : null);
+      if (!eiTunnistusta) App.render();
+      if (!eiTunnistusta) await detectRooms(kerros, blob, false, f.type && f.type.startsWith("image/") ? f : null);
+      return true;
     } catch (e) {
       console.error(e);
       toast("Pohjakuvan lisäys epäonnistui: " + (e.message || e), 5000);
@@ -705,5 +710,5 @@
     paint();
   }
 
-  window.Plan = { view, locationSheet, kysyTila, luoTila, searchRooms, recentRooms, roomActions, pinsHtml, detectRooms, reviewRooms, confirmRoom };
+  window.Plan = { view, locationSheet, kysyTila, luoTila, asetaPohja, detectRooms, searchRooms, recentRooms, roomActions, pinsHtml, detectRooms, reviewRooms, confirmRoom };
 })();

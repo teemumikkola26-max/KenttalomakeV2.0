@@ -401,8 +401,20 @@
     if (!p) return null;
     return [p.laji && p.laji.charAt(0).toUpperCase() + p.laji.slice(1), p.sisalto, p.paivays || p.vuosi, p.numero, p.toimenpide].filter(Boolean).join(" · ");
   }
-  const ka = () => App.S.kohde.kuntoarvio;
-  const lista = () => (ka() && ka().lahtotiedot) || [];
+  /* Kuntoarvion tiedot; jos kohteessa ei vielä ole kuntoarviota, luodaan vasta kun tietoja otetaan käyttöön */
+  const TYHJA_KA = () => ({ perustiedot: {}, rajaukset: "", ptsVuodet: 10, osat: {} });
+  const ka = () => App.S.kohde.kuntoarvio || TYHJA_KA();
+  const kaLuo = () => App.S.kohde.kuntoarvio || (App.S.kohde.kuntoarvio = TYHJA_KA());
+  /* Lähtötietoasiakirjat ovat kohteen tasolla (versioon 32 asti kuntoarviossa: siirretään) */
+  function siirra(k) {
+    k = k || App.S.kohde;
+    if (k && k.kuntoarvio && Array.isArray(k.kuntoarvio.lahtotiedot)) {
+      k.lahtotiedot = (k.lahtotiedot || []).concat(k.kuntoarvio.lahtotiedot.filter((x) => !(k.lahtotiedot || []).some((y) => y.id === x.id)));
+      delete k.kuntoarvio.lahtotiedot;
+    }
+    return (k && k.lahtotiedot) || [];
+  }
+  const lista = () => siirra();
   const osaNimi = (id) => { const d = Kuntoarvio.osa(id); return d ? d.nimi : id; };
 
   function kortti() {
@@ -413,7 +425,8 @@
         esc(metaTeksti(x) || [x.laji, x.sivuja > 1 ? x.sivuja + " sivua" : "", x.tapa].filter(Boolean).join(" · ")) +
         (x.poimittu ? " · " + x.poimittu + " tietoa otettu" : "") +
         '</div></div><button class="icon-btn" data-lahto-del="' + x.id + '" aria-label="Poista asiakirja">' + icon("trash") + "</button></div>").join("")
-        : '<p class="hint" style="margin:0 0 10px">Anna isännöitsijäntodistus, yhtiöjärjestys, kunnossapitotarveselvitys, energiatodistus tai piirustukset. Sovellus poimii niistä perustiedot, tehdyt korjaukset ja rakenteet ehdotuksiksi. Teksti luetaan puhelimessa, eikä asiakirjoja lähetetä mihinkään.</p>') +
+        : '<p class="hint" style="margin:0 0 10px">Suositus: anna tarjous, piirustukset ja muut asiakirjat Clauden Lähtötiedot-projektille ja tuo sen paketti tähän. Sovellus täyttää suunnitelman, kerrokset ja tilat sekä kuntoarvion tiedot, ja tarkistat ne ennen käyttöönottoa. Asiakirjat voi myös lukea suoraan puhelimessa (hitaampi ja epätarkempi).</p>') +
+      '<button class="btn btn-primary btn-block" data-act="paketti" style="margin-top:8px">' + icon("download") + "Tuo Clauden lähtötietopaketti</button>" +
       '<button class="btn btn-block" data-lahto-add style="margin-top:8px">' + icon("upload") + "Lisää asiakirjoja (PDF tai kuva)</button>" +
       (l.length ? '<p class="hint" style="margin:8px 0 0">Asiakirjat kulkevat ZIP-paketissa kansiossa lahtotiedot/.</p>' : "") +
       "</div></section>";
@@ -493,7 +506,7 @@
   }
 
   function kayta(valitut) {
-    const a = ka();
+    const a = kaLuo();
     let n = 0;
     const osaTila = (id) => { const o = a.osat[id] || (a.osat[id] = { kl: null, ei: false, rakenteet: [], tark: [], huom: "", valiton: false, lisatutk: false, asiantuntija: false }); if (!Array.isArray(o.rakenteet)) o.rakenteet = []; return o; };
     valitut.filter((e) => e.t === "perus").forEach((e) => { a.perustiedot[e.k] = e.arvo; n++; });
@@ -515,16 +528,23 @@
     return n;
   }
 
-  function tarkista(ehd) {
+  /* Koottu tarkistus. Ryhmä: e.ryhma (paketti) tai tyypin mukaan (asiakirjojen luku puhelimessa). */
+  function tarkista(ehd, o) {
+    o = o || {};
     const { esc, sheet } = UI;
     return new Promise((resolve) => {
-      const ryhmat = [["perus", "Perustiedot"], ["tyo", "Tehdyt kunnossapito- ja muutostyöt"], ["rak", "Rakennusosien rakenteet"]];
+      const TYYPIT = { perus: "Perustiedot", tyo: "Tehdyt kunnossapito- ja muutostyöt", rak: "Rakennusosien rakenteet" };
+      ehd.forEach((e) => { if (!e.ryhma) e.ryhma = TYYPIT[e.t] || "Muut"; });
+      const ryhmat = Array.from(new Set(ehd.map((e) => e.ryhma))).map((r) => [r, r]);
       let tulos = null;
       const nahdyt = [];
-      sheet("<h3>Lähtötiedoista poimittu</h3>" +
-        '<p class="hint" style="margin:-4px 0 10px">Tarkista ja poista valinta virheellisiltä. Lähdeote näkyy jokaisen alla. Uusimisvuosi viedään myös rakennusosalle.</p>' +
+      const n = ehd.filter((e) => e.valittu).length;
+      sheet("<h3>" + esc(o.otsikko || "Lähtötiedoista poimittu") + "</h3>" +
+        '<p class="hint" style="margin:-4px 0 10px">' + esc(o.johdanto || "Tarkista ja poista valinta virheellisiltä. Lähdeote näkyy jokaisen alla. Uusimisvuosi viedään myös rakennusosalle.") + "</p>" +
+        ((o.varoitukset || []).length ? '<div class="alert warn" style="margin:0 0 10px">' + UI.icon("alert") + "<div>" + o.varoitukset.map(esc).join("<br>") + "</div></div>" : "") +
+        '<p class="hint" style="margin:0 0 6px"><b>' + n + " / " + ehd.length + "</b> valittu valmiiksi.</p>" +
         ryhmat.map(([t, o]) => {
-          const l = ehd.map((e, i) => [e, i]).filter(([e]) => e.t === t);
+          const l = ehd.map((e, i) => [e, i]).filter(([e]) => e.ryhma === t);
           return l.length ? '<span class="label" style="display:block;margin:12px 0 4px">' + o + " (" + l.length + ")</span>" +
             l.map(([e, i]) => {
               // Taulukon kuva kerran ennen ensimmäistä siitä luettua arvoa
@@ -532,7 +552,8 @@
               return kuva + '<label class="ka-chk as-chk"><input type="checkbox" data-i="' + i + '"' + (e.valittu ? " checked" : "") + "><span><b>" + esc(e.muokattava ? e.otsikko.replace(/:.*$/, "") : e.otsikko) + "</b>" +
                 (e.muokattava ? '<input type="text" class="lt-arvo" data-arvo="' + i + '" value="' + esc(e.arvo || "") + '" placeholder="' + (e.tarkista ? "lue kuvasta" : "") + '">' : "") +
                 (e.huom ? '<br><span class="as-muut" style="margin:0">' + esc(e.huom) + "</span>" : "") +
-                '<br><span class="hint">' + esc((e.ote ? (e.muokattava ? e.ote : "”" + e.ote + "”") + " · " : "") + e.lahde + (e.sivu > 1 ? ", s. " + e.sivu : "")) + "</span></span></label>";
+                (e.lahde == null ? (e.ote ? '<br><span class="hint">' + esc(e.ote) + "</span>" : "")
+                  : '<br><span class="hint">' + esc((e.ote ? (e.muokattava ? e.ote : "”" + e.ote + "”") + " · " : "") + e.lahde + (e.sivu > 1 ? ", s. " + e.sivu : "")) + "</span>") + "</span></label>";
             }).join("") : "";
         }).join("") +
         '<div class="row-btns" style="margin-top:14px"><button class="btn" data-close>Peruuta</button><button class="btn btn-primary" data-ok>Ota valitut käyttöön</button></div>',
@@ -557,8 +578,8 @@
     const { toast } = UI;
     const files = await UI.pickFile("application/pdf,image/*", true);
     if (!files.length) return;
-    const a = ka();
-    a.lahtotiedot = a.lahtotiedot || [];
+    const k = App.S.kohde;
+    siirra(k); k.lahtotiedot = k.lahtotiedot || [];
     const tulokset = [], uudet = [];
     for (let i = 0; i < files.length; i++) {
       const f = files[i];
@@ -572,7 +593,7 @@
         const rivi = { id: DB.uid("l_"), tiedosto, nimi: f.name, laji: laji(f.name, teksti), sivuja: r.sivuja, tapa: r.tapa, poimittu: 0, otteet: res.otteet.slice(0, 40), merkkeja: teksti.length, aika: Date.now(),
           piirustus: pi ? pi.piirustus : undefined, tyypit: pi && pi.tyypit.length ? pi.tyypit : undefined };
         if (pi && pi.piirustus.sisalto) { const L = { asemapiirros: "Asemapiirros", leikkaus: "Leikkauspiirustus", julkisivut: "Julkisivupiirustus", pohja: "Pohjapiirustus" }[pi.piirustus.sisalto]; if (L) rivi.laji = L; }
-        a.lahtotiedot.push(rivi); uudet.push(rivi);
+        k.lahtotiedot.push(rivi); uudet.push(rivi);
         tulokset.push({ nimi: f.name, res, pi });
       } catch (e) {
         console.warn("Lähtötieto", e);
@@ -594,14 +615,14 @@
   }
 
   async function poista(id, paivita) {
-    const a = ka(), x = lista().find((l) => l.id === id);
+    const k = App.S.kohde, x = lista().find((l) => l.id === id);
     if (!x || !confirm("Poistetaanko asiakirja " + x.nimi + "? Jo käyttöön otetut tiedot säilyvät.")) return;
-    a.lahtotiedot = lista().filter((l) => l !== x);
+    k.lahtotiedot = lista().filter((l) => l !== x);
     await App.Model.saveKohde();
     try { await DB.del("tiedostot", x.tiedosto); } catch (e) { /* ohita */ }
     paivita();
   }
 
-  window.KaLahto = { poimi, poimiPiirustus, lue, laji, OSAT, MATERIAALIT, kortti, lisaa, poista, lista, ehdotukset, kayta };
+  window.KaLahto = { siirra, kaLuo, tarkista, poimi, poimiPiirustus, lue, laji, OSAT, MATERIAALIT, kortti, lisaa, poista, lista, ehdotukset, kayta };
 
 })();

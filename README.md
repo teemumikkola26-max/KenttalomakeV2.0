@@ -273,6 +273,16 @@ Kaikki säädettävät toiminnot ovat yhdellä sivulla (etusivu → Asetukset ja
 
 Kun menetelmä valitaan itse, uuden havainnon alussa avautuu pikavalinta: suunnitelman tekemättömät ja edellinen menetelmä isoina painikkeina, muut alla. Itse tehdyt valinnat kerryttävät opetusaineistoa (Learn).
 
+## Lähtötietopaketti Claudelta (`js/paketti.js`, kansio `claude-projekti/`)
+
+Suositeltu tapa saada lähtötiedot sovellukseen. Tutkija antaa kohteen aineiston (tarjous, piirustukset, isännöitsijäntodistus …) Clauden Lähtötiedot-projektille, joka palauttaa paketin (`kuva-sanelu-lahtotiedot`, versio 1). Kohteen sivulla *Lähtötiedot → Tuo Clauden lähtötietopaketti*: paketti valitaan tiedostona tai liitetään tekstinä.
+
+1. Sovellus tarkistaa muodon, tunnukset ja arvot ja näyttää yhden kootun tarkistuksen lähteineen (epävarmat ja jo kirjattua korvaavat jäävät valitsematta).
+2. Hyväksytyt tiedot: kohteen nimi ja osoite, suunnitelman kohdat, kerrokset ja tilat, kuntoarvion perustiedot, korjaushistoria ja rakenteet, kentällä huomioitavat asiat.
+3. Tutkija liittää alkuperäiset tiedostot: ne tallentuvat lähtötiedoiksi (ZIP: `lahtotiedot/`), ja paketissa pohjakuviksi merkityt asetetaan kerroksille, jolloin tilojen tunnistus antaa paketin tiloille sijainnit.
+
+Projektin ohje ja paketin kuvaus ovat kansiossa `claude-projekti/` (OHJE.md, lahtotietopaketti-v1.md, esimerkki-paketti.json). Puhelimessa luku (`js/kalahto.js`) jää varavaihtoehdoksi ilman verkkoa.
+
 ## Kuntoarvion lähtötiedot asiakirjoista (`js/kalahto.js`)
 
 Kuntoarvion sivulla *Lähtötiedot → Lisää asiakirjoja* ottaa PDF- ja kuvatiedostoja (isännöitsijäntodistus, yhtiöjärjestys, kunnossapitotarveselvitys, energiatodistus, rakennusselostus, piirustukset). Teksti luetaan puhelimessa: PDF:n tekstikerros, ja jos sitä ei ole, tekstintunnistus (enintään 8 sivua). Mitään ei lähetetä verkkoon.

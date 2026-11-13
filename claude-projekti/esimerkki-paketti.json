@@ -1,0 +1,60 @@
+{
+  "muoto": "kuva-sanelu-lahtotiedot",
+  "versio": 1,
+  "luotu": "2026-11-13",
+  "tiedostot": [
+    { "nimi": "Tarjous_KT_As_Oy_Esimerkki.pdf", "laji": "Tarjous / tutkimussuunnitelma", "kuvaus": "Kuntotutkimus ja kuntoarvio", "sivuja": 4 },
+    { "nimi": "Isannoitsijantodistus_2026.pdf", "laji": "Isännöitsijäntodistus", "sivuja": 3 },
+    { "nimi": "ARK_02_Pohja_1krs.pdf", "laji": "Pohjapiirustus", "kuvaus": "1. kerroksen pohja, pääpiirustus 1979", "sivuja": 1 },
+    { "nimi": "ARK_03_Leikkaus.pdf", "laji": "Leikkauspiirustus", "kuvaus": "Leikkaus A-A ja rakennetyypit", "sivuja": 1 }
+  ],
+  "kohde": {
+    "nimi": { "arvo": "As Oy Esimerkki", "lahde": { "tiedosto": "Isannoitsijantodistus_2026.pdf", "sivu": 1, "ote": "Asunto Oy Esimerkki" }, "varmuus": "varma" },
+    "osoite": { "arvo": "Esimerkkitie 1, 00100 Helsinki", "lahde": { "tiedosto": "Isannoitsijantodistus_2026.pdf", "sivu": 1, "ote": "Esimerkkitie 1, 00100 HELSINKI" }, "varmuus": "varma" }
+  },
+  "suunnitelma": [
+    { "menetelma": "aisti", "kuvaus": "kaikki tilat", "lahde": { "tiedosto": "Tarjous_KT_As_Oy_Esimerkki.pdf", "sivu": 2, "ote": "Rakenteiden aistinvarainen tarkastelu kaikissa tiloissa" } },
+    { "menetelma": "pintakosteus", "kuvaus": "märkätilat ja lattiat", "lahde": { "tiedosto": "Tarjous_KT_As_Oy_Esimerkki.pdf", "sivu": 2, "ote": "Pintakosteuskartoitus märkätiloissa ja lattioilla" } },
+    { "menetelma": "rh", "maara": 6, "kuvaus": "maanvarainen alapohja", "lahde": { "tiedosto": "Tarjous_KT_As_Oy_Esimerkki.pdf", "sivu": 2, "ote": "Rakennekosteusmittaukset porareikämenetelmällä, 6 kpl" } },
+    { "menetelma": "nayte", "maara": 4, "kuvaus": "mikrobi, materiaali", "lahde": { "tiedosto": "Tarjous_KT_As_Oy_Esimerkki.pdf", "sivu": 2, "ote": "Materiaalinäytteet mikrobianalyysiin 4 kpl" } },
+    { "menetelma": "kuntoarvio", "kuvaus": "PTS 10 vuotta", "lahde": { "tiedosto": "Tarjous_KT_As_Oy_Esimerkki.pdf", "sivu": 3, "ote": "Kuntoarvio ja PTS kymmenelle vuodelle" } }
+  ],
+  "kerrokset": [
+    {
+      "nimi": "1. krs",
+      "pohjakuva": { "tiedosto": "ARK_02_Pohja_1krs.pdf", "sivu": 1 },
+      "tilat": [
+        { "tunnus": "PORR", "nimi": "Porrashuone" },
+        { "tunnus": "SAUNA", "nimi": "Sauna" },
+        { "tunnus": "PESUH", "nimi": "Pesuhuone" },
+        { "tunnus": "TEKN", "nimi": "Tekninen tila" }
+      ]
+    }
+  ],
+  "kuntoarvio": {
+    "perustiedot": {
+      "rakennustyyppi": { "arvo": "Asuinkerrostalo", "lahde": { "tiedosto": "Isannoitsijantodistus_2026.pdf", "sivu": 1, "ote": "Rakennustyyppi: kerrostalo" }, "varmuus": "varma" },
+      "rakennusvuosi": { "arvo": "1979", "lahde": { "tiedosto": "Isannoitsijantodistus_2026.pdf", "sivu": 1, "ote": "Valmistumisvuosi 1979" }, "varmuus": "varma" },
+      "huoneistoja": { "arvo": "24", "lahde": { "tiedosto": "Isannoitsijantodistus_2026.pdf", "sivu": 1, "ote": "Asuinhuoneistoja 24 kpl" }, "varmuus": "varma" },
+      "pintaala": { "arvo": "1 580,5", "lahde": { "tiedosto": "Isannoitsijantodistus_2026.pdf", "sivu": 1, "ote": "Huoneistoala 1 580,5 m2" }, "varmuus": "varma" },
+      "lammitys": { "arvo": "Kaukolämpö, vesikiertoiset patterit", "lahde": { "tiedosto": "Isannoitsijantodistus_2026.pdf", "sivu": 2, "ote": "Lämmitys: kaukolämpö" }, "varmuus": "varma" },
+      "julkisivu": { "arvo": "Betonielementti, pesubetoni", "lahde": { "tiedosto": "ARK_03_Leikkaus.pdf", "sivu": 1, "ote": "US1 PESUBETONI 70 / MINERAALIVILLA 120 / BETONI 150" }, "varmuus": "epävarma" }
+    },
+    "korjaukset": [
+      { "vuosi": "2005", "tyo": "Vesikaton uusiminen", "osa": "vesikatteet", "lahde": { "tiedosto": "Isannoitsijantodistus_2026.pdf", "sivu": 2, "ote": "2005 vesikaton uusiminen" } },
+      { "vuosi": "2012–2013", "tyo": "Putkiremontti (käyttövesi ja viemärit)", "lahde": { "tiedosto": "Isannoitsijantodistus_2026.pdf", "sivu": 2, "ote": "2012-2013 linjasaneeraus" } }
+    ],
+    "rakenteet": [
+      { "osa": "vesikatteet", "nimike": "Bitumikermikate", "vuosi": "2005", "lahde": { "tiedosto": "Isannoitsijantodistus_2026.pdf", "sivu": 2, "ote": "Vesikatto: bitumikermikate" } },
+      { "osa": "ulkoseinat", "nimike": "Pesubetoni", "missa": "US1: pesubetoni 70, mineraalivilla 120, betoni 150", "lahde": { "tiedosto": "ARK_03_Leikkaus.pdf", "sivu": 1, "ote": "US1 PESUBETONI 70 / MINERAALIVILLA 120 / BETONI 150" } },
+      { "osa": "alapohjat", "nimike": "Maanvarainen betonilaatta", "lahde": { "tiedosto": "ARK_03_Leikkaus.pdf", "sivu": 1, "ote": "AP1 BETONI 80 / EPS 50 / SORA" } }
+    ]
+  },
+  "huomiot": [
+    { "teksti": "Isännöitsijäntodistuksen mukaan vesivahinko A12:n kylpyhuoneessa 2019, korjattu 2019.", "lahde": { "tiedosto": "Isannoitsijantodistus_2026.pdf", "sivu": 3, "ote": "vesivahinko A12 kylpyhuone 2019, korjattu" } }
+  ],
+  "tarkistukset": [
+    { "kuvaus": "Huoneistojen määrä: isännöitsijäntodistus 24, pohjapiirustus 6 / kerros × 4 kerrosta = 24", "tulos": "ok" }
+  ],
+  "puuttuu": ["Tilavuus", "Kerrosala"]
+}

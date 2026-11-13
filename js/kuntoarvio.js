@@ -387,7 +387,7 @@
       selite: "Kuntoarvio rakennusosittain (raporttipohjan järjestys). Kuntoluokka on arvioijan arvio koko osasta; osassa voi olla useita rakenteita; käyttöikälaskelma on sovelluksen laskema taulukon ja vuosiluvun perusteella.",
       kuntoluokat: D.KUNTOLUOKAT.map((x) => x.k + " = " + x.s),
       perustiedot: a.perustiedot, rajaukset: a.rajaukset || "", pts_jakso_v: a.ptsVuodet || 10,
-      lahtotiedot: (a.lahtotiedot || []).map((x) => ({ tiedosto: (lahtoPolut && lahtoPolut[x.id]) || x.nimi, nimi: x.nimi, laji: x.laji, sivuja: x.sivuja, luettu: x.tapa, piirustus: x.piirustus || undefined, huoneistotyypit: x.tyypit || undefined, materiaalimerkinnat: x.otteet && x.otteet.length ? x.otteet : undefined })),
+      lahtotiedot: KaLahto.siirra(S.kohde).map((x) => ({ tiedosto: (lahtoPolut && lahtoPolut[x.id]) || x.nimi, nimi: x.nimi, laji: x.laji, sivuja: x.sivuja, luettu: x.tapa, piirustus: x.piirustus || undefined, huoneistotyypit: x.tyypit || undefined, materiaalimerkinnat: x.otteet && x.otteet.length ? x.otteet : undefined })),
       osat: D.OSAT.map((d) => {
         const o = siirra(a.osat[d.id]) || {}, l = o.ei ? null : laskelma(d.id);
         return {
