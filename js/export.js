@@ -281,7 +281,7 @@
       L.push("");
       L.push("Kuntoluokat: " + ka.kuntoluokat.join("; ") + ".");
       L.push("");
-      const PT = { rakennustyyppi: "Rakennustyyppi", rakennusvuosi: "Rakennusvuosi", pintaala: "Pinta-ala (m²)", huoneistoja: "Huoneistoja", perustukset: "Perustukset", runko: "Runko", julkisivu: "Julkisivu", vesikatto: "Vesikatto ja katemateriaali", lammitys: "Lämmitys", korjaukset: "Tehdyt kunnossapito- ja muutostyöt" };
+      const PT = { rakennustyyppi: "Rakennustyyppi", rakennusvuosi: "Rakennusvuosi", pintaala: "Pinta-ala (m²)", huoneistoja: "Huoneistoja", huoneistotyypit: "Huoneistotyypit", kerrosala: "Kerrosala (m²)", tilavuus: "Tilavuus (m³)", tontti: "Tontin pinta-ala (m²)", perustukset: "Perustukset", runko: "Runko", julkisivu: "Julkisivu", vesikatto: "Vesikatto ja katemateriaali", lammitys: "Lämmitys", korjaukset: "Tehdyt kunnossapito- ja muutostyöt" };
       Object.keys(PT).forEach((x) => { if (pt[x]) L.push("- " + PT[x] + ": " + String(pt[x]).replace(/\n+/g, "; ")); });
       if (ka.rajaukset) L.push("- Rajaukset: " + ka.rajaukset.replace(/\n+/g, "; "));
       L.push("");
@@ -289,7 +289,8 @@
         L.push("### Lähtötietoasiakirjat");
         L.push("");
         ka.lahtotiedot.forEach((x) => {
-          L.push("- " + x.tiedosto + " (" + [x.laji, x.sivuja > 1 ? x.sivuja + " sivua" : ""].filter(Boolean).join(", ") + ")");
+          const pp = x.piirustus || {};
+          L.push("- " + x.tiedosto + " (" + [x.laji, pp.laji, pp.toimenpide, pp.paivays || pp.vuosi, pp.numero, pp.suunnittelija, x.sivuja > 1 ? x.sivuja + " sivua" : ""].filter(Boolean).join(", ") + ")");
           if (x.materiaalimerkinnat) L.push("  - Piirustuksesta luettuja merkintöjä (tekstintunnistus, tarkista piirustuksesta): " + x.materiaalimerkinnat.join("; "));
         });
         L.push("");

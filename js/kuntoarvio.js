@@ -161,7 +161,8 @@
 
   const PERUS = [
     ["rakennustyyppi", "Rakennustyyppi", "esim. rivitalo"], ["rakennusvuosi", "Rakennusvuosi", "esim. 1978"], ["pintaala", "Pinta-ala (m²)", ""],
-    ["huoneistoja", "Huoneistoja (kpl)", ""], ["perustukset", "Perustukset", ""], ["runko", "Runko", ""], ["julkisivu", "Julkisivu", ""],
+    ["huoneistoja", "Huoneistoja (kpl)", ""], ["huoneistotyypit", "Huoneistotyypit", "esim. 3H+K+S 80 m²"], ["kerrosala", "Kerrosala (m²)", ""], ["tilavuus", "Tilavuus (m³)", ""],
+    ["tontti", "Tontin pinta-ala (m²)", ""], ["perustukset", "Perustukset", ""], ["runko", "Runko", ""], ["julkisivu", "Julkisivu", ""],
     ["vesikatto", "Vesikatto ja katemateriaali", ""], ["lammitys", "Lämmitys", "esim. kaukolämpö, vesikiertoiset patterit"]
   ];
 
@@ -386,7 +387,7 @@
       selite: "Kuntoarvio rakennusosittain (raporttipohjan järjestys). Kuntoluokka on arvioijan arvio koko osasta; osassa voi olla useita rakenteita; käyttöikälaskelma on sovelluksen laskema taulukon ja vuosiluvun perusteella.",
       kuntoluokat: D.KUNTOLUOKAT.map((x) => x.k + " = " + x.s),
       perustiedot: a.perustiedot, rajaukset: a.rajaukset || "", pts_jakso_v: a.ptsVuodet || 10,
-      lahtotiedot: (a.lahtotiedot || []).map((x) => ({ tiedosto: (lahtoPolut && lahtoPolut[x.id]) || x.nimi, nimi: x.nimi, laji: x.laji, sivuja: x.sivuja, luettu: x.tapa, materiaalimerkinnat: x.otteet && x.otteet.length ? x.otteet : undefined })),
+      lahtotiedot: (a.lahtotiedot || []).map((x) => ({ tiedosto: (lahtoPolut && lahtoPolut[x.id]) || x.nimi, nimi: x.nimi, laji: x.laji, sivuja: x.sivuja, luettu: x.tapa, piirustus: x.piirustus || undefined, huoneistotyypit: x.tyypit || undefined, materiaalimerkinnat: x.otteet && x.otteet.length ? x.otteet : undefined })),
       osat: D.OSAT.map((d) => {
         const o = siirra(a.osat[d.id]) || {}, l = o.ei ? null : laskelma(d.id);
         return {

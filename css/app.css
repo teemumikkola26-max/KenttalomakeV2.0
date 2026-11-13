@@ -607,3 +607,12 @@ details.vocab:not([open])>summary{border-bottom:none}
 .qp-m.qp-yk{flex-direction:row;align-items:center;gap:8px;background:transparent;border:1px solid rgba(255,255,255,.3)}
 .qp-m.qp-yk svg{width:20px;height:20px;flex:none}
 .qp-m.qp-yk small{margin-left:auto}
+/* Lähtötietojen tarkistus */
+.lt-kuva{margin:6px 0 8px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+.lt-kuva img{display:block;width:100%;height:auto}
+.lt-kuva .hint{display:block;padding:6px 8px}
+.lt-arvo{display:block;width:100%;box-sizing:border-box;margin:6px 0 2px;font:inherit;font-size:16px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:inherit}
+.ka-chk input.lt-arvo{width:100%;height:auto;min-height:40px;flex:none}
+.as-chk>span{flex:1;min-width:0}
+.lt-kuva{overflow:auto}
+.lt-kuva.iso img{width:250%;max-width:none}

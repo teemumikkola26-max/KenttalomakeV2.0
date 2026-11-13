@@ -31,7 +31,7 @@
     ["Leikkauspiirustus", /leikkau/i],
     ["LVI-piirustus", /\blvi\b|ilmanvaihto\w*piirustu|vesi- ja viemäri|\bkvv\b|\biv[- ]/i],
     ["Sähköpiirustus", /sähkö\w*(piirustu|suunnitel)|nousujohtokaavio/i],
-    ["Pohjapiirustus", /pohjapiirustu|pohjakuva/i],
+    ["Pohjapiirustus", /pohjapiirustu|pohjakuva|(^|[_\s-])pohja([_\s.-]|$)/i],
     ["Julkisivupiirustus", /julkisivu\w*piirustu|julkisivut/i],
     ["Asemapiirros", /asemapiir/i]
   ];
@@ -142,15 +142,103 @@
     return out;
   }
 
+  /* ---------- Piirustukset: nimiö, paljoustiedot, huoneistotyypit ---------- */
+  // CAD-fonttien viivattu nolla (Ø) luetaan usein 8:ksi tai 9:ksi; numerot ovat siksi aina tarkistettavia.
+  const luku = (x) => { x = String(x || "").replace(/[ \u00a0]/g, "").replace(/[Øø]/g, "0").replace(",", "."); return /^\d+(\.\d+)?$/.test(x) ? x : null; };
+  const TOIMENPITEET = [["uudisrakennu", "uudisrakennus"], ["saneeraus", "saneeraus"], ["peruskorjau", "peruskorjaus"], ["perusparannu", "perusparannus"],
+    ["laajennu", "laajennus"], ["muutostyö", "muutostyö"], ["korjaus", "korjaus"], ["lisärakennu", "lisärakennus"], ["käyttötarkoituksen muutos", "käyttötarkoituksen muutos"]];
+  const PIIRUSTUSLAJIT = [["pääpiirustu", "pääpiirustus"], ["työpiirustu", "työpiirustus"], ["rakennuslupapiirustu", "rakennuslupapiirustus"], ["toteutuspiirustu", "toteutuspiirustus"], ["luonnos", "luonnos"]];
+  const SISALLOT = [["asemapiir", "asemapiirros"], ["leikkau", "leikkaus"], ["julkisiv", "julkisivut"], ["pohja", "pohja"], ["detalj", "detaljit"], ["rakennetyyp", "rakennetyypit"]];
+  function poimiPiirustus(lines, taulut, nimi) {
+    const kaikki = lines.map((l) => l.text).concat(taulut.flatMap((t) => t.rivit));
+    const nimio = taulut.filter((t) => t.tyyppi === "nimio").flatMap((t) => t.rivit);
+    const lahde = nimio.length ? nimio.concat(kaikki) : kaikki;      // nimiön rivit ensin, sitten muu teksti
+    const ll = lc(lahde.join(" \n "));
+    const p = {};
+    const eka = (lista, teksti) => { const x = lista.find(([w]) => teksti.includes(w)); return x ? x[1] : null; };
+    p.toimenpide = eka(TOIMENPITEET, ll);
+    p.laji = eka(PIIRUSTUSLAJIT, ll);
+    p.sisalto = eka(SISALLOT, ll) || eka(SISALLOT, lc(nimi));
+    // Päiväys: 31-08-1993, 31.8.1993; OCR voi sotkea päivän ja kuukauden, vuosi on luotettavin
+    const yht = lahde.join(" ");
+    const pv = yht.match(/\b(\d{1,2})\s?[-.]\s?(\d{1,2})\s?[-.]\s?((?:19|20)\d{2})\b/) || yht.match(/\b\d{1,2}\s?[-.]\s?\d{0,2}\s?[-.]?\s?((?:19[4-9]|20[0-4])\d)\b/) ||
+      yht.match(/(?:^|\s)((?:19[4-9]|20[0-4])\d)(?=\s|$)/);
+    if (pv) {
+      if (pv.length >= 4 && +pv[1] >= 1 && +pv[1] <= 31 && +pv[2] >= 1 && +pv[2] <= 12) p.paivays = +pv[1] + "." + +pv[2] + "." + pv[3];
+      p.vuosi = pv.length >= 4 ? pv[3] : pv[1];
+    }
+    const nro = lahde.join(" ").match(/\b(ARK|RAK|LVI|IV|KVV|SÄH|S|R|A)?\s*(\d{3,5}\s?-\s?\d{1,3}[A-Z]?)\b/);
+    if (nro) p.numero = ((nro[1] || "") + " " + nro[2].replace(/\s/g, "")).trim();
+    // Suunnittelija: "ARKKITEHTUURITOIMISTO" + seuraavan rivin yritysnimi (ei kohteen asunto-osakeyhtiö)
+    const yritys = (t) => /\b(oy|ky|ab|oyj)\b/i.test(t) && !/asunto\s?-?\s?oy|kiinteistö\s?-?\s?oy|asunto\s?d?y\b|viranomais/i.test(t);
+    const puhd = (t) => siisti(t.replace(/\b(ARK|RAK|LVI|AR\w{0,3}K)\b.*$/i, "").replace(/\s\d{3,}.*$/, "").replace(/^\W*\p{L}{1,2}\s+(?=\p{Lu}{4})/u, ""));
+    const ti = lahde.findIndex((t) => /(arkkitehti|insinööri|suunnittelu|rakennuttaja)\w*toimisto/i.test(t));
+    let su = null;
+    if (ti >= 0) {
+      const t = lahde[ti];
+      su = yritys(t) ? t : [t].concat(lahde.slice(ti + 1, ti + 4).filter(yritys).slice(0, 1)).join(" ");
+    } else su = lahde.find(yritys) || null;
+    if (su && puhd(su).replace(/\b(oy|ky|ab|oyj)\b/gi, "").trim().length < 5) su = null;
+    if (su) p.suunnittelija = puhd(su).toLowerCase().replace(/(^|[\s-])(\p{L})/gu, (a, b, c) => b + c.toUpperCase()).replace(/\bOy\b/i, "Oy").replace(/\s?-\s?/g, "-").replace(/\boy$/i, "Oy");
+
+    // Paljoustiedot (asemapiirroksen taulukko): arvot ehdotuksiksi kuvan kanssa
+    const arvot = [];
+    taulut.filter((t) => t.tyyppi === "taulukko").forEach((t) => {
+      const teksti = t.rivit.join("\n");
+      const hae = (k, re, nimi2) => {
+        const m = teksti.match(re);
+        const v = m ? luku(m[m.length - 1]) : null;
+        arvot.push({ k, nimi: nimi2, arvo: v || "", ote: m ? siisti(m[0]) : "", kuva: t.kuva, sivu: t.page });
+      };
+      hae("tontti", /tontin\s*pinta-?\s?ala\D{0,12}(\d[\d ]{1,6}[,.]?\d?)/i, "Tontin pinta-ala (m²)");
+      hae("kerrosala", /kerrosala(?:\s+vanha|\s+uusi|\s+yht\w*)?\D{0,8}(\d[\d ]{1,5}[,.]?\d?)/i, "Kerrosala (m²)");
+      hae("pintaala", /huone\s?istoala(?:\s+vanha|\s+uusi|\s+yht\w*)?\D{0,8}(\d[\d ]{1,5}[,.]?\d?)/i, "Huoneistoala (m²)");
+      hae("tilavuus", /tilavuus\D{0,8}(\d[\d ]{1,6}[,.]?\d?)/i, "Tilavuus (m³)");
+      const jak = t.rivit.filter((r) => /kpl|\d\s?h\s?[+*:]\s?k/i.test(r) && !/jakauma/i.test(r));
+      if (jak.length) arvot.push({ k: "huoneistotyypit", nimi: "Huoneistojakauma", arvo: "", ote: jak.slice(0, 4).join(" / "), kuva: t.kuva, sivu: t.page });
+    });
+    // Huoneistotyypit pohjapiirustuksen merkinnöistä (esim. "2H+K+S 60,0 m²"); lukumäärä ei ole luotettava
+    const tyypit = {};
+    kaikki.forEach((t) => {
+      const m = t.match(/\b([1-7])\s?H\s?[:+*.,]\s?(K|KK|KT|TK)\s?(?:[:+*.,]\s?([S5]|SAUNA|PH|KHH|VAR|AK|P|PARV)\w*)?\s+(\d{2,3}[.,]\d|\d{3})\b/i);
+      if (!m) return;
+      const tyyppi = m[1] + "H+" + m[2].toUpperCase() + (m[3] ? "+" + m[3].toUpperCase().replace("5", "S") : "");
+      let a = m[4].replace(",", ".");
+      if (/^\d{3}$/.test(a)) a = a.slice(0, 2) + "." + a.slice(2);
+      (tyypit[tyyppi] = tyypit[tyyppi] || []).push(a);
+    });
+    const tyyppiLista = Object.keys(tyypit).sort().map((ty) => {
+      const l = tyypit[ty], laskut = {};
+      l.forEach((a) => { laskut[a] = (laskut[a] || 0) + 1; });
+      // Yleisin luettu ala; desimaali on piirustuksissa lähes aina 0 (viivattu nolla luetaan 8:ksi tai 9:ksi)
+      let ala = Object.keys(laskut).sort((x, y) => laskut[y] - laskut[x])[0];
+      ala = ala.replace(/\.[89]$/, ".0");
+      return ty + " " + ala.replace(".", ",") + " m²";
+    });
+    return { piirustus: p, arvot, tyypit: tyyppiLista };
+  }
+  /* "3H+K 80,0 m²" ja "3H+K+S 80,0 m²" ovat sama tyyppi: pidetään tarkempi */
+  function yhdistaTyypit(l) {
+    const ala = (t) => t.replace(/^\S+\s*/, ""), tyyp = (t) => t.split(" ")[0];
+    return l.filter((t) => !l.some((u) => u !== t && ala(u) === ala(t) && tyyp(u).startsWith(tyyp(t) + "+")))
+      .sort((a, b) => tyyp(b).localeCompare(tyyp(a)));
+  }
+
   /* ---------- Tekstin luku: PDF:n tekstikerros, muuten tekstintunnistus ---------- */
   let workerP = null;
-  async function ocrCanvas(c, edistys) {
+  async function ocrCanvas(c, edistys, psm, sijainnit) {
     if (!workerP) workerP = UI.loadScript(TESS).then(() => window.Tesseract.createWorker("fin", 1, UI.tessPaths())).catch((e) => { workerP = null; throw e; });
     const wk = await workerP;
-    const rivit = (r) => (r.data.lines || []).map((x) => siisti(x.text)).filter((x) => x.length > 1);
+    // Rivi mukaan vain, jos siinä on luotettavasti tunnistettuja sanoja (piirustusten viivat tuottavat roskaa)
+    const rivit = (r) => (r.data.lines || []).map((x) => {
+      const ws = (x.words || []).filter((w) => w.confidence >= (window.KS_OCR_CONF || 40) && /[\p{L}\d]{2,}/u.test(w.text));
+      const text = siisti(ws.length ? ws.map((w) => w.text).join(" ") : "");
+      return sijainnit ? { text, b: x.bbox } : text;
+    }).filter((x) => { const t = sijainnit ? x.text : x; return t.length > 1 && /[\p{L}]{2,}|\d{2,}/u.test(t); });
+    if (psm) { await wk.setParameters({ tessedit_pageseg_mode: psm }); return rivit(await wk.recognize(c)); }
     await wk.setParameters({ tessedit_pageseg_mode: "3" });
     let l = rivit(await wk.recognize(c));
-    if (l.join(" ").length < 120) {            // piirustus: harva teksti
+    if (l.join(" ").length < 120) {            // harva teksti
       await wk.setParameters({ tessedit_pageseg_mode: "11" });
       const l2 = rivit(await wk.recognize(c));
       if (l2.join(" ").length > l.join(" ").length) l = l2;
@@ -167,6 +255,101 @@
     g.drawImage(img, 0, 0, c.width, c.height);
     return c;
   }
+  async function renderAlue(page, scale, x, y, w, h) {
+    const vp = page.getViewport({ scale });
+    const c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, h);
+    await page.render({ canvasContext: ctx, viewport: vp, transform: [1, 0, 0, 1, -x, -y] }).promise;
+    return c;
+  }
+  async function ocrSivu(page, base, edistys) {
+    edistys && edistys();
+    const sc = Math.min(4, 3000 / Math.max(base.width, base.height));
+    return ocrCanvas(await renderAlue(page, sc, 0, 0, Math.round(base.width * sc), Math.round(base.height * sc)));
+  }
+  /* Piirustus: pieni teksti hajallaan isolla arkilla. Luetaan noin 300 dpi:n tarkkuudella
+     paloina (pala kerrallaan muistiin) ja harvan tekstin tilassa. Tyhjät palat ohitetaan. */
+  const PALA = 1800, LIMIT = 260;      // limitys > piirustuksen tekstirivin pituus, ettei teksti katkea palojen väliin
+  async function ocrPiirustus(page, base, edistys) {
+    const sc = (window.KS_OCR_DPI || 400) / 72;
+    const W = Math.round(base.width * sc), H = Math.round(base.height * sc);
+    const nx = Math.ceil(W / PALA), ny = Math.ceil(H / PALA), m = nx * ny, out = [];
+    let i = 0;
+    for (let yy = 0; yy < ny; yy++) for (let xx = 0; xx < nx; xx++) {
+      i++;
+      edistys && edistys(i, m);
+      const x = Math.max(0, xx * PALA - LIMIT), y = Math.max(0, yy * PALA - LIMIT);
+      const w = Math.min(W - x, PALA + 2 * LIMIT), h = Math.min(H - y, PALA + 2 * LIMIT);
+      const c = await renderAlue(page, sc, x, y, w, h);
+      if (musteOsuus(c) < 0.004) { c.width = c.height = 0; continue; }
+      (await ocrCanvas(c, null, "11", true)).forEach((r) => {
+        const cx = x + (r.b.x0 + r.b.x1) / 2, cy = y + (r.b.y0 + r.b.y1) / 2;
+        // Limitysalueella sama teksti samassa kohdassa vain kerran; sama teksti eri kohdassa on eri merkintä
+        if (out.some((o) => o.text === r.text && Math.abs(o.cx - cx) < 60 && Math.abs(o.cy - cy) < 40)) return;
+        out.push({ text: r.text, cx, cy, x0: x + r.b.x0, y0: y + r.b.y0 });
+      });
+      c.width = c.height = 0;
+    }
+    out.sort((a, b) => a.cy - b.cy || a.cx - b.cx);
+    // Taulukot luetaan uudelleen kokonaisina riveinä: nimiö ja paljoustiedot (pinta-alat, huoneistojakauma).
+    // Harvan tekstin tila pilkkoo sarakkeet erillisiksi riveiksi, jolloin arvo irtoaa otsikostaan.
+    const mm = sc * 72 / 25.4, lisa = [];
+    const ankkurit = [
+      ["nimio", /RAKENNUSTOIMENPIDE|PIIRUSTUSLAJI/i, -6, -14, 190, 75],
+      ["taulukko", /P[AÄ]{2}TUNNUSTIEDOT|PALJOUSTIEDOT|LASKELMA|HUONEISTOJAKAUMA|MITOITUS|TONTINPINTA-?ALA/i, -6, -4, 135, 100]
+    ];
+    const tehdyt = [], taulut = [];
+    for (const [tyyppi, re, dx, dy, ww, hh] of ankkurit) {
+      for (const o of out.filter((x) => re.test(x.text.replace(/\s+/g, "")))) {
+        const x = Math.max(0, Math.round(o.x0 + dx * mm)), y = Math.max(0, Math.round(o.y0 + dy * mm));
+        if (tehdyt.some((t) => Math.abs(t[0] - x) < 30 * mm && Math.abs(t[1] - y) < 30 * mm)) continue;
+        tehdyt.push([x, y]);
+        const w = Math.min(W - x, Math.round(ww * mm)), h = Math.min(H - y, Math.round(hh * mm));
+        if (w < 50 || h < 50) continue;
+        edistys && edistys(m, m);
+        const k = (window.KS_OCR_TAULU || 600) / 72 / sc;      // taulukko tarkemmin: numerot ratkaisevat
+        const c = await renderAlue(page, sc * k, Math.round(x * k), Math.round(y * k), Math.round(w * k), Math.round(h * k));
+        const rivit = await ocrCanvas(c, null, "6");
+        rivit.forEach((t) => lisa.push(t));
+        // Taulukon kuva tarkistusta varten: tutkija näkee alkuperäisen ja korjaa luetun arvon
+        let kuva = null;
+        if (tyyppi === "taulukko") {
+          // Rajataan tekstin ympärille, ettei tyhjä paperi pienennä lukuja
+          const b = musteRaja(c), pad = 30;
+          const bx = Math.max(0, b.x0 - pad), by = Math.max(0, b.y0 - pad), bw = Math.min(c.width - bx, b.x1 - b.x0 + 2 * pad), bh = Math.min(c.height - by, b.y1 - b.y0 + 2 * pad);
+          const ks = Math.min(1, 1400 / bw), k2 = document.createElement("canvas");
+          k2.width = Math.round(bw * ks); k2.height = Math.round(bh * ks);
+          k2.getContext("2d").drawImage(c, bx, by, bw, bh, 0, 0, k2.width, k2.height);
+          kuva = k2.toDataURL("image/jpeg", 0.7); k2.width = k2.height = 0;
+        }
+        taulut.push({ tyyppi, rivit, kuva });
+        c.width = c.height = 0;
+      }
+    }
+    return { rivit: out.map((o) => o.text), taulut };
+  }
+  /* Tekstin rajaus: rivit ja sarakkeet, joilla on mustetta (pitkät viivat, kuten taitteet, ohitetaan) */
+  function musteRaja(c) {
+    const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data, W = c.width, H = c.height, st = 3;
+    const rivi = new Array(H).fill(0), sar = new Array(W).fill(0);
+    for (let y = 0; y < H; y += st) for (let x = 0; x < W; x += st) { const k = (y * W + x) * 4; if (d[k] + d[k + 1] + d[k + 2] < 300) { rivi[y]++; sar[x]++; } }
+    const rOk = (y) => rivi[y] > 0 && rivi[y] < (W / st) * 0.3, sOk = (x) => sar[x] > 0 && sar[x] < (H / st) * 0.3;
+    let y0 = 0, y1 = H - 1, x0 = 0, x1 = W - 1;
+    while (y0 < H && !rOk(y0)) y0++;
+    while (y1 > y0 && !rOk(y1)) y1--;
+    while (x0 < W && !sOk(x0)) x0++;
+    while (x1 > x0 && !sOk(x1)) x1--;
+    return y1 > y0 && x1 > x0 ? { x0, y0, x1, y1 } : { x0: 0, y0: 0, x1: W, y1: H };
+  }
+  function musteOsuus(c) {
+    const s = 4, g = c.getContext("2d"), d = g.getImageData(0, 0, c.width, c.height).data;
+    let n = 0, tot = 0;
+    for (let y = 0; y < c.height; y += s) for (let x = 0; x < c.width; x += s) { const k = (y * c.width + x) * 4; tot++; if (d[k] + d[k + 1] + d[k + 2] < 300) n++; }
+    return tot ? n / tot : 0;
+  }
+
   async function lue(file, edistys) {
     const onPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name || "");
     if (!onPdf) {
@@ -180,32 +363,44 @@
     lib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
     const pdf = await lib.getDocument({ data: await file.arrayBuffer(), isEvalSupported: false }).promise;
     let lines = (await PlanImport.pdfLines(file)).map((x) => ({ text: x.text, page: x.page }));
+    const taulut = [];
+    let piirustus = false;
     let tapa = "PDF:n teksti";
     const merkkeja = lines.reduce((n, x) => n + x.text.length, 0);
     if (merkkeja < 80 * Math.min(pdf.numPages, 3)) {          // skannattu tai piirustus ilman tekstikerrosta
       tapa = "tekstintunnistus";
       const n = Math.min(pdf.numPages, 8), ocr = [];
       for (let p = 1; p <= n; p++) {
-        edistys && edistys("Luetaan tekstiä, sivu " + p + "/" + n + "…");
         const page = await pdf.getPage(p);
         const base = page.getViewport({ scale: 1 });
-        const vp = page.getViewport({ scale: Math.min(4, 3000 / Math.max(base.width, base.height)) });
-        const c = document.createElement("canvas");
-        c.width = Math.round(vp.width); c.height = Math.round(vp.height);
-        const ctx = c.getContext("2d");
-        ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height);
-        await page.render({ canvasContext: ctx, viewport: vp }).promise;
-        (await ocrCanvas(c)).forEach((text) => ocr.push({ text, page: p }));
+        const iso = Math.max(base.width, base.height) > 900;     // A3 tai suurempi: piirustus
+        let rivit;
+        if (iso) {
+          const r = await ocrPiirustus(page, base, (i, m) => edistys && edistys("Luetaan piirustusta" + (n > 1 ? ", sivu " + p + "/" + n : "") + ": osa " + i + "/" + m + "…"));
+          rivit = r.rivit;
+          r.taulut.forEach((t) => taulut.push(Object.assign({ page: p }, t)));
+          piirustus = true;
+        } else rivit = await ocrSivu(page, base, () => edistys && edistys("Luetaan tekstiä, sivu " + p + "/" + n + "…"));
+        rivit.forEach((text) => ocr.push({ text, page: p }));
       }
       if (ocr.reduce((x, y) => x + y.text.length, 0) > merkkeja) lines = ocr;
     }
-    return { lines, sivuja: pdf.numPages, tapa };
+    if (!piirustus && pdf.numPages === 1) { const v = (await pdf.getPage(1)).getViewport({ scale: 1 }); piirustus = Math.max(v.width, v.height) > 900; }
+    return { lines, sivuja: pdf.numPages, tapa, taulut, piirustus };
   }
 
 
   /* ---------- Käyttöliittymä ---------- */
-  const PERUS_NIMET = { rakennustyyppi: "Rakennustyyppi", rakennusvuosi: "Rakennusvuosi", pintaala: "Pinta-ala (m²)", huoneistoja: "Huoneistoja", perustukset: "Perustukset",
+  const PERUS_NIMET = { rakennustyyppi: "Rakennustyyppi", rakennusvuosi: "Rakennusvuosi", pintaala: "Pinta-ala (m²)", huoneistoja: "Huoneistoja", huoneistotyypit: "Huoneistotyypit",
+    kerrosala: "Kerrosala (m²)", tilavuus: "Tilavuus (m³)", tontti: "Tontin pinta-ala (m²)", perustukset: "Perustukset",
     runko: "Runko", julkisivu: "Julkisivu", vesikatto: "Vesikatto", lammitys: "Lämmitys" };
+  const KORJAUSTOIMENPIDE = /saneeraus|peruskorjaus|perusparannus|korjaus|laajennus|muutostyö|lisärakennus|käyttötarkoituksen muutos/;
+  const LAJI_MON = { "pääpiirustus": "pääpiirustukset", "työpiirustus": "työpiirustukset", "rakennuslupapiirustus": "rakennuslupapiirustukset", "toteutuspiirustus": "toteutuspiirustukset", luonnos: "luonnokset" };
+  function metaTeksti(x) {
+    const p = x.piirustus;
+    if (!p) return null;
+    return [p.laji && p.laji.charAt(0).toUpperCase() + p.laji.slice(1), p.sisalto, p.paivays || p.vuosi, p.numero, p.toimenpide].filter(Boolean).join(" · ");
+  }
   const ka = () => App.S.kohde.kuntoarvio;
   const lista = () => (ka() && ka().lahtotiedot) || [];
   const osaNimi = (id) => { const d = Kuntoarvio.osa(id); return d ? d.nimi : id; };
@@ -215,7 +410,8 @@
     const l = lista();
     return '<section class="card"><div class="card-h"><h2>Lähtötiedot</h2><span class="meta">' + (l.length || "") + '</span></div><div class="card-b">' +
       (l.length ? l.map((x) => '<div class="row" style="padding:8px 0"><div class="grow"><div class="t">' + esc(x.nimi) + '</div><div class="s">' +
-        esc([x.laji, x.sivuja > 1 ? x.sivuja + " sivua" : "", x.tapa, x.poimittu ? x.poimittu + " tietoa otettu" : "ei poimittuja tietoja"].filter(Boolean).join(" · ")) +
+        esc(metaTeksti(x) || [x.laji, x.sivuja > 1 ? x.sivuja + " sivua" : "", x.tapa].filter(Boolean).join(" · ")) +
+        (x.poimittu ? " · " + x.poimittu + " tietoa otettu" : "") +
         '</div></div><button class="icon-btn" data-lahto-del="' + x.id + '" aria-label="Poista asiakirja">' + icon("trash") + "</button></div>").join("")
         : '<p class="hint" style="margin:0 0 10px">Anna isännöitsijäntodistus, yhtiöjärjestys, kunnossapitotarveselvitys, energiatodistus tai piirustukset. Sovellus poimii niistä perustiedot, tehdyt korjaukset ja rakenteet ehdotuksiksi. Teksti luetaan puhelimessa, eikä asiakirjoja lähetetä mihinkään.</p>') +
       '<button class="btn btn-block" data-lahto-add style="margin-top:8px">' + icon("upload") + "Lisää asiakirjoja (PDF tai kuva)</button>" +
@@ -226,6 +422,55 @@
   /* Ehdotukset tarkistettavaksi. Valmiiksi valittuna ne, jotka eivät korvaa tutkijan omaa tietoa. */
   function ehdotukset(tulokset) {
     const a = ka(), out = [];
+    // Piirustukset: nimiöstä korjaushistoria (esim. 1993 saneeraus) tai rakennusvuosi, kerran koko sarjalle
+    // Sarja = sama toimenpide ja vuosi. Piirustus, jonka vuotta ei saatu luettua, liitetään saman toimenpiteen
+    // sarjaan, jos sellaisia on yksi. Suunnittelijaksi yleisin luettu nimi (tekstintunnistus vaihtelee).
+    const sarjat = {};
+    const pit = tulokset.filter((x) => x.pi && x.pi.piirustus.toimenpide);
+    pit.filter((x) => x.pi.piirustus.vuosi).forEach(({ nimi, pi }) => {
+      const p = pi.piirustus, avain = p.vuosi + "|" + p.toimenpide;
+      (sarjat[avain] = sarjat[avain] || { p: { vuosi: p.vuosi, toimenpide: p.toimenpide, paivays: p.paivays }, nimet: [], lajit: [], su: [] });
+    });
+    pit.forEach(({ nimi, pi }) => {
+      const p = pi.piirustus;
+      let avain = p.vuosi ? p.vuosi + "|" + p.toimenpide : null;
+      if (!avain) { const k = Object.keys(sarjat).filter((x) => x.endsWith("|" + p.toimenpide)); if (k.length === 1) avain = k[0]; }
+      if (!avain) return;
+      const sr = sarjat[avain];
+      sr.nimet.push(nimi);
+      if (p.laji && !sr.lajit.includes(p.laji)) sr.lajit.push(p.laji);
+      if (p.suunnittelija) sr.su.push(p.suunnittelija);
+      if (!sr.p.paivays && p.paivays) sr.p.paivays = p.paivays;
+    });
+    Object.values(sarjat).forEach((sr) => {
+      const lk = {};
+      sr.su.forEach((x) => { lk[x] = (lk[x] || 0) + 1; });
+      sr.p.suunnittelija = Object.keys(lk).sort((a, b) => lk[b] - lk[a])[0] || null;
+    });
+    Object.values(sarjat).forEach(({ p, nimet, lajit }) => {
+      const lahde = nimet.length > 1 ? nimet.length + " piirustusta" : nimet[0];
+      if (KORJAUSTOIMENPIDE.test(p.toimenpide)) {
+        const rivi = p.vuosi + " " + p.toimenpide + " (" + [lajit.map((l) => LAJI_MON[l] || l).join(", "), p.suunnittelija].filter(Boolean).join(", ") + ")";
+        if (String(a.perustiedot.korjaukset || "").toLowerCase().includes(p.vuosi + " " + p.toimenpide)) return;
+        out.push({ t: "tyo", rivi, vuosi: p.vuosi, osa: null, otsikko: rivi, ote: "Piirustusten nimiö (" + p.toimenpide + ", " + p.vuosi + ")", lahde, nimet, valittu: true });
+      } else if (/uudisrakennu/.test(p.toimenpide) && !a.perustiedot.rakennusvuosi) {
+        out.push({ t: "perus", k: "rakennusvuosi", arvo: p.vuosi, otsikko: "Rakennusvuosi: " + p.vuosi, ote: "Uudisrakennuksen piirustusten päiväys " + (p.paivays || p.vuosi) + "; valmistumisvuosi voi olla myöhempi", lahde, nimet, valittu: true, muokattava: true });
+      }
+    });
+    tulokset.filter((x) => x.pi).forEach(({ nimi, pi }) => {
+      pi.arvot.forEach((v) => {
+        const ed = out.find((e) => e.t === "perus" && e.k === v.k && e.tarkista);
+        if (ed) { if (!ed.arvo && v.arvo) Object.assign(ed, { arvo: v.arvo, ote: "Luettu: " + v.ote, kuva: v.kuva }); return; }
+        if (v.k === "huoneistotyypit" && tulokset.some((x) => x.pi && x.pi.tyypit.length)) return;
+        out.push({ t: "perus", k: v.k, arvo: v.arvo, otsikko: v.nimi, ote: v.ote ? "Luettu: " + v.ote : "Arvoa ei saatu luettua", lahde: nimi, sivu: v.sivu, kuva: v.kuva,
+          huom: a.perustiedot[v.k] ? "Nykyinen: " + a.perustiedot[v.k] : "", valittu: false, muokattava: true, tarkista: true });
+      });
+    });
+    const tyypit = yhdistaTyypit(Array.from(new Set(tulokset.filter((x) => x.pi).flatMap((x) => x.pi.tyypit))));
+    if (tyypit.length && !a.perustiedot.huoneistotyypit) {
+      const lahteet = tulokset.filter((x) => x.pi && x.pi.tyypit.length).map((x) => x.nimi);
+      out.push({ t: "perus", k: "huoneistotyypit", arvo: tyypit.join(", "), otsikko: "Huoneistotyypit", ote: "Pohjapiirustusten huoneistomerkinnät (tekstintunnistus)", lahde: lahteet.length > 1 ? lahteet.length + " piirustusta" : lahteet[0], nimet: lahteet, valittu: true, muokattava: true });
+    }
     tulokset.forEach(({ nimi, res }) => {
       Object.keys(res.perus).forEach((k) => {
         const v = res.perus[k], nyk = String(a.perustiedot[k] || "").trim();
@@ -275,19 +520,33 @@
     return new Promise((resolve) => {
       const ryhmat = [["perus", "Perustiedot"], ["tyo", "Tehdyt kunnossapito- ja muutostyöt"], ["rak", "Rakennusosien rakenteet"]];
       let tulos = null;
+      const nahdyt = [];
       sheet("<h3>Lähtötiedoista poimittu</h3>" +
         '<p class="hint" style="margin:-4px 0 10px">Tarkista ja poista valinta virheellisiltä. Lähdeote näkyy jokaisen alla. Uusimisvuosi viedään myös rakennusosalle.</p>' +
         ryhmat.map(([t, o]) => {
           const l = ehd.map((e, i) => [e, i]).filter(([e]) => e.t === t);
           return l.length ? '<span class="label" style="display:block;margin:12px 0 4px">' + o + " (" + l.length + ")</span>" +
-            l.map(([e, i]) => '<label class="ka-chk as-chk"><input type="checkbox" data-i="' + i + '"' + (e.valittu ? " checked" : "") + "><span><b>" + esc(e.otsikko) + "</b>" +
-              (e.huom ? '<br><span class="as-muut" style="margin:0">' + esc(e.huom) + "</span>" : "") +
-              '<br><span class="hint">' + esc((e.ote ? "”" + e.ote + "” · " : "") + e.lahde + (e.sivu > 1 ? ", s. " + e.sivu : "")) + "</span></span></label>").join("") : "";
+            l.map(([e, i]) => {
+              // Taulukon kuva kerran ennen ensimmäistä siitä luettua arvoa
+              const kuva = e.kuva && !nahdyt.includes(e.kuva) ? (nahdyt.push(e.kuva), '<div class="lt-kuva"><img src="' + e.kuva + '" alt="Piirustuksen taulukko"><span class="hint">Alkuperäinen ' + esc(e.lahde) + '. Napauta kuvaa suurentaaksesi. Tarkista luvut ja korjaa kenttiin.</span></div>') : "";
+              return kuva + '<label class="ka-chk as-chk"><input type="checkbox" data-i="' + i + '"' + (e.valittu ? " checked" : "") + "><span><b>" + esc(e.muokattava ? e.otsikko.replace(/:.*$/, "") : e.otsikko) + "</b>" +
+                (e.muokattava ? '<input type="text" class="lt-arvo" data-arvo="' + i + '" value="' + esc(e.arvo || "") + '" placeholder="' + (e.tarkista ? "lue kuvasta" : "") + '">' : "") +
+                (e.huom ? '<br><span class="as-muut" style="margin:0">' + esc(e.huom) + "</span>" : "") +
+                '<br><span class="hint">' + esc((e.ote ? (e.muokattava ? e.ote : "”" + e.ote + "”") + " · " : "") + e.lahde + (e.sivu > 1 ? ", s. " + e.sivu : "")) + "</span></span></label>";
+            }).join("") : "";
         }).join("") +
         '<div class="row-btns" style="margin-top:14px"><button class="btn" data-close>Peruuta</button><button class="btn btn-primary" data-ok>Ota valitut käyttöön</button></div>',
         (el, close) => {
+          el.querySelectorAll(".lt-kuva img").forEach((im) => im.addEventListener("click", () => im.parentNode.classList.toggle("iso")));
+          // Arvon muokkaus valitsee rivin; tyhjä arvo ei mene käyttöön
+          el.querySelectorAll("[data-arvo]").forEach((inp) => {
+            inp.addEventListener("input", () => { const c = el.querySelector('input[data-i="' + inp.dataset.arvo + '"]'); if (c) c.checked = !!inp.value.trim(); });
+          });
           el.querySelector("[data-ok]").addEventListener("click", () => {
-            tulos = Array.from(el.querySelectorAll("input[data-i]:checked")).map((c) => ehd[+c.dataset.i]);
+            tulos = Array.from(el.querySelectorAll("input[data-i]:checked")).map((c) => {
+              const e = ehd[+c.dataset.i], inp = el.querySelector('[data-arvo="' + c.dataset.i + '"]');
+              return inp ? Object.assign({}, e, { arvo: inp.value.trim() }) : e;
+            }).filter((e) => e.t !== "perus" || e.arvo);
             close();
           });
         }, { onClose: () => resolve(tulos) });
@@ -308,10 +567,13 @@
         const r = await lue(f, (t) => toast(t + " (" + f.name + ")", 60000));
         const res = poimi(r.lines);
         const teksti = r.lines.map((x) => x.text).join("\n");
+        const pi = r.piirustus || /piirustu|piirros/i.test(laji(f.name, teksti)) ? poimiPiirustus(r.lines, r.taulut || [], f.name) : null;
         const tiedosto = await DB.putFile(App.S.kohde.id, f, { kind: "lahtotieto", nimi: f.name });
-        const rivi = { id: DB.uid("l_"), tiedosto, nimi: f.name, laji: laji(f.name, teksti), sivuja: r.sivuja, tapa: r.tapa, poimittu: 0, otteet: res.otteet.slice(0, 40), merkkeja: teksti.length, aika: Date.now() };
+        const rivi = { id: DB.uid("l_"), tiedosto, nimi: f.name, laji: laji(f.name, teksti), sivuja: r.sivuja, tapa: r.tapa, poimittu: 0, otteet: res.otteet.slice(0, 40), merkkeja: teksti.length, aika: Date.now(),
+          piirustus: pi ? pi.piirustus : undefined, tyypit: pi && pi.tyypit.length ? pi.tyypit : undefined };
+        if (pi && pi.piirustus.sisalto) { const L = { asemapiirros: "Asemapiirros", leikkaus: "Leikkauspiirustus", julkisivut: "Julkisivupiirustus", pohja: "Pohjapiirustus" }[pi.piirustus.sisalto]; if (L) rivi.laji = L; }
         a.lahtotiedot.push(rivi); uudet.push(rivi);
-        tulokset.push({ nimi: f.name, res });
+        tulokset.push({ nimi: f.name, res, pi });
       } catch (e) {
         console.warn("Lähtötieto", e);
         toast("Asiakirjaa ei voitu lukea: " + f.name, 4000);
@@ -324,7 +586,7 @@
     const valitut = await tarkista(ehd);
     if (valitut && valitut.length) {
       const n = kayta(valitut);
-      uudet.forEach((u) => { u.poimittu = valitut.filter((e) => e.lahde === u.nimi).length; });
+      uudet.forEach((u) => { u.poimittu = valitut.filter((e) => e.lahde === u.nimi || (e.nimet || []).includes(u.nimi)).length; });
       await App.Model.saveKohde();
       toast(n + " tietoa otettu käyttöön");
     }
@@ -340,6 +602,6 @@
     paivita();
   }
 
-  window.KaLahto = { poimi, lue, laji, OSAT, MATERIAALIT, kortti, lisaa, poista, lista, ehdotukset, kayta };
+  window.KaLahto = { poimi, poimiPiirustus, lue, laji, OSAT, MATERIAALIT, kortti, lisaa, poista, lista, ehdotukset, kayta };
 
 })();
