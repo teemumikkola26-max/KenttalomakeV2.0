@@ -211,6 +211,7 @@
       huomioitavaa_lahtotiedoista: (k.huomiot || []).length ? k.huomiot.map((h) => ({ teksti: h.teksti, lahde: h.lahde || undefined })) : null,
       yleiskuvat: (paths.yleiskuvat || []).length ? paths.yleiskuvat : null,
       kuntoarvio: window.Kuntoarvio ? Kuntoarvio.vienti(RN, paths.lahto) : null,
+      vaihe: !k.suunnitelma.length && window.Katselmus && Katselmus.onKatselmus(k) ? "katselmus" : "tutkimus",
       ...(window.Katselmus ? Katselmus.vienti() : {}),
       avoimet_puutteet: puutteet.map((x) => x.otsikko + ": " + x.selite)
     };
@@ -226,6 +227,7 @@
     L.push("- Tutkija: " + (k.tutkija || "–"));
     L.push("- Tutkimuspäivä: " + (k.tutkimuspaiva ? UI.pvm(k.tutkimuspaiva) : "–"));
     L.push("- Viety: " + UI.pvm(j.viety) + (j.keskenerainen ? " (KESKENERÄINEN: katso avoimet puutteet)" : ""));
+    if (j.vaihe === "katselmus") L.push("- Vaihe: katselmus (tutkimussuunnitelmaa ei vielä ole; laaditaan katselmusmuistio, ks. LUE_MINUT kohta 13)");
     L.push("");
     if (window.Katselmus) Katselmus.vientiMd(j).forEach((r) => L.push(r));
     if (j.tutkimussuunnitelma.length) {
@@ -284,17 +286,18 @@
     });
     if (j.kuntoarvio) {
       const ka = j.kuntoarvio, pt = ka.perustiedot || {};
-      L.push("## Kuntoarvio");
+      // Ei arvioituja osia (esim. katselmus, jossa paketista tuli vain perustietoja): vain perustiedot
+      const arvioitu = ka.osat.some((o) => o.kuntoluokka != null || o.huomiot || o.havainnot.length || (o.rakenteet || []).length);
+      L.push(arvioitu ? "## Kuntoarvio" : "## Rakennuksen perustiedot");
       L.push("");
-      L.push("Kuntoluokat: " + ka.kuntoluokat.join("; ") + ".");
-      L.push("");
+      if (arvioitu) { L.push("Kuntoluokat: " + ka.kuntoluokat.join("; ") + "."); L.push(""); }
       const PT = { rakennustyyppi: "Rakennustyyppi", rakennusvuosi: "Rakennusvuosi", pintaala: "Pinta-ala (m²)", huoneistoja: "Huoneistoja", huoneistotyypit: "Huoneistotyypit", kerrosala: "Kerrosala (m²)", tilavuus: "Tilavuus (m³)", tontti: "Tontin pinta-ala (m²)", perustukset: "Perustukset", runko: "Runko", julkisivu: "Julkisivu", vesikatto: "Vesikatto ja katemateriaali", lammitys: "Lämmitys", korjaukset: "Tehdyt kunnossapito- ja muutostyöt" };
       Object.keys(PT).forEach((x) => { if (pt[x]) L.push("- " + PT[x] + ": " + String(pt[x]).replace(/\n+/g, "; ")); });
       if (ka.rajaukset) L.push("- Rajaukset: " + ka.rajaukset.replace(/\n+/g, "; "));
       L.push("");
 
       let ryh = "";
-      ka.osat.forEach((o) => {
+      if (arvioitu) ka.osat.forEach((o) => {
         if (o.ryhma !== ryh) { ryh = o.ryhma; L.push("### " + ryh); L.push(""); }
         if (o.kuntoluokka == null && !o.huomiot && !o.havainnot.length && !(o.rakenteet || []).length) { L.push("- " + o.osa + (o.koodi ? " (" + o.koodi + ")" : "") + ": ei arvioitu"); return; }
         L.push("- **" + o.osa + (o.koodi ? " (" + o.koodi + ")" : "") + "**: kuntoluokka " + (o.kuntoluokka == null ? "–" : o.kuntoluokka) +
@@ -395,12 +398,25 @@
     "   lähde on merkitty. PTS-ehdokkaat ovat ehdotuksia PTS-taulukkoon, eivät\n" +
     "   päätöksiä. LVIA- ja sähköosat on arvioitu pintapuolisesti rakennusteknisenä;\n" +
     "   kohdat, joissa asiantuntija-arvio on suositeltava, esitetään lisätutkimuksina.\n" +
-    "12. Kuntoarvion lähtötiedot (kansio lahtotiedot/) ovat tilaajan toimittamia asiakirjoja.\n" +
+    "11. Kuntoarvion lähtötiedot (kansio lahtotiedot/) ovat tilaajan toimittamia asiakirjoja.\n" +
     "   Sovellus on poiminut niistä perustietoja ja korjaushistoriaa tutkijan hyväksymänä.\n" +
     "   Lue asiakirjat kokonaan ja käytä niitä raportin lähtötietoina; merkitse lähde.\n" +
-    "11. Yleiskuvat (kansio yleiskuvat/) ovat kuvia ilman havaintoa tai sanelua, esim.\n" +
+    "12. Yleiskuvat (kansio yleiskuvat/) ovat kuvia ilman havaintoa tai sanelua, esim.\n" +
     "   julkisivut ja tilojen yleisnäkymät. Niistä ei tehdä havaintoja eikä\n" +
-    "   johtopäätöksiä; ne liitetään raporttiin kohteen kuvaukseen.\n";
+    "   johtopäätöksiä; ne liitetään raporttiin kohteen kuvaukseen.\n" +
+    "13. Vaihe (havainnot.json: vaihe). \"katselmus\" tarkoittaa, että kohteessa tehtiin\n" +
+    "   katselmus ilman tutkimussuunnitelmaa. Silloin laaditaan katselmusmuistio:\n" +
+    "   lähtötiedot, haastattelu (katselmus.kysymykset vastauksineen), kierroksen\n" +
+    "   havainnot, alustava riskiarvio ja ehdotus jatkotutkimuksista\n" +
+    "   tutkimussuunnitelmaa varten. Kuntoa koskevia johtopäätöksiä ei esitetä\n" +
+    "   pelkän katselmuksen perusteella. \"tutkimus\" = tavallinen tutkimusseloste.\n" +
+    "14. Katselmuksen kysymykset, kierroksen kohdat ja aineistopyynnöt laadittiin\n" +
+    "   ennen käyntiä lähtötiedoista. Vastaus on tutkijan kirjaama tieto käyttäjiltä\n" +
+    "   tai huollolta (ei tutkijan havainto); esitä se haastattelutietona. Kohdat,\n" +
+    "   joita ei kysytty tai katsottu, ovat avoimia, eivät kielteisiä vastauksia.\n" +
+    "15. Aiemmat tutkimukset (aiemmat_tutkimukset) ovat lähtötietoja aiemmista\n" +
+    "   raporteista lähteineen, eivät tämän käynnin tuloksia. Esitä ne lähtötiedoissa\n" +
+    "   ja vertaa niihin; tilaviittaukset noudattavat tämän paketin tilanumerointia.\n";
 
   /* Viennin ajankohta: etusivu muistuttaa, jos kohteessa on vientiä uudempia muutoksia (puhelimen
      katoaminen tai rikkoutuminen ei vie kenttäpäivän työtä) */
