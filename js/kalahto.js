@@ -584,10 +584,10 @@
   const ilmoita = () => { try { document.dispatchEvent(new CustomEvent("ks-lahto")); } catch (e) { /* ohita */ } };
   const tallenna = async (k) => { if (App.S.kohde && App.S.kohde.id === k.id) await App.Model.saveKohde(); else { k.updated = Date.now(); await DB.put("kohteet", k); } };
 
-  async function lisaa(paivita) {
+  async function lisaa(paivita, valmiit) {
     const { toast } = UI;
     if (tila.kaynnissa) { toast("Edellisten asiakirjojen luku on vielä kesken", 3000); return; }
-    const files = await UI.pickFile("application/pdf,image/*", true);
+    const files = valmiit && valmiit.length ? valmiit : await UI.pickFile("application/pdf,image/*", true);     // valmiit: jaettu tiedosto
     if (!files.length) return;
     const k = App.S.kohde;
     siirra(k); k.lahtotiedot = k.lahtotiedot || [];

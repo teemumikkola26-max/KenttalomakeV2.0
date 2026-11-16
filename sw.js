@@ -4,12 +4,12 @@
      tekstintunnistuksen moottori ja kielidata ensimmäisellä käytöllä (oma, pysyvä välimuisti).
    - Pilvi (Supabase) ja kirjautuminen eivät kulje välimuistin kautta.
    Nosta CACHE-versiota aina, kun julkaiset muutoksia. */
-const CACHE = "kuva-sanelu-v38";
+const CACHE = "kuva-sanelu-v40";
 const LIBCACHE = "kuva-sanelu-lib-1";      // nosta, kun lib/-tiedostot päivitetään
 const SHELL = [
   "./", "index.html", "css/app.css",
   "js/config.js", "js/ui.js", "js/asetukset.js", "js/db.js", "js/methods.js", "js/vocab.js", "js/vocabview.js", "js/dictation.js", "js/camera.js",
-  "js/cloud.js", "js/app.js", "js/sync.js", "js/cloudui.js", "js/plan.js", "js/check.js", "js/seuranta.js", "js/yleiskuvat.js", "js/planimport.js", "js/kuntoarvio-data.js", "js/kalahto.js", "js/paketti.js", "js/lahtotiedot.js", "js/katselmus.js", "js/kuntoarvio.js",
+  "js/cloud.js", "js/app.js", "js/sync.js", "js/cloudui.js", "js/plan.js", "js/check.js", "js/seuranta.js", "js/yleiskuvat.js", "js/planimport.js", "js/kuntoarvio-data.js", "js/kalahto.js", "js/paketti.js", "js/lahtotiedot.js", "js/katselmus.js", "js/jaa.js", "js/kuntoarvio.js",
   "js/capture.js", "js/card.js", "js/export.js", "js/editor.js", "js/lukulaite-ocr.js", "js/meter.js", "js/methodpicker.js", "js/learn.js", "js/autofill.js",
   "js/fieldfill.js", "js/planrooms.js", "js/zoom.js", "js/obslist.js", "js/gallery.js", "kameraluku-testi.html",
   "manifest.webmanifest", "pbm-logo.png", "icon-192.png", "icon-512.png", "icon-maskable-512.png"
@@ -26,7 +26,7 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== LIBCACHE).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== LIBCACHE && k !== "ks-jaettu").map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -55,8 +55,28 @@ async function cacheFirst(req) {
   return res;
 }
 
+/* Jakokohde (manifest share_target): Androidin Jaa-valikosta tulevat tiedostot talteen
+   välimuistiin ja sovellus auki Jaa-näkymään, joka kysyy kohteen ja käsittelee tiedostot. */
+const JAETTU = "ks-jaettu";
+async function vastaanotaJako(req) {
+  try {
+    const fd = await req.formData();
+    const c = await caches.open(JAETTU);
+    for (const k of await c.keys()) await c.delete(k);
+    const files = fd.getAll("tiedostot").filter((f) => f && typeof f !== "string" && f.size);
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      await c.put("./jaettu/" + i, new Response(f, { headers: { "content-type": f.type || "application/octet-stream", "x-nimi": encodeURIComponent(f.name || "tiedosto" + i) } }));
+    }
+    const teksti = [fd.get("otsikko"), fd.get("teksti")].filter((x) => typeof x === "string" && x.trim()).join("\n");
+    if (teksti) await c.put("./jaettu/teksti", new Response(teksti, { headers: { "content-type": "text/plain;charset=utf-8" } }));
+  } catch (e) { /* tyhjä jako: näkymä kertoo */ }
+  return Response.redirect("./index.html#/jaa", 303);
+}
+
 self.addEventListener("fetch", (event) => {
   const req = event.request;
+  if (req.method === "POST" && new URL(req.url).pathname.endsWith("/jaa")) { event.respondWith(vastaanotaJako(req)); return; }
   if (req.method !== "GET") return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;            // pilvi ja kirjautuminen suoraan verkosta

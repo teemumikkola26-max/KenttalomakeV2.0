@@ -288,6 +288,8 @@ Suositeltu tapa saada lähtötiedot sovellukseen. Tutkija antaa kohteen aineisto
 
 **ZIP-paketti (suositus):** Claude palauttaa `lahtotiedot-<kohde>.zip`, jossa on `paketti.json` ja alkuperäiset tiedostot. Sovellus lukee molemmat kerralla: tiedostoja ei tarvitse valita erikseen, `pohjakuva`-kohdan tiedostot (oikea sivu) asetetaan kerroksille, ja Clauden antamat tilojen sijainnit (`sijainti: {x, y}`, 0–1 näytetyn sivun vasemmasta yläkulmasta) piirretään suoraan pohjakuvaan. Tekstikerroksesta luetut sijainnit ovat varmoja; kuvasta arvioidut (`varmuus: "arvio"`) näkyvät katkoviivalla vahvistamattomina. Jos kaikilla kerroksen tiloilla on sijainti, tekstintunnistusta ei ajeta; muuten tunnistus täydentää puuttuvat eikä siirrä Clauden merkitsemiä. Pelkkä .json toimii edelleen, jolloin tiedostot liitetään erikseen.
 
+**Jakaminen sovellukseen (Android):** Kun sovellus on asennettu kotinäytölle, se näkyy puhelimen Jaa-valikossa. Clauden ZIP-paketin, tarjous-PDF:n tai pohjakuvan voi jakaa suoraan esim. latauksista tai sähköpostista. Sovellus kysyy kohteen (uusi tai olemassa oleva) ja käsittelee tiedostot: paketti tarkistusikkunaan, PDF:t ja kuvat tutkijan valinnan mukaan tarjoukseksi, pohjakuvaksi tai asiakirjaksi (arvaus tiedostonimestä). Kohteen varmuuskopio-ZIPin voi palauttaa samalla tavalla. Toteutus: `share_target` manifestissa, `sw.js` ottaa POST-pyynnön vastaan ja tallentaa tiedostot välimuistiin `ks-jaettu`, `js/jaa.js` näyttää valinnan. Ei toimi iPhonessa eikä selainvälilehdellä. Jos sovellus oli asennettu ennen tätä versiota, jakokohde voi vaatia sovelluksen poistamisen ja uudelleenasennuksen.
+
 **Katselmus ja aiemmat tutkimukset:** Kun tarjousta ei vielä ole, Claude laatii paketissa katselmussuunnitelman (`katselmus`: kysymykset, kierros tiloineen, aineistopyynnöt, jokaisella peruste aineistosta). Se näkyy kohteen sivulla Seuraavaksi-korttina ja omana näkymänään (`js/katselmus.js`, `#/k/<id>/katselmus`): kysymyksiin kirjataan vastaukset, kohdat kuitataan, ja kierroksen tilasirusta avautuu kamera suoraan siihen tilaan. Aiempien raporttien tulokset (`aiemmat`) sidotaan tiloihin ja näkyvät havaintokortilla valitun tilan kohdalla sekä kohteen sivulla raporteittain. Molemmat kulkevat viennissä raportointiin. ZIPiin viedään vain pohjakuvat; muut asiakirjat jäävät Clauden käsittelemiksi.
 
 Projektin ohje ja paketin kuvaus ovat kansiossa `claude-projekti/` (OHJE.md, lahtotietopaketti-v1.md, esimerkki-paketti.json). Puhelimessa luku (`js/kalahto.js`) jää varavaihtoehdoksi ilman verkkoa.
@@ -414,6 +416,7 @@ js/seuranta.js         olosuhdeseurannan mittalaitteet
 js/planimport.js       tutkimussuunnitelma tarjouksen/suunnitelman PDF:stä
 js/lahtotiedot.js      Lähtötiedot-sivu: kaikki tuontitavat, pohjakuvat kerroksittain, syötä itse
 js/katselmus.js        katselmussuunnitelma ja aiemmat tutkimukset tiloittain
+js/jaa.js              jakokohde: Androidin Jaa-valikosta tulevat tiedostot (manifest share_target, sw.js)
 js/paketti.js          Clauden lähtötietopaketin tarkistus ja käyttöönotto
 js/kalahto.js          asiakirjojen luku puhelimessa (taustalla) ja yhteinen tarkistusikkuna
 js/asetukset.js        asetukset (perus + lisäasetukset)

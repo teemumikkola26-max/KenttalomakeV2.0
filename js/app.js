@@ -134,12 +134,20 @@
         for (const q of all) { const t = Math.min(n, q.maara || 1); if (q === p) return t; n -= t; }
         return 0;
       }
-      const linked = S.havainnot.filter((h) => h.suunnitelmaId === p.id);
+      let linked = S.havainnot.filter((h) => h.suunnitelmaId === p.id);
+      // Rakenneavauksen kohtaan liitetyt näytteet lasketaan erikseen (kohtaNaytteet)
+      if (p.menetelma === "avaus") linked = linked.filter((h) => h.menetelma !== "nayte");
       // Märkätilakartoitus lasketaan asunnoittain (yhdessä asunnossa useita märkätiloja)
       if (M.menetelma(p.menetelma).laskenta === "asunto") return new Set(linked.map((h) => String(h.kentat.asunto || h.id).toUpperCase())).size;
       return linked.length;
     },
-    kohtaValmis(p) { return !!p.pois || Model.kohtaTehty(p) >= (p.maara || 1); },
+    kohtaValmis(p) { return !!p.pois || (Model.kohtaTehty(p) >= (p.maara || 1) && Model.kohtaNaytteet(p) >= (p.naytteet || 0)); },
+    /* Rakenneavaus + näytteet samassa kohdassa: "rakenneavaus 4 kpl, näyte jokaisesta" */
+    kohtaNaytteet(p) { return p.naytteet ? S.havainnot.filter((h) => h.suunnitelmaId === p.id && h.menetelma === "nayte").length : 0; },
+    kohtaSopii(p, mid) { return !!p && (p.menetelma === mid || (mid === "nayte" && p.menetelma === "avaus" && (p.naytteet || 0) > 0)); },
+    kohtaMaaraTeksti(p) {
+      return Model.kohtaTehty(p) + "/" + (p.maara || 1) + (p.naytteet ? " · näytteet " + Model.kohtaNaytteet(p) + "/" + p.naytteet : "");
+    },
 
     kohtaNimi(p) {
       const m = M.menetelma(p.menetelma);
@@ -279,6 +287,8 @@
     const m = M.menetelma(p.menetelma), k = S.kohde.id;
     if (m.kuntoarvio) return "#/k/" + k + "/kuntoarvio";
     if (m.seuranta) return "#/k/" + k + "/seuranta";
+    // Avaukset tehty, näytteitä puuttuu: suoraan näytteenottoon
+    if (p.naytteet && Model.kohtaTehty(p) >= (p.maara || 1)) return "#/k/" + k + "/kuvaus?kohta=" + p.id + "&menetelma=nayte";
     return "#/k/" + k + "/kuvaus?kohta=" + p.id;
   };
 
@@ -302,7 +312,7 @@
     } else if (nx) {
       const m = M.menetelma(nx.menetelma), tehty = Model.kohtaTehty(nx), maara = nx.maara || 1;
       seur = '<section class="next-card"><div class="nc-k">Seuraavaksi</div><div class="nc-t">' + esc(m.nimi) + "</div>" +
-        '<div class="nc-s">' + esc([tehty + " / " + maara + " tehty", nx.kuvaus].filter(Boolean).join(" · ")) + "</div>" +
+        '<div class="nc-s">' + esc([tehty + " / " + maara + " tehty" + (nx.naytteet ? ", näytteet " + Model.kohtaNaytteet(nx) + " / " + nx.naytteet : ""), nx.kuvaus].filter(Boolean).join(" · ")) + "</div>" +
         '<a class="btn nc-btn" href="' + kohtaHref(nx) + '">' + icon(m.kuntoarvio || m.seuranta ? "list" : "cam") + (tehty ? "Jatka" : "Aloita") + "</a></section>";
     } else if (k.suunnitelma.length) {
       seur = '<section class="next-card ok"><div class="nc-k">Suunnitelma tehty</div><div class="nc-t">Kaikki kohdat tehty</div>' +
@@ -316,7 +326,7 @@
       const tehty = Model.kohtaTehty(p), maara = p.maara || 1, valmis = Model.kohtaValmis(p), m = M.menetelma(p.menetelma);
       const tila = p.pois ? "pois" : valmis ? "valmis" : nx && p.id === nx.id ? "nyt" : "kesken";
       const merkki = tila === "valmis" ? '<span class="pl-m ok">' + icon("check") + "</span>" : tila === "pois" ? '<span class="pl-m pois">–</span>' : '<span class="pl-m ' + tila + '"></span>';
-      const maaraTxt = m.kuntoarvio && window.Kuntoarvio && Kuntoarvio.aktiivinen() ? (() => { const e = Kuntoarvio.edistyminen(); return e.n + "/" + e.all + " osaa"; })() : p.pois ? "pois" : tehty + "/" + maara;
+      const maaraTxt = m.kuntoarvio && window.Kuntoarvio && Kuntoarvio.aktiivinen() ? (() => { const e = Kuntoarvio.edistyminen(); return e.n + "/" + e.all + " osaa"; })() : p.pois ? "pois" : Model.kohtaMaaraTeksti(p);
       plan += '<button class="row pl-row ' + tila + '" data-act="kohtaMenu" data-id="' + p.id + '">' + merkki + '<div class="grow"><div class="t">' + esc(m.nimi) + "</div>" +
         (p.kuvaus || p.pois ? '<div class="s">' + esc(p.pois ? "Jätetään pois: " + p.pois.syy : p.kuvaus) + "</div>" : "") + "</div>" +
         '<span class="count">' + esc(maaraTxt) + "</span></button>";
@@ -461,6 +471,8 @@
       '<label class="field"><span>Menetelmä</span><select data-f="menetelma">' + opts + "</select></label>" +
       '<label class="field"><span>Tarkennus ja sijainti</span><input type="text" data-f="kuvaus" value="' + esc(p.kuvaus) + '" placeholder="esim. kellarin ulkoseinät"></label>' +
       '<label class="field"><span>Määrä</span><input type="number" min="1" inputmode="numeric" data-f="maara" value="' + (p.maara || 1) + '"></label>' +
+      '<label class="field" data-nayt' + (p.menetelma === "avaus" ? "" : " hidden") + '><span>Näytteitä avauksista yhteensä</span><input type="number" min="0" inputmode="numeric" data-f="naytteet" value="' + (p.naytteet || 0) + '">' +
+        '<small class="hint">Esim. 1 näyte per avaus = sama kuin avausten määrä. Näytteet kirjataan samaan kohtaan.</small></label>' +
       '<div class="row-btns">' + (isNew ? '<button class="btn" data-more>Lisää ja lisää seuraava</button>' : '<button class="btn" data-close>Peruuta</button>') +
       '<button class="btn btn-primary" data-ok>Tallenna</button></div>',
       (el, close) => {
@@ -468,7 +480,10 @@
           p.menetelma = el.querySelector('[data-f="menetelma"]').value;
           p.kuvaus = el.querySelector('[data-f="kuvaus"]').value.trim();
           p.maara = Math.max(1, parseInt(el.querySelector('[data-f="maara"]').value, 10) || 1);
+          const nv = p.menetelma === "avaus" ? Math.max(0, parseInt(el.querySelector('[data-f="naytteet"]').value, 10) || 0) : 0;
+          if (nv) p.naytteet = nv; else delete p.naytteet;
         };
+        el.querySelector('[data-f="menetelma"]').addEventListener("change", (e) => { el.querySelector("[data-nayt]").hidden = e.target.value !== "avaus"; });
         const commit = async () => {
           read();
           if (isNew) S.kohde.suunnitelma.push(p);
@@ -550,10 +565,10 @@
     const seur = M.menetelma(p.menetelma).seuranta, kam = M.menetelma(p.menetelma).kuntoarvio;
     sheet(
       "<h3>" + esc(Model.kohtaNimi(p)) + "</h3>" +
-      "<p>" + (p.pois ? "Jätetään pois: " + esc(p.pois.syy) : "Tehty " + Model.kohtaTehty(p) + " / " + (p.maara || 1)) + "</p>" +
+      "<p>" + (p.pois ? "Jätetään pois: " + esc(p.pois.syy) : "Tehty " + Model.kohtaMaaraTeksti(p).replace("/", " / ")) + "</p>" +
       '<div style="display:flex;flex-direction:column;gap:8px">' +
       (kam ? '<button class="btn btn-primary" data-a="ka">' + icon("list") + "Avaa kuntoarvio</button>" : seur ? '<button class="btn btn-primary" data-a="seur">' + icon("pin") + "Olosuhdeseuranta: mittalaitteet</button>"
-            : '<button class="btn btn-primary" data-a="kuva">' + icon("cam") + "Kuva + sanelu tähän kohtaan</button>") +
+            : '<button class="btn btn-primary" data-a="kuva">' + icon("cam") + "Kuva + sanelu tähän kohtaan</button>" + (p.naytteet ? '<button class="btn" data-a="nayte">' + icon("cam") + "Näyte avauksesta tähän kohtaan</button>" : "")) +
       linked.map((h) => '<button class="btn" data-h="' + h.id + '">' + nro(h) + " · " + esc(Model.sijaintiTeksti(h.sijainti) || "Sijainti puuttuu") + "</button>").join("") +
       (p.pois ? '<button class="btn" data-a="palauta">Palauta tehtäväksi</button>' : '<button class="btn" data-a="pois">Jätetään pois + syy</button>') +
       '<button class="btn" data-close>Sulje</button></div>',
@@ -562,6 +577,8 @@
         if (kv) kv.addEventListener("click", () => {
           close(); location.hash = "#/k/" + k.id + "/kuvaus?menetelma=" + p.menetelma + "&kohta=" + p.id;
         });
+        const nv = el.querySelector('[data-a="nayte"]');
+        if (nv) nv.addEventListener("click", () => { close(); location.hash = "#/k/" + k.id + "/kuvaus?menetelma=nayte&kohta=" + p.id; });
         const sv = el.querySelector('[data-a="seur"]');
         if (sv) sv.addEventListener("click", () => { close(); location.hash = "#/k/" + k.id + "/seuranta"; });
         const kv2 = el.querySelector('[data-a="ka"]');
@@ -610,6 +627,7 @@
       if (window.CloudUI && CloudUI.tarvitaanKirjautuminen()) { CloudUI.loginView(); return; }
       if (parts[0] === "sanasto") { await VocabView.view(); return; }
       if (parts[0] === "asetukset") { await Asetukset.view(); return; }
+      if (parts[0] === "jaa") { await Jaa.view(); return; }
       if (parts[0] === "menetelmat") {
         if (parts[1]) await Editor.viewMethod(decodeURIComponent(parts[1])); else await Editor.viewList();
         return;

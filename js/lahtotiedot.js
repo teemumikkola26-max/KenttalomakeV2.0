@@ -68,6 +68,11 @@
     const kuuntele = () => paivita();
     document.addEventListener("ks-lahto", kuuntele);
     S.cleanup = () => { app().onclick = null; document.removeEventListener("ks-lahto", kuuntele); };
+    // Jaa-valikosta tulleet tiedostot: käsitellään kerran (merkintä pois osoitteesta)
+    if (q && q.jaettu && window.Jaa) {
+      history.replaceState(null, "", location.hash.replace(/[?&]jaettu=1/, "").replace(/\?$/, ""));
+      Jaa.kasittele(paivita);
+    }
   }
 
   /* ---------- L1: Clauden paketti ---------- */
@@ -150,21 +155,26 @@
       if (e.target.closest("[data-monta]")) {
         const fs = await UI.pickFile("image/*,application/pdf", true);
         if (!fs.length) return;
-        const valinnat = await kerrosValinta(fs);
-        if (!valinnat) return;
-        for (const v of valinnat) {
-          let ker = k.kerrokset.find((x) => x.nimi.toLowerCase() === v.kerros.toLowerCase());
-          if (!ker) { ker = { id: DB.uid("e_"), nimi: v.kerros, planId: null }; k.kerrokset.push(ker); await Model.saveKohde(); }
-          toast("Pohjakuva: " + ker.nimi, 3000);
-          await Plan.asetaPohja(ker, v.file);
-        }
-        await merkitse("pohjat");
-        location.hash = base() + "/pohjat";
-        viewPohjat();
+        if (await lisaaPohjat(fs)) { location.hash = base() + "/pohjat"; viewPohjat(); }
       }
     };
     S.cleanup = () => { el.onclick = null; };
   }
+  /* Useita pohjakuvia: kerros arvataan tiedostonimestä ja tutkija vahvistaa (myös jaetut tiedostot) */
+  async function lisaaPohjat(fs) {
+    const k = S.kohde;
+    const valinnat = await kerrosValinta(fs);
+    if (!valinnat) return false;
+    for (const v of valinnat) {
+      let ker = k.kerrokset.find((x) => x.nimi.toLowerCase() === v.kerros.toLowerCase());
+      if (!ker) { ker = { id: DB.uid("e_"), nimi: v.kerros, planId: null }; k.kerrokset.push(ker); await Model.saveKohde(); }
+      UI.toast("Pohjakuva: " + ker.nimi, 3000);
+      await Plan.asetaPohja(ker, v.file);
+    }
+    await merkitse("pohjat");
+    return true;
+  }
+
   function kerrosValinta(files) {
     const k = S.kohde;
     const vapaat = k.kerrokset.filter((e) => !e.planId).map((e) => e.nimi);
@@ -245,5 +255,5 @@
     S.cleanup = () => { el.onclick = null; };
   }
 
-  window.Lahtotiedot = { view, arvaaKerros };
+  window.Lahtotiedot = { view, arvaaKerros, lisaaPohjat };
 })();
