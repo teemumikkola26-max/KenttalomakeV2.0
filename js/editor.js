@@ -159,7 +159,7 @@
       '<section class="card"><div class="card-h"><h2>Kentät</h2><span class="meta">' + m.kentat.length + "</span></div>" +
       (rows || '<div class="empty">Ei kenttiä. Menetelmä kirjataan silloin pelkällä kuvalla ja sanelulla.</div>') +
       '<div class="card-b" style="padding-top:10px"><button class="btn btn-block" data-a="addField">' + icon("plus") + "Lisää kenttä</button></div></section>" +
-      '<p class="hint" style="margin:0 2px 14px">Pakollinen kenttä näkyy lähtötarkistuksessa, jos se on tyhjä. Mittaustulos vaatii tutkijan vahvistuksen, ja ZIP-paketissa se on erillään muista tiedoista.</p>') +
+      '<p class="hint" style="margin:0 2px 14px">Pakollinen kenttä näkyy Lopeta kohde -tarkistuksessa, jos se on tyhjä. Mittaustulos vaatii tutkijan vahvistuksen, ja ZIP-paketissa se on erillään muista tiedoista.</p>') +
       '<button class="btn btn-block" data-a="hide">' + (m.piilotettu ? "Palauta valittavaksi" : "Piilota valinnoista") + "</button>" +
       (n ? "" : '<div style="height:8px"></div><button class="btn btn-danger btn-block" data-a="del">' + icon("trash") + "Poista menetelmä</button>") +
       (n ? '<p class="hint">Menetelmää on käytetty havainnoissa, joten sitä ei voi poistaa. Piilotettu menetelmä ei näy valinnoissa, mutta vanhat havainnot säilyvät.</p>' : "") +
@@ -224,7 +224,7 @@
         '<label class="field"><span>Absoluuttinen kosteus</span><select data-map="a"></select></label></div>' +
         '<p class="hint">Päivämääräsarake täyttyy automaattisesti kuvaus- tai lisäyspäivällä (lukupäivä).</p></div>' +
         '<div style="display:flex;flex-direction:column;gap:12px;margin:4px 0 16px">' +
-        chk("req", "Pakollinen", "Lähtötarkistus muistuttaa, jos kenttä on tyhjä.", f.req) +
+        chk("req", "Pakollinen", "Lopeta kohde -tarkistus muistuttaa, jos kenttä on tyhjä.", f.req) +
         '<div data-show="mittaus">' + chk("mittaus", "Mittaustulos", "Tutkija vahvistaa arvon. Viedään erillään muista tiedoista.", f.mittaus) + "</div>" +
         chk("muista", "Muista edellinen arvo", "Esim. mittalaite täyttyy valmiiksi seuraavaan havaintoon.", f.muista) +
         "</div>" +

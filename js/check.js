@@ -106,45 +106,47 @@
     await Model.ensureUrls(list.filter((x) => x.tyyppi === "havainto").map((x) => { const h = Model.havainto(x.id); return h && h.kuvat[0]; }).filter(Boolean));
     const cnt = { tarkastettu: 0, poikkeama: 0, ei_paasya: 0, ei_tutkittu: 0 };
     k.tilat.forEach((t) => { cnt[Model.tilaStatus(t)]++; });
-    const stat = (key, bg) => '<div class="' + M.TILASTATUS[key].cls + '" style="border-radius:9px"><b>' + cnt[key] + "</b><span>" + M.TILASTATUS[key].l + "</span></div>";
+    const rajattu = cnt.ei_paasya + k.suunnitelma.filter((p) => p.pois).length;
+    const tile = (n, l, cls) => '<div class="ct ' + cls + '"><b>' + n + "</b><span>" + l + "</span></div>";
 
+    // Ryhmät kortteina; pitkät ryhmät (esim. 20 tilaa) taitettuina yhteenvedoksi
     const groups = [
-      ["kohta", "Tutkimussuunnitelma"],
-      ["tila", "Tilat"],
-      ["havainto", "Havainnot"],
-      ["seuranta", "Olosuhdeseuranta"],
-      ["kuntoarvio", "Kuntoarvio"]
+      ["kohta", "Suunnitelma", (n) => n + " kesken"],
+      ["havainto", "Havainnot", (n) => n + " puutteellinen"],
+      ["tila", "Tilat", (n) => n + " tutkimatta"],
+      ["seuranta", "Olosuhdeseuranta", (n) => n + " puutteellinen"],
+      ["kuntoarvio", "Kuntoarvio", () => "kesken"]
     ];
     let body = "";
-    groups.forEach(([t, title]) => {
+    groups.forEach(([t, title, sel]) => {
       const items = list.filter((x) => x.tyyppi === t);
       if (!items.length) return;
-      body += '<h2 style="font-size:15px;margin:16px 2px 8px">' + title + " (" + items.length + ")</h2>";
-      if (t === "tila" && items.length > 3) body += '<button class="btn btn-sm btn-block" data-a="eipAll" style="margin-bottom:8px">Merkitse kaikki ' + items.length + " rajauksiksi + yhteinen syy</button>";
+      const auki = items.length <= 3 && t !== "tila" || (t === "tila" && items.length <= 2);
+      body += '<details class="card vocab ct-ryhma"' + (auki ? " open" : "") + '><summary class="card-h"><h2>' + esc(title) + '</h2><span class="meta">' + esc(sel(items.length)) + "</span></summary><div class=\"card-b\">";
+      if (t === "tila" && items.length > 1) body += '<button class="btn btn-sm btn-block" data-a="eipAll" style="margin-bottom:10px">Merkitse kaikki ' + items.length + " tilaa: ei pääsyä + yhteinen syy</button>";
       items.forEach((x) => {
         const hv = t === "havainto" ? Model.havainto(x.id) : null;
-        const needTulos = hv && !hv.tulos;
+        const needTulos = hv && !hv.tulos && !M.menetelma(hv.menetelma).tulosVapaa;
         const img = hv && hv.kuvat[0] ? '<img class="todo-img" src="' + Model.url(hv.kuvat[0]) + '" alt="">' : "";
-        body += '<div class="todo"><div class="tt">' + img + '<div><div class="t">' + esc(x.otsikko) + '</div><div class="s">' + esc(x.selite) + "</div>" +
-          (hv && hv.sanelu ? '<div class="s" style="font-style:italic;margin-top:2px">' + esc(hv.sanelu.length > 120 ? hv.sanelu.slice(0, 120) + "…" : hv.sanelu) + "</div>" : "") + "</div></div>" +
+        body += '<div class="todo"><div class="tt">' + img + '<div><div class="t">' + esc(x.otsikko) + '</div><div class="s">' + esc(x.selite) + "</div></div></div>" +
           '<div class="acts">' +
-          (needTulos ? '<button class="btn btn-sm" data-a="qtulos" data-v="poikkeama" data-id="' + x.id + '">Poikkeama</button><button class="btn btn-sm" data-a="qtulos" data-v="ok" data-id="' + x.id + '">Ei huomautettavaa</button>' : "") +
+          (needTulos ? '<button class="btn btn-sm" data-a="qtulos" data-v="poikkeama" data-id="' + x.id + '">Poikkeama</button><button class="btn btn-sm" data-a="qtulos" data-v="ok" data-id="' + x.id + '">Ei huom.</button>' : "") +
           '<button class="btn btn-sm btn-dark" data-a="do" data-t="' + t + '" data-id="' + x.id + '">' + esc(x.toimintoTeksti) + "</button>" +
-          (t === "kohta" ? '<button class="btn btn-sm" data-a="pois" data-id="' + x.id + '">Jätetään pois + syy</button>' : "") +
+          (t === "kohta" ? '<button class="btn btn-sm" data-a="pois" data-id="' + x.id + '">Jätä pois + syy</button>' : "") +
           (t === "tila" ? '<button class="btn btn-sm" data-a="eip" data-id="' + x.id + '">Ei pääsyä + syy</button>' : "") +
           "</div></div>";
       });
+      body += "</div></details>";
     });
 
     const root = document.getElementById("app");
-    root.innerHTML = App.topbar({ title: "Lähtötarkistus", sub: "Ennen kuin poistut kohteesta", back: "#/k/" + k.id }) +
+    root.innerHTML = App.topbar({ title: "Lopeta kohde", sub: "Tarkista ennen kuin lähdet", back: "#/k/" + k.id }) +
       '<main class="view">' +
-      (k.tilat.length ? '<div class="stats">' + stat("tarkastettu") + stat("poikkeama") + stat("ei_paasya") + stat("ei_tutkittu") + "</div>" : "") +
+      '<div class="ct-tiles">' + tile(S.havainnot.length, "havaintoa", "ok") + tile(list.length, "kesken", list.length ? "warn" : "ok") + tile(rajattu, "rajattu", "skip") + "</div>" +
       (!k.suunnitelma.length ? '<div class="alert info">' + icon("alert") + "<div>Tutkimussuunnitelmaa ei ole kirjattu, joten tarkistus kattaa vain tilat ja havainnot.</div></div>" : "") +
       (list.length ? body : '<div class="done-ok">' + icon("ok") + "Ei puutteita. Aineisto on valmis vietäväksi.</div>") +
-      '<div style="margin-top:18px"><button class="btn btn-primary btn-block" data-a="export"' + (list.length ? " disabled" : "") + ">" + icon("download") + "Vie aineisto raportointiin</button>" +
-      '<p class="hint" style="text-align:center">Kuvat, sanelut ja vahvistetut tiedot jäsenneltynä ZIP-pakettina AI-työkalulle.' + (list.length ? " Avautuu, kun puutteet on tehty tai perusteltu." : "") + "</p>" +
-      (list.length ? '<div style="text-align:center"><button class="link" data-a="exportAnyway">Vie keskeneräisenä</button></div>' : "") +
+      '<div style="margin-top:18px"><button class="btn btn-primary btn-block" data-a="' + (list.length ? "exportAnyway" : "export") + '">' + icon("download") + "Vie aineisto raportointiin</button>" +
+      '<p class="hint" style="text-align:center">Kuvat, sanelut ja vahvistetut tiedot ZIP-pakettina raportointiin.' + (list.length ? " Avoimet kohdat (" + list.length + ") listataan pakettiin." : "") + "</p>" +
       "</div></main>" + App.bottomnav("lahto");
 
     root.onclick = async (e) => {
@@ -161,7 +163,7 @@
         else if (b.dataset.t === "tila") Plan.roomActions(Model.tila(id));
         else if (b.dataset.t === "kuntoarvio") location.hash = "#/k/" + k.id + "/kuntoarvio";
         else if (b.dataset.t === "seuranta") location.hash = "#/k/" + k.id + "/seuranta/" + id;
-        else location.hash = "#/k/" + k.id + "/h/" + id;
+        else location.hash = "#/k/" + k.id + "/h/" + id + "?puutteet=1";
       } else if (a === "pois") {
         const syy = await promptSheet({ title: "Miksi kohta jätetään pois?", label: "Syy (näkyy raportissa rajauksena)", required: true, multiline: true });
         if (syy == null) return;

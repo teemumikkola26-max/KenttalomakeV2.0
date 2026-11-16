@@ -63,6 +63,8 @@
       '<div class="vf-msg" data-vfmsg>Käynnistetään kameraa…</div>' +
       '<div class="vf-left"><button class="vf-count" data-c="switch" aria-label="Vaihda havaintoa: lisää kuvia aiempaan havaintoon"><span data-count></span> ' + icon("back", "down") + "</button>" +
       '<button class="vf-prev hidden" data-c="prev"></button></div><div class="vf-thumbs" data-thumbs></div>' +
+      // Menetelmä yhtenä merkkinä kuvan päällä: napautus avaa pikavalinnan
+      '<button class="vf-method meta-chip" data-c="more" aria-label="Vaihda menetelmä"><span data-mname></span>' + icon("back", "down") + "</button>" +
       // Kolme vähimmäistietoa: kuva, havainto, tila
       '<div class="vf-req" data-req><span data-rq="kuva">' + icon("cam") + "Kuva</span><span data-rq=\"hav\">" + icon("mic") + "Havainto</span>" +
       '<button data-rq="tila" data-c="loc">' + icon("pin") + "Tila</button></div>" +
@@ -74,9 +76,8 @@
       '<textarea data-text rows="2" aria-label="Havainto" placeholder="Kirjoita havainto tai pidä mikrofonia pohjassa"></textarea>' +
       '<button class="cp-need hidden" data-c="need" data-need></button>' +
       '<div class="cp-meta">' +
-      '<button class="meta-chip" data-c="more" aria-label="Vaihda menetelmä"><span data-mname></span>' + icon("back", "down") + "</button>" +
       '<div class="chips" data-tulos><button class="chip c-note" data-t="poikkeama">Poikkeama</button><button class="chip c-ok" data-t="ok">Ei huom.</button></div>' +
-      '<button class="card-link" data-c="card"><span data-cl>Kortti</span>' + icon("back", "flip") + "</button></div>" +
+      '<button class="card-link" data-c="card"><span data-cl>Avaa havainto</span>' + icon("back", "flip") + "</button></div>" +
       "</div>" +
       '<div class="cam-bottom">' +
       '<button class="cam-side" data-c="next"><span class="c">' + icon("plus") + "</span>Seuraava</button>" +
@@ -103,7 +104,9 @@
     function paintMethods() {
       const m = h.menetelma ? M.menetelma(h.menetelma) : null;
       const src = h.auto && h.auto.menetelma;
-      $("[data-mname]").textContent = m ? (m.lyhyt || m.nimi) : "Menetelmä";
+      // Suunnitelman eteneminen merkissä, esim. "RH · 3/6"
+      const p = m && (h.suunnitelmaId ? Model.kohta(h.suunnitelmaId) : S.kohde.suunnitelma.find((x) => x.menetelma === h.menetelma && !x.pois));
+      $("[data-mname]").textContent = m ? (m.lyhyt || m.nimi) + (p && p.maara > 1 ? " · " + Model.kohtaTehty(p) + "/" + p.maara : "") : "Valitse menetelmä";
       $(".meta-chip").classList.toggle("missing", !m);
       $(".meta-chip").classList.toggle("autoset", !!SRC[src]);
       $(".meta-chip").title = m ? m.nimi + (SRC[src] ? " (" + SRC[src] + ")" : "") : "";
@@ -140,8 +143,10 @@
     let alive = true;   // näkymä auki; myöhässä tuleva sanelu tallentuu silti havaintoon
     function paintStatus() {
       if (mode === "yk") { paintReq(); return; }
-      const n = h.nro ? nro(h) : "Uusi havainto";
-      $("[data-count]").textContent = n + (h.kuvat.length ? " · " + h.kuvat.length + (h.kuvat.length === 1 ? " kuva" : " kuvaa") : "");
+      // Havainnon numero ja kuvamäärä vasta, kun havainnossa on jotain (ei "Uusi havainto" -valikkoa tyhjänä)
+      const n = h.nro ? nro(h) : "";
+      $("[data-count]").textContent = [n, h.kuvat.length ? h.kuvat.length + (h.kuvat.length === 1 ? " kuva" : " kuvaa") : ""].filter(Boolean).join(" · ");
+      $(".vf-count").classList.toggle("hidden", !n && !h.kuvat.length && !S.havainnot.length);
       const prev = prevId && !hasContent() && Model.havainto(prevId);
       const pb = $("[data-c=prev]");
       pb.classList.toggle("hidden", !prev);
@@ -150,7 +155,7 @@
       const miss = Check.havaintoPuutteet(h).filter((x) => !["kuva tai sanelu", "tila", "tulos", "menetelmä", "suunnitelman kohta"].includes(x));
       const fields = M.menetelma(h.menetelma).kentat.length;
       const warn = miss.length > 0 && hasContent();
-      $("[data-cl]").innerHTML = "Kortti" + (warn ? ' <span class="cl-n" aria-label="' + miss.length + ' puuttuu">' + miss.length + "</span>" : "");
+      $("[data-cl]").innerHTML = "Avaa havainto" + (warn ? ' <span class="cl-n" aria-label="' + miss.length + ' puuttuu">' + miss.length + "</span>" : "");
       $(".card-link").classList.toggle("warn", warn);
       $(".card-link").setAttribute("aria-label", "Avaa havaintokortti" + (warn ? ", puuttuu: " + miss.join(", ") : "") + (fields ? ", " + fields + " kenttää" : ""));
       // Menetelmän vähimmäistiedot: mitä puuttuu ja mitä sanoa
@@ -408,7 +413,7 @@
       else if (c === "card" || c === "need") finish(true);
       else if (c === "close") finish(false);
       else if (c === "ohje") naytaOhje(true);
-      else if (c === "more") MethodPicker.openSheet({ selected: h.menetelma, excludeHavainto: h.id, onSelect: selectMethod });
+      else if (c === "more") pikavalinta(false, true);
       else if (c === "loc") {
         Plan.locationSheet(h.sijainti, async (s) => {
           h.sijainti = s; Auto.manual(h, "tila"); Auto.manual(h, "rakenneosa"); Auto.autoKohta(h);
@@ -428,9 +433,9 @@
 
     /* Pikavalinta: tila (jos valitaan itse) ja menetelmä yhdellä näytöllä. Menetelmän napautus sulkee.
        Molemmissa on hakukenttä: kirjoitus rajaa listaa, ja jos osumaa ei ole, sama kenttä lisää uuden. */
-    function pikavalinta(alku) {
+    function pikavalinta(alku, pakota) {
       const pvT = Asetukset.get("pv.tila");
-      const kysyM = !Auto.paalla("menetelma"), kysyT = !Auto.paalla("tila") && pvT !== "ei" && (pvT === "aina" || !h.sijainti.tilaId);
+      const kysyM = !Auto.paalla("menetelma") || !!pakota, kysyT = !Auto.paalla("tila") && pvT !== "ei" && (pvT === "aina" || !h.sijainti.tilaId);
       if (!kysyM && !kysyT) return;
       const vanha = root.querySelector(".qp"); if (vanha) vanha.remove();
       const g = document.createElement("div");
@@ -449,7 +454,7 @@
         (kysyT ? '<div class="qp-h">Tila</div>' +
           '<div class="qp-find"><input type="search" data-qts placeholder="Hae tai lisää tila, esim. VH2 tai Varasto" autocomplete="off" enterkeyhint="done"></div>' +
           '<div class="qp-chips" data-qtl></div>' : "") +
-        (kysyM ? '<div class="qp-h">' + (alku ? "Mitä kirjaat?" : "Seuraavan havainnon menetelmä") + "</div>" +
+        (kysyM ? '<div class="qp-h">' + (alku ? "Mitä kirjaat?" : pakota ? "Vaihda menetelmä" : "Seuraavan havainnon menetelmä") + "</div>" +
           '<div class="qp-find"><input type="search" data-qms placeholder="Hae tai lisää menetelmä" autocomplete="off" enterkeyhint="done"></div>' +
           '<div data-qml></div>' : '<button class="btn btn-primary" data-qok style="width:100%;margin-top:12px">Valmis</button>') +
         '<button class="qp-skip" data-qskip>' + (kysyM ? "Valitse myöhemmin" : "Ohita") + "</button></div>";
@@ -558,11 +563,11 @@
       const g = document.createElement("div");
       g.className = "cam-guide";
       g.innerHTML = '<div class="cg-box"><h3>Näin kirjaat havainnon</h3><ol>' +
-        "<li><b>Valitse menetelmä ja tila</b> pikavalinnasta. Tilan voi vaihtaa yläreunasta.</li>" +
+        "<li><b>Valitse menetelmä ja tila</b> pikavalinnasta. Tilan voi vaihtaa yläreunasta ja menetelmän kuvan päältä.</li>" +
         "<li><b>Ota kuva</b> laukaisimesta. Kuvia voi ottaa useita.</li>" +
         "<li><b>Pidä mikrofonia pohjassa</b> ja kerro havainto. Vapauta, kun olet valmis.</li>" +
         "<li><b>Seuraava</b> tallentaa ja aloittaa uuden havainnon samassa tilassa.</li>" +
-        "<li><b>Kortti</b> avaa kaikki tiedot ja mittauskentät. Sen voi avata myös ilman kuvaa.</li>" +
+        "<li><b>Avaa havainto</b> näyttää kaikki tiedot ja mittauskentät. Sen voi avata myös ilman kuvaa.</li>" +
         "<li><b>Yleiskuva</b>-välilehdellä otat kuvia ilman havaintoa (julkisivut, tilat).</li></ol>" +
         '<p class="hint" style="color:#ddd;margin:0 0 14px">Kaikki tallentuu heti. Sen, mitä sanelusta täytetään, voi valita Sanasto-sivulla.</p>' +
         '<button class="btn btn-primary" data-ok>Selvä</button></div>';

@@ -59,7 +59,8 @@
     [["nimi", "Kohteen nimi"], ["osoite", "Osoite"]].forEach(([f, nimi]) => {
       const v = String(arvo(kt[f]) || "").trim();
       if (!v || v === k[f]) return;
-      lisa({ t: "kohde", ryhma: "Kohde", k: f, arvo: v, otsikko: nimi, ote: lahdeTeksti(kt[f]), huom: k[f] ? "Nykyinen: " + k[f] : "", valittu: !k[f], muokattava: true });
+      const tyhja = !k[f] || (f === "nimi" && k.nimiTilapainen);      // uuden kohteen väliaikainen nimi korvataan
+      lisa({ t: "kohde", ryhma: "Kohde", k: f, arvo: v, otsikko: nimi, ote: lahdeTeksti(kt[f]), huom: tyhja ? "" : "Nykyinen: " + k[f], valittu: tyhja, muokattava: true });
     });
     // Suunnitelma
     const nimiId = (m) => {
@@ -143,7 +144,7 @@
   async function kayta(valitut) {
     const k = S.kohde;
     let n = 0;
-    valitut.filter((e) => e.t === "kohde").forEach((e) => { k[e.k] = e.arvo; n++; });
+    valitut.filter((e) => e.t === "kohde").forEach((e) => { k[e.k] = e.arvo; if (e.k === "nimi") delete k.nimiTilapainen; n++; });
     valitut.filter((e) => e.t === "kohta").forEach((e) => {
       k.suunnitelma.push({ id: DB.uid("p_"), menetelma: e.menetelma, kuvaus: [e.kuvaus, e.tila].filter(Boolean).join(", "), maara: e.maara, tilaId: null, pois: null, lahde: "claude" });
       n++;
@@ -181,7 +182,7 @@
     const ok = await new Promise((res) => {
       UI.sheet("<h3>Liitä alkuperäiset tiedostot</h3>" +
         '<p style="margin:0 0 10px">Valitse samat tiedostot, jotka annoit Claudelle. Ne kulkevat raportointiin, ja ' +
-        (pohjat.length ? "<b>" + pohjat.length + " pohjakuvaa</b> asetetaan kerroksille ja tilat merkitään niihin." : "pohjakuvat voi lisätä myöhemmin Pohjapiirros-sivulla.") + "</p>" +
+        (pohjat.length ? "<b>" + pohjat.length + " pohjakuvaa</b> asetetaan kerroksille ja tilat merkitään niihin." : "pohjakuvat voi lisätä myöhemmin Pohjakuva-sivulla.") + "</p>" +
         (nimet.length ? '<p class="hint" style="margin:0 0 12px">Paketissa: ' + UI.esc(nimet.join(", ")) + "</p>" : "") +
         '<div class="row-btns"><button class="btn" data-close>Myöhemmin</button><button class="btn btn-primary" data-ok>Valitse tiedostot</button></div>',
       (el, close) => { el.querySelector("[data-ok]").addEventListener("click", () => { res(true); close(); }); }, { onClose: () => res(false) });
@@ -231,22 +232,31 @@
         el.querySelector("[data-ok]").addEventListener("click", () => { tulos = el.querySelector("[data-teksti]").value; close(); });
       }, { onClose: () => res(tulos) });
     });
-    if (!teksti || !teksti.trim()) return;
+    return kasittele(teksti, paivita);
+  }
+
+  /* Paketin teksti -> tarkistus -> käyttöönotto -> alkuperäiset tiedostot */
+  async function kasittele(teksti, paivita) {
+    const { toast } = UI;
+    if (!teksti || !teksti.trim()) return false;
     let j;
-    try { j = jasenna(teksti); } catch (e) { toast(e.message, 6000); return; }
+    try { j = jasenna(teksti); } catch (e) { toast(e.message, 6000); return false; }
     const { ehd, varoitukset } = ehdotukset(j);
-    if (!ehd.length) { toast("Paketissa ei ollut uusia tietoja tälle kohteelle", 4000); return; }
+    if (!ehd.length) { toast("Paketissa ei ollut uusia tietoja tälle kohteelle", 4000); return false; }
     const valitut = await KaLahto.tarkista(ehd, {
       otsikko: "Lähtötietopaketti",
       johdanto: "Claude luki " + ((j.tiedostot || []).length || "") + " tiedostoa. Tarkista ja poista valinta virheellisiltä; lähde näkyy jokaisen alla. Valitsematta jätetyt ovat epävarmoja tai korvaisivat jo kirjatun tiedon.",
       varoitukset
     });
-    if (!valitut) return;
+    if (!valitut) return false;
     const { n, pohjat } = await kayta(valitut);
+    S.kohde.lahtoTila = Object.assign({}, S.kohde.lahtoTila, { claude: Date.now() });
+    await Model.saveKohde();
     toast(n + " tietoa otettu käyttöön", 3000);
     const m = await liitaTiedostot(j, pohjat);
     if (m) toast(m + " tiedostoa liitetty lähtötietoihin", 3000);
     paivita && paivita();
+    return true;
   }
 
   /* Kohteen sivulle: lähtötiedot ja huomioitavaa */
@@ -265,5 +275,5 @@
   App.actions = App.actions || {};
   App.actions.paketti = () => tuo(() => App.render());
 
-  window.Paketti = { MUOTO, VERSIO, jasenna, ehdotukset, kayta, tuo, kohdeKortti };
+  window.Paketti = { MUOTO, VERSIO, jasenna, ehdotukset, kayta, tuo, kasittele, kohdeKortti };
 })();

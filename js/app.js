@@ -197,16 +197,19 @@
     const a = (key, href, ic, label, badge) =>
       '<a href="' + href + '"' + (active === key ? ' aria-current="page"' : "") + ">" + icon(ic) + label +
       (badge ? '<span class="badge">' + badge + "</span>" : "") + "</a>";
+    // Kamera alapalkin keskellä: aina samassa paikassa, ei peitä sisältöä
+    const kam = S.kamera || "#/k/" + k + "/kuvaus";
     return '<nav class="bottomnav">' +
       a("kohde", "#/k/" + k, "home", "Kohde") +
-      a("pohja", "#/k/" + k + "/pohja", "plan", "Pohjapiirros") +
-      a("lahto", "#/k/" + k + "/lahto", "check", "Lähtötarkistus", n || "") +
+      a("pohja", "#/k/" + k + "/pohja", "plan", "Pohjakuva") +
+      '<a class="bn-cam" href="' + kam + '" aria-label="Kuva + sanelu">' + icon("cam") + "</a>" +
+      a("havainnot", "#/k/" + k + "/havainnot", "list", "Havainnot") +
+      a("lahto", "#/k/" + k + "/lahto", "check", "Lopeta", n || "") +
       "</nav>";
   }
 
-  function fab(href) {
-    return '<a class="fab" href="' + href + '">' + icon("cam") + "Kuva + sanelu</a>";
-  }
+  /* Kameran osoite alapalkkiin (esim. pohjakuvasta: valittu kerros). Erillistä kelluvaa painiketta ei enää ole. */
+  function fab(href) { S.kamera = href; return ""; }
 
   function pinClass(h) {
     return h.tulos === "poikkeama" ? "p-note" : h.tulos === "ok" ? "p-ok" : "p-n";
@@ -244,10 +247,10 @@
       '<button class="btn btn-primary btn-block" data-act="newKohde" style="margin-bottom:14px">' + icon("plus") + "Uusi kohde</button>" +
       (kohteet.length ? '<section class="card"><div class="card-h"><h2>Kohteet</h2><span class="meta">' + kohteet.length + "</span></div>" + rows + "</section>"
         : '<section class="card"><div class="card-h"><h2>Näin pääset alkuun</h2></div><div class="card-b"><ol class="start-steps">' +
-          "<li><b>Uusi kohde.</b> Anna tutkimussuunnitelma tai tarjous PDF:nä, niin menetelmät tulevat suunnitelmaan. Voit myös ohittaa sen.</li>" +
-          "<li><b>Pohjakuva.</b> Lisää pohjapiirros, niin tilat tunnistetaan ja havainnot voi merkitä kuvaan.</li>" +
+          "<li><b>Uusi kohde ja lähtötiedot.</b> Tuo Clauden lähtötietopaketti, tarjous, pohjakuvat tai asiakirjat. Voit myös aloittaa ilman.</li>" +
+          "<li><b>Pohjakuva.</b> Tilat tunnistetaan pohjakuvasta, ja havainnot voi merkitä siihen.</li>" +
           "<li><b>Kuva + sanelu.</b> Ota kuva, pidä mikrofonia pohjassa ja kerro havainto. <i>Seuraava</i> tallentaa ja aloittaa uuden.</li>" +
-          "<li><b>Lähtötarkistus ja vienti.</b> Ennen lähtöä sovellus näyttää, mitä puuttuu. ZIP-paketti menee raportointiin.</li></ol></div></section>") +
+          "<li><b>Lopeta kohde.</b> Ennen lähtöä sovellus näyttää, mitä puuttuu, ja vie aineiston ZIP-pakettina raportointiin.</li></ol></div></section>") +
       '<details class="card vocab"><summary class="card-h"><h2>Asetukset ja työkalut</h2></summary><div class="card-b">' +
       '<a class="btn btn-block" href="#/asetukset">' + icon("edit") + "Asetukset</a>" +
       '<div style="height:10px"></div><a class="btn btn-block" href="#/menetelmat">' + icon("list") + "Menetelmät</a>" +
@@ -263,20 +266,58 @@
   }
 
   /* ---------------- Näkymä: kohde ---------------- */
+  /* Seuraavaksi tehtävä suunnitelman kohta: edellisen havainnon kohta, jos kesken; muuten ensimmäinen kesken oleva. */
+  function seuraavaKohta() {
+    const k = S.kohde;
+    const kesken = k.suunnitelma.filter((p) => !Model.kohtaValmis(p));
+    if (!kesken.length) return null;
+    const ed = S.havainnot.slice().sort((a, b) => b.updated - a.updated)[0];
+    const edP = ed && kesken.find((p) => p.id === ed.suunnitelmaId || (!ed.suunnitelmaId && p.menetelma === ed.menetelma));
+    return edP || kesken[0];
+  }
+  const kohtaHref = (p) => {
+    const m = M.menetelma(p.menetelma), k = S.kohde.id;
+    if (m.kuntoarvio) return "#/k/" + k + "/kuntoarvio";
+    if (m.seuranta) return "#/k/" + k + "/seuranta";
+    return "#/k/" + k + "/kuvaus?kohta=" + p.id;
+  };
+
   async function viewKohde() {
     const k = S.kohde;
     const pr = Model.edistyminen();
-    const recent = S.havainnot.slice().sort((a, b) => b.updated - a.updated).slice(0, 8);
+    const recent = S.havainnot.slice().sort((a, b) => b.updated - a.updated).slice(0, 6);
     await Model.ensureUrls(recent.map((h) => h.kuvat[0]));
+    const lt = k.lahtoTila || {}, docs = KaLahto.siirra(k).length;
+    const eiLahtotietoja = !Object.keys(lt).length && !docs && !k.suunnitelma.length && !S.havainnot.length;
 
+    // Seuraavaksi-kortti
+    const nx = seuraavaKohta();
+    let seur;
+    if (eiLahtotietoja) {
+      seur = '<section class="next-card"><div class="nc-k">Aloita</div><div class="nc-t">Lisää lähtötiedot</div>' +
+        '<div class="nc-s">Clauden paketti, tarjous, pohjakuvat tai syötä itse. Voit myös aloittaa kuvaamisen heti.</div>' +
+        '<a class="btn nc-btn" href="#/k/' + k.id + '/lahtotiedot">' + icon("download") + "Lähtötiedot</a></section>";
+    } else if (nx) {
+      const m = M.menetelma(nx.menetelma), tehty = Model.kohtaTehty(nx), maara = nx.maara || 1;
+      seur = '<section class="next-card"><div class="nc-k">Seuraavaksi</div><div class="nc-t">' + esc(m.nimi) + "</div>" +
+        '<div class="nc-s">' + esc([tehty + " / " + maara + " tehty", nx.kuvaus].filter(Boolean).join(" · ")) + "</div>" +
+        '<a class="btn nc-btn" href="' + kohtaHref(nx) + '">' + icon(m.kuntoarvio || m.seuranta ? "list" : "cam") + (tehty ? "Jatka" : "Aloita") + "</a></section>";
+    } else if (k.suunnitelma.length) {
+      seur = '<section class="next-card ok"><div class="nc-k">Suunnitelma tehty</div><div class="nc-t">Kaikki kohdat tehty</div>' +
+        '<div class="nc-s">Tarkista puutteet ja vie aineisto raportointiin.</div>' +
+        '<a class="btn nc-btn" href="#/k/' + k.id + '/lahto">' + icon("check") + "Lopeta kohde</a></section>";
+    } else seur = "";
+
+    // Suunnitelma tilanteineen: tehdyt himmeinä, seuraava korostettuna
     let plan = "";
     for (const p of k.suunnitelma) {
-      const tehty = Model.kohtaTehty(p), maara = p.maara || 1;
-      const pct = p.pois ? 100 : Math.min(100, Math.round((tehty / maara) * 100));
-      plan += '<button class="row" data-act="kohtaMenu" data-id="' + p.id + '"><div class="grow"><div class="t">' + esc(M.menetelma(p.menetelma).nimi) + "</div>" +
+      const tehty = Model.kohtaTehty(p), maara = p.maara || 1, valmis = Model.kohtaValmis(p), m = M.menetelma(p.menetelma);
+      const tila = p.pois ? "pois" : valmis ? "valmis" : nx && p.id === nx.id ? "nyt" : "kesken";
+      const merkki = tila === "valmis" ? '<span class="pl-m ok">' + icon("check") + "</span>" : tila === "pois" ? '<span class="pl-m pois">–</span>' : '<span class="pl-m ' + tila + '"></span>';
+      const maaraTxt = m.kuntoarvio && window.Kuntoarvio && Kuntoarvio.aktiivinen() ? (() => { const e = Kuntoarvio.edistyminen(); return e.n + "/" + e.all + " osaa"; })() : p.pois ? "pois" : tehty + "/" + maara;
+      plan += '<button class="row pl-row ' + tila + '" data-act="kohtaMenu" data-id="' + p.id + '">' + merkki + '<div class="grow"><div class="t">' + esc(m.nimi) + "</div>" +
         (p.kuvaus || p.pois ? '<div class="s">' + esc(p.pois ? "Jätetään pois: " + p.pois.syy : p.kuvaus) + "</div>" : "") + "</div>" +
-        '<span class="minibar' + (Model.kohtaValmis(p) ? " full" : "") + '"><span style="width:' + pct + '%"></span></span>' +
-        '<span class="count">' + (p.pois ? "–" : tehty + "/" + maara) + "</span></button>";
+        '<span class="count">' + esc(maaraTxt) + "</span></button>";
     }
 
     let rec = "";
@@ -289,27 +330,35 @@
         esc(Model.sijaintiTeksti(h.sijainti) || "Sijainti puuttuu") + "</button>";
     }
 
-    const puutteet = Check.puutteet();
+    const hu = k.huomiot || [];
+    const ykN = (k.yleiskuvat || []).length;
+    const seurN = (k.seuranta || []).length;
+    const kaPlan = k.suunnitelma.some((p) => M.menetelma(p.menetelma).kuntoarvio), seurPlan = k.suunnitelma.some((p) => M.menetelma(p.menetelma).seuranta);
+    const lisaRivi = (href, ic, t, sub) => '<a class="row" href="' + href + '" style="text-decoration:none;color:inherit">' + icon(ic) + '<div class="grow"><div class="t">' + esc(t) + '</div>' +
+      (sub ? '<div class="s">' + esc(sub) + "</div>" : "") + "</div>" + icon("back", "flip") + "</a>";
+    const lisaYht = [docs ? "lähtötiedot " + docs : "", ykN ? "yleiskuvat " + ykN : "", seurN ? "seuranta " + seurN : ""].filter(Boolean).join(" · ");
+
     app().innerHTML = topbar({
       title: k.nimi || "Nimetön kohde", sub: [k.osoite, k.pvm ? pvm(k.pvm) : ""].filter(Boolean).join(" · "), back: "#/",
       right: '<a class="tb-act" href="#/k/' + k.id + '/tiedot" style="text-decoration:none;color:inherit">Tiedot</a>'
     }) +
-      (pr.all ? '<div class="progress"><span class="bar"><span style="width:' + Math.round((pr.done / pr.all) * 100) + '%"></span></span>' + pr.done + " / " + pr.all + "</div>" : "") +
-      '<main class="view">' + (window.CloudUI ? CloudUI.syncBarHtml(k) : "") +
-      '<section class="card"><div class="card-h"><h2>Tutkimussuunnitelma</h2><a class="link" href="#/k/' + k.id + '/suunnitelma">Muokkaa</a></div>' +
-      (plan || '<div class="empty">Lisää suunnitelman kohdat, niin näet kentällä mitä on tehty ja mitä puuttuu.<br><br><a class="btn btn-sm" href="#/k/' + k.id + '/suunnitelma">' + icon("plus") + "Lisää kohdat</a></div>") +
-      "</section>" +
-      Kuntoarvio.kohdeCard() +
-      Seuranta.kohdeCard() +
-      Yleiskuvat.kohdeCard() +
-      Paketti.kohdeKortti() +
-      (Kuntoarvio.aktiivinen() ? "" : '<a class="row seur-link" href="#/k/' + k.id + '/kuntoarvio" style="text-decoration:none;color:inherit;margin:-4px 0 12px;border-radius:12px">' +
-        icon("list") + '<div class="grow"><div class="t">Kuntoarvio</div><div class="s">Rakennusosat, kuntoluokat ja käyttöiät</div></div>' + icon("back", "flip") + "</a>") +
-      '<section class="card"><div class="card-h"><h2>Viimeisimmät havainnot</h2>' +
-      (S.havainnot.length ? '<a class="link" href="#/k/' + k.id + '/havainnot">Kaikki ' + S.havainnot.length + "</a>" : "") + "</div>" +
-      '<div class="card-b">' + (rec ? '<div class="recent">' + rec + "</div>" : '<div class="empty" style="padding:6px 0 4px">Ei vielä havaintoja.</div>') + "</div></section>" +
-      (puutteet.length ? '<a class="alert" href="#/k/' + k.id + '/lahto" style="text-decoration:none">' + icon("alert") + "<div>" + esc(Check.yhteenveto(puutteet)) + "</div></a>" : "") +
-      "</main>" + fab("#/k/" + k.id + "/kuvaus") + bottomnav("kohde");
+      '<main class="view">' + (window.CloudUI ? CloudUI.syncBarHtml(k) : "") + KaLahto.tilaHtml() +
+      seur +
+      (k.suunnitelma.length ? '<section class="card"><div class="card-h"><h2>Tutkimussuunnitelma</h2><span class="meta">' + pr.done + " / " + pr.all + ' valmis</span><a class="link" href="#/k/' + k.id + '/suunnitelma">Muokkaa</a></div>' + plan + "</section>" : "") +
+      (hu.length ? '<div class="alert info">' + icon("alert") + "<div><b>Huomioitavaa:</b> " + hu.map((h) => esc(h.teksti)).join("<br>") + "</div></div>" : "") +
+      (S.havainnot.length ? '<section class="card"><div class="card-h"><h2>Viimeisimmät havainnot</h2><a class="link" href="#/k/' + k.id + '/havainnot">Kaikki ' + S.havainnot.length + "</a></div>" +
+        '<div class="card-b"><div class="recent">' + rec + "</div></div></section>" : "") +
+      '<details class="card vocab"><summary class="card-h"><h2>Lisää</h2><span class="meta">' + esc(lisaYht) + "</span></summary><div class=\"card-b\" style=\"padding-top:0\">" +
+        lisaRivi("#/k/" + k.id + "/lahtotiedot", "download", "Lähtötiedot", docs ? docs + " tiedostoa" : "Clauden paketti, tarjous, pohjakuvat, asiakirjat") +
+        lisaRivi("#/k/" + k.id + "/yleiskuvat", "image", "Yleiskuvat", ykN ? ykN + " kuvaa" : "Julkisivut ja tilat ilman havaintoa") +
+        (seurPlan ? "" : lisaRivi("#/k/" + k.id + "/seuranta", "pin", "Olosuhdeseuranta", seurN ? seurN + " mittalaitetta" : "Mittalaitteiden sijainnit")) +
+        (kaPlan ? "" : lisaRivi("#/k/" + k.id + "/kuntoarvio", "list", "Kuntoarvio", "Rakennusosat, kuntoluokat ja käyttöiät")) +
+        lisaRivi("#/k/" + k.id + "/suunnitelma", "edit", "Muokkaa suunnitelmaa", "") +
+      "</div></details>" +
+      "</main>" + bottomnav("kohde");
+    const kuuntele = () => { if (location.hash === "#/k/" + k.id) render(); };
+    document.addEventListener("ks-lahto", kuuntele);
+    S.cleanup = () => document.removeEventListener("ks-lahto", kuuntele);
   }
 
   /* ---------------- Näkymä: kaikki havainnot ----------------
@@ -327,7 +376,7 @@
       '<button class="chip" data-hf="puute">Puutteelliset ' + nMiss + '</button><button class="chip" data-hf="tilat">Tiloittain</button>' +
       '<button class="chip" data-act="galleria">' + icon("image") + "Liitä kuvia galleriasta</button></div>" +
       '<section class="card"><div class="card-b" data-hlist></div></section></main>' +
-      fab("#/k/" + k.id + "/kuvaus") + bottomnav("kohde");
+      bottomnav("havainnot");
     const listEl = app().querySelector("[data-hlist]"), q = app().querySelector("[data-hq]");
     const paint = () => {
       app().querySelectorAll("[data-hf]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.hf === hvState.f)));
@@ -371,7 +420,7 @@
       '<section class="card"><div class="card-h"><h2>Vienti ja varmuuskopio</h2></div><div class="card-b">' +
       (vientiTila(k, S.havainnot).msg ? '<p class="hint vienti ' + vientiTila(k, S.havainnot).cls + '" style="margin:0 0 10px">' + esc(vientiTila(k, S.havainnot).msg) + "</p>" : "") +
       '<button class="btn btn-block" data-act="export">' + icon("download") + "Vie ZIP-paketti</button>" +
-      '<p class="hint">Paketti sisältää kuvat, sanelut, jäsennellyt tiedot ja pohjapiirrokset merkintöineen. Samalla paketilla kohteen voi palauttaa toiselle laitteelle.</p>' +
+      '<p class="hint">Paketti sisältää kuvat, sanelut, jäsennellyt tiedot ja pohjakuvat merkintöineen. Samalla paketilla kohteen voi palauttaa toiselle laitteelle.</p>' +
       "</div></section>" +
       '<button class="btn btn-danger btn-block" data-act="deleteKohde">' + icon("trash") + "Poista kohde tältä laitteelta</button>" +
       "</main>";
@@ -433,49 +482,29 @@
   const A = {
     /* Uusi kohde alkaa tutkimussuunnitelmasta: nimi, osoite, projektinumero ja tutkimukset luetaan
        PDF:stä. Ilman suunnitelmaa kohteelle annetaan vain nimi. */
+    /* Uusi kohde: nimi (valinnainen) ja tutkija, sitten Lähtötiedot-vaihe, jossa kaikki tuontitavat. */
     async newKohde() {
       sheet(
         "<h3>Uusi kohde</h3>" +
-        '<p style="margin:0 0 12px">Aloita tutkimussuunnitelmasta tai tarjouksesta. Kohteen tiedot ja tutkimukset luetaan siitä, ja tarkistat ne ennen lisäämistä.</p>' +
-        '<button class="btn btn-primary btn-block" data-pdf style="min-height:56px">' + icon("upload") + "Valitse tutkimussuunnitelma (PDF)</button>" +
-        '<label class="field" style="margin-top:14px"><span>Tutkija</span><input type="text" data-f="tutkija" value="' + esc(localStorage.getItem("ks_tutkija") || "") + '"></label>' +
-        '<div data-manual class="hidden"><label class="field"><span>Kohteen nimi</span><input type="text" data-f="nimi"></label>' +
-          '<div class="row-btns"><button class="btn" data-close>Peruuta</button><button class="btn btn-primary" data-ok>Luo kohde</button></div></div>' +
-        '<div data-manualbtns class="row-btns"><button class="btn" data-close>Peruuta</button><button class="btn" data-a="manual">Ei suunnitelmaa</button></div>',
+        '<label class="field"><span>Kohteen nimi (voi jättää tyhjäksi)</span><input type="text" data-f="nimi" placeholder="Täyttyy lähtötiedoista"></label>' +
+        '<label class="field"><span>Tutkija</span><input type="text" data-f="tutkija" value="' + esc(localStorage.getItem("ks_tutkija") || "") + '"></label>' +
+        '<div class="row-btns"><button class="btn" data-close>Peruuta</button><button class="btn btn-primary" data-ok>Jatka lähtötietoihin</button></div>',
         (el, close) => {
-          const tutkija = () => { const v = el.querySelector('[data-f="tutkija"]').value.trim(); try { localStorage.setItem("ks_tutkija", v); } catch (e) { /* ohita */ } return v; };
-          el.querySelector('[data-a="manual"]').addEventListener("click", () => {
-            el.querySelector("[data-manual]").classList.remove("hidden");
-            el.querySelector("[data-manualbtns]").classList.add("hidden");
-            el.querySelector('[data-f="nimi"]').focus();
-          });
-          el.querySelector("[data-pdf]").addEventListener("click", async () => {
-            const fs = await UI.pickFile("application/pdf,.pdf", false);
-            if (!fs[0]) return;
-            let res;
-            try { res = await PlanImport.read(fs[0]); }
-            catch (e) { console.error(e); toast("PDF:n lukeminen epäonnistui. Voit luoda kohteen ilman suunnitelmaa.", 4500); return; }
-            const kt = res.kohde || {};
-            const k = Model.newKohde({ nimi: kt.nimi || fs[0].name.replace(/\.pdf$/i, ""), tutkija: tutkija() });
-            k.osoite = kt.osoite || ""; k.projektinro = kt.projektinro || "";
-            await DB.put("kohteet", k);
-            DB.requestPersist();
-            close();
-            location.hash = "#/k/" + k.id + "/suunnitelma";
-            setTimeout(() => PlanImport.review(res, fs[0].name), 300);
-          });
           el.querySelector("[data-ok]").addEventListener("click", async () => {
             const nimi = el.querySelector('[data-f="nimi"]').value.trim();
-            if (!nimi) { toast("Anna kohteelle nimi"); return; }
-            const k = Model.newKohde({ nimi, tutkija: tutkija() });
+            const tutkija = el.querySelector('[data-f="tutkija"]').value.trim();
+            try { localStorage.setItem("ks_tutkija", tutkija); } catch (e) { /* ohita */ }
+            const k = Model.newKohde({ nimi: nimi || "Uusi kohde " + UI.pvm(Date.now()), tutkija });
+            if (!nimi) k.nimiTilapainen = true;      // korvataan lähtötiedoista
             await DB.put("kohteet", k);
             DB.requestPersist();
             close();
-            location.hash = "#/k/" + k.id;
+            location.hash = "#/k/" + k.id + "/lahtotiedot?uusi=1";
           });
         }
       );
     },
+    lahtoOdottaa() { KaLahto.tarkistaOdottavat(() => render()); },
     async restore() {
       const files = await UI.pickFile(".zip,application/zip", false);
       if (!files.length) return;
@@ -568,6 +597,7 @@
     const seq = ++renderSeq;
     const t = document.getElementById("toast");
     if (t && /virhe|ei löytynyt|keskeytyi|estettiin|vaatii/i.test(t.textContent)) t.classList.remove("on");
+    S.kamera = null;
     if (S.cleanup) { try { S.cleanup(); } catch (e) { /* ohita */ } S.cleanup = null; }
     const { parts, q } = parseHash();
     try {
@@ -595,6 +625,7 @@
       else if (sub === "seuranta") await Seuranta.view(parts[3] || null);
       else if (sub === "kuntoarvio") await Kuntoarvio.view(parts[3] || null);
       else if (sub === "yleiskuvat") await Yleiskuvat.view();
+      else if (sub === "lahtotiedot") await Lahtotiedot.view(parts[3] || null, q);
       else await viewKohde();
     } catch (err) {
       console.error(err);

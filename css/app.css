@@ -616,3 +616,73 @@ details.vocab:not([open])>summary{border-bottom:none}
 .as-chk>span{flex:1;min-width:0}
 .lt-kuva{overflow:auto}
 .lt-kuva.iso img{width:250%;max-width:none}
+/* Koottu tarkistus: ryhmät */
+.lt-ryhma{border:1px solid var(--line);border-radius:12px;margin:10px 0;padding:0 12px;background:var(--paper)}
+.lt-ryhma>summary{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 0;cursor:pointer;list-style:none;font-size:15px}
+.lt-ryhma>summary::-webkit-details-marker{display:none}
+.lt-ryhma>summary::after{content:"▾";margin-left:6px;opacity:.6}
+.lt-ryhma:not([open])>summary::after{content:"▸"}
+.lt-ryhma>summary .meta{margin-left:auto;font-size:13px;opacity:.75}
+.lt-napit{position:sticky;bottom:calc(-16px - env(safe-area-inset-bottom));background:#fff;padding:12px 0 4px;margin-top:10px}
+.lt-tila{margin-bottom:12px}
+/* Alapalkin kamera */
+.bottomnav .bn-cam{flex:0 0 72px;align-self:flex-start;width:64px;height:64px;margin-top:-22px;border-radius:32px;background:var(--safety);color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(200,16,46,.35)}
+.bottomnav .bn-cam svg{width:30px;height:30px}
+.bottomnav .bn-cam::before{display:none}
+/* Kohteen sivu: Seuraavaksi */
+.next-card{background:var(--brand);color:#fff;border-radius:16px;padding:16px;margin-bottom:12px;display:flex;flex-direction:column;gap:6px}
+.next-card.ok{background:var(--ok)}
+.next-card .nc-k{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.8}
+.next-card .nc-t{font-size:19px;font-weight:700}
+.next-card .nc-s{font-size:14px;opacity:.9;line-height:1.4}
+.next-card .nc-btn{margin-top:6px;background:#fff;color:var(--brand);border:0;min-height:48px;font-weight:650;justify-content:center}
+.pl-row .pl-m{flex:0 0 22px;width:22px;height:22px;border-radius:11px;border:2px solid var(--line-strong);box-sizing:border-box;display:flex;align-items:center;justify-content:center}
+.pl-row .pl-m.nyt{border-color:var(--safety)}
+.pl-row .pl-m.ok{border:0;color:var(--ok)}
+.pl-row .pl-m.ok svg{width:20px;height:20px}
+.pl-row .pl-m.pois{border:0;color:var(--muted)}
+.pl-row.valmis .t,.pl-row.valmis .count,.pl-row.pois .t{color:var(--muted)}
+.pl-row.nyt .t,.pl-row.nyt .count{font-weight:700}
+.card-h .meta+.link{margin-left:12px}
+/* Lähtötiedot-vaihe */
+.lt-kortti{display:flex;align-items:center;gap:12px;width:100%;box-sizing:border-box;background:#fff;border:1px solid transparent;border-radius:16px;padding:14px;margin-bottom:10px;text-decoration:none;color:inherit;text-align:left;font:inherit;cursor:pointer;box-shadow:var(--shadow)}
+.lt-kortti.suositus{border:2px solid var(--safety)}
+.lt-kortti.disabled{background:transparent;border:1.5px dashed var(--line-strong);box-shadow:none;color:var(--muted);cursor:default}
+.lt-kortti .lt-ik{flex:0 0 40px;width:40px;height:40px;border-radius:12px;background:var(--paper);display:flex;align-items:center;justify-content:center}
+.lt-kortti.suositus .lt-ik{background:var(--safety);color:#fff}
+.lt-kortti .lt-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.lt-kortti .lt-t{font-size:15.5px;font-weight:700}
+.lt-kortti .lt-s{font-size:13px;color:var(--muted)}
+.lt-badge{font-size:11px;font-weight:700;color:#fff;background:var(--brand);border-radius:999px;padding:3px 8px;margin-left:4px;vertical-align:2px}
+.lt-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
+.lt-chips span{font-size:12px;background:var(--paper);border-radius:999px;padding:3px 8px}
+.lt-tehty{display:inline-flex;align-items:center;gap:4px;font-size:12.5px;font-weight:600;color:var(--ok)}
+.lt-tehty svg{width:15px;height:15px}
+.lt-otsikko{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:14px 2px 8px}
+.lt-tabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:var(--paper);border-radius:12px;padding:4px;margin-bottom:12px}
+.lt-tabs button{border:0;border-radius:9px;background:transparent;font:inherit;font-weight:600;min-height:40px;color:var(--muted);cursor:pointer}
+.lt-tabs button[aria-selected=true]{background:#fff;color:var(--ink);box-shadow:var(--shadow)}
+.lt-drop{border-style:dashed;min-height:52px}
+.lt-ik{display:flex;align-items:center;justify-content:center}
+.chip.lt-lisaa{border-style:dashed}
+/* Menetelmämerkki kuvan päällä */
+.viewfinder .vf-method{position:absolute;left:8px;bottom:46px;z-index:3;min-height:40px;border-radius:20px;background:rgba(0,0,0,.65);border:1px solid rgba(255,255,255,.35);color:#fff;font:inherit;font-size:14px;font-weight:600;padding:0 12px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.viewfinder .vf-method.missing{border-color:#f0b37e;color:#ffd9b8}
+.viewfinder .vf-method svg.i{width:14px;height:14px}
+.cam.mode-yk .vf-method{display:none}
+.vf-count.hidden{display:none}
+/* Havainnon kolmijako */
+.sec-n{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:11px;background:var(--brand);color:#fff;font-size:12px;font-weight:700;margin-right:8px;vertical-align:1px}
+.card-b.mit-b{border-top:1px solid var(--line);padding-top:12px}
+details.lisa .card-b .field{margin-bottom:12px}
+/* Lopeta kohde */
+.ct-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:12px}
+.ct-tiles .ct{background:#fff;border-radius:12px;padding:10px 6px;text-align:center;box-shadow:var(--shadow)}
+.ct-tiles .ct b{display:block;font-size:22px}
+.ct-tiles .ct span{font-size:12.5px;color:var(--muted)}
+.ct-tiles .ct.ok b{color:var(--ok)}
+.ct-tiles .ct.warn b{color:var(--note)}
+.ct-tiles .ct.skip b{color:var(--skip)}
+.ct-ryhma .todo{border:0;border-top:1px solid var(--line);border-radius:0;box-shadow:none;padding:10px 0;margin:0;background:transparent}
+.ct-ryhma .todo:first-of-type{border-top:0}
+.as-ryhma{font-size:14px;margin:16px 0 6px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}

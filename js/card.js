@@ -67,6 +67,9 @@
     const root = document.getElementById("app");
     const save = UI.debounce(async () => { await Model.saveHavainto(h); refreshMissing(); }, 400);
     let picker = null;
+    // Puutteet näytetään vasta, kun tutkija yrittää sulkea havainnon (tai on avannut sen puutelistasta)
+    let naytaPuutteet = /[?&]puutteet=1/.test(location.hash);
+    let lisaAuki = false;
 
     function selectMethod(id) {
       if (h.menetelma === id) return;
@@ -128,21 +131,19 @@
       const reqF = vis.filter((f) => f.req), reqOk = reqF.filter(filled).length;
       const okF = vis.filter((f) => f.okv && !filled(f));
       const mit = m.kentat.length
-        ? '<section class="card"><div class="card-h"><h2>' + esc(m.nimi) + "</h2>" +
-          (reqF.length ? '<span class="meta' + (reqOk < reqF.length ? " need-meta" : "") + '">Vähimmäistiedot ' + reqOk + "/" + reqF.length + "</span>" : "") + '</div><div class="card-b">' +
+        ? '<div class="mit">' +
           (m.kentat.some((f) => f.k === "asunto")
             ? (M.eiAsuntoja(k)
               ? '<p class="hint" style="margin:0 0 10px">Kohteessa ei ole asuntoja, joten asuntoa ei kysytä. <button class="link" data-a="asuntoja" data-v="1">Kohteessa on asuntoja</button></p>'
               : (h.kentat.asunto ? "" : '<button class="chip" data-a="asuntoja" data-v="0" style="margin:0 0 10px">Ei asuntoja (esim. omakotitalo)</button>'))
             : "") +
-          '<div class="grid2">' + shownF.map((f) => f.t === "table" ? tableHtml(f, f.req && !filled(f)) : fieldHtml(f, h.kentat[f.k] != null ? h.kentat[f.k] : "", !!(h.auto && h.auto["k:" + f.k] === "sanelu"), f.req && !filled(f))).join("") + "</div>" +
+          '<div class="grid2">' + shownF.map((f) => f.t === "table" ? tableHtml(f, naytaPuutteet && f.req && !filled(f)) : fieldHtml(f, h.kentat[f.k] != null ? h.kentat[f.k] : "", !!(h.auto && h.auto["k:" + f.k] === "sanelu"), naytaPuutteet && f.req && !filled(f))).join("") + "</div>" +
           (okF.length ? '<button class="btn btn-block" data-a="okloput" style="margin:6px 0 4px">' + icon("ok") + "Muut kohdat kunnossa (" + okF.length + ")</button>" +
             '<p class="hint" style="margin:0 0 8px">Merkitsee tyhjät tarkistuskohdat kunnossa-arvolla. Sanele tai valitse ensin puutteet.</p>' : "") +
-          (hiddenF.length ? '<div class="chips more-fields">' + hiddenF.map((f) => '<button class="chip" data-a="addfield" data-k="' + f.k + '">+ ' + esc(f.l) + "</button>").join("") + "</div>" : "") +
           (m.kentat.some((f) => f.mittaus || (f.t === "table" && (f.sarakkeet || []).some((c) => c.mittaus)))
-            ? '<p class="hint">Varmat kameraluvut ja itse kirjoitetut arvot ovat vahvistettuja. Oranssilla merkityt lukemat tarkistetaan napauttamalla riviä. Mikrofonilla merkityt rivit tulivat sanelusta: tarkista luvut, puheentunnistus voi kuulla numeron väärin.</p>'
+            ? '<p class="hint">Oranssi lukema: tarkista napauttamalla. Mikrofoni: luku tuli sanelusta.</p>'
             : "") +
-          "</div></section>"
+          "</div>"
         : "";
 
       root.innerHTML = App.topbar({ title: nro(h) + " · " + M.menetelma(h.menetelma).lyhyt, sub: Model.sijaintiTeksti(h.sijainti) || "Sijainti puuttuu", back: "#/k/" + k.id }) +
@@ -153,40 +154,44 @@
         '<div data-missing>' + missingHtml() + "</div>" +
         (h.ristiriita ? '<div class="alert">' + icon("alert") + "<div><b>Toinen tutkija muokkasi tätä havaintoa samaan aikaan.</b> Pilvessä ollut versio on alla. Korvautunut versio (" + esc([h.ristiriita.tekija, UI.pvm(h.ristiriita.aika)].filter(Boolean).join(", ")) + "): <i>" + esc(h.ristiriita.sanelu || "–") + "</i>" +
           '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn btn-sm" data-a="rr-oma">Palauta korvautunut versio</button><button class="btn btn-sm" data-a="rr-ok">Pidä nykyinen</button></div></div></div>' : "") +
-        '<section class="card"><div class="card-h"><h2>Havainto</h2>' + dictBtnHtml("sanelu") + "</div>" +
-        '<div class="card-b"><textarea data-t="sanelu" aria-label="Havainto">' + esc(h.sanelu) + "</textarea>" +
-        '<div class="dict-prev" data-prev="sanelu"></div>' + audio +
-        '<p class="hint">Kirjoita tai sanele (pidä mikrofonia pohjassa), mitä näet ja mittaat. Tulkinta kirjataan erikseen alempana.</p></div></section>' +
+        '<section class="card"><div class="card-h"><h2><span class="sec-n">1</span>Havainto</h2>' + dictBtnHtml("sanelu") + "</div>" +
+        '<div class="card-b"><textarea data-t="sanelu" aria-label="Havainto" placeholder="Mitä näet ja mittaat">' + esc(h.sanelu) + "</textarea>" +
+        '<div class="dict-prev" data-prev="sanelu"></div>' + audio + "</div></section>" +
 
-        '<section class="card"><div class="card-b" style="padding-top:12px">' +
-        '<span class="label">Sijainti</span>' +
+        '<section class="card"><div class="card-h"><h2><span class="sec-n">2</span>Pakolliset tiedot</h2>' +
+          (reqF.length ? '<span class="meta' + (naytaPuutteet && reqOk < reqF.length ? " need-meta" : "") + '">' + reqOk + "/" + reqF.length + "</span>" : "") + "</div>" +
+        '<div class="card-b">' +
+        '<span class="label' + (naytaPuutteet && !h.sijainti.tilaId ? " missing" : "") + '">Sijainti</span>' +
         '<button class="btn btn-block" data-a="loc" style="justify-content:flex-start;margin-bottom:14px">' + icon("pin") + esc(Model.sijaintiTeksti(h.sijainti) || "Valitse sijainti") +
         (h.sijainti.piste ? " · merkitty pohjaan" : "") + autoTag("tila") + "</button>" +
-        (m.tulosVapaa ? '<span class="label">Tulos <span class="u" style="text-transform:none;font-weight:400">(valinnainen: näytteen tulos tulee laboratoriosta)</span></span><div class="chips" style="margin-bottom:14px">'
-          : '<span class="label' + (h.tulos ? "" : " missing") + '">Tulos <span class="req">*</span>' + (h.tulos ? "" : " · valitse") + '</span><div class="chips" style="margin-bottom:14px">') +
+        (m.tulosVapaa ? '<span class="label">Tulos <span class="u" style="text-transform:none;font-weight:400">(valinnainen: tulos tulee laboratoriosta)</span></span><div class="chips" style="margin-bottom:14px">'
+          : '<span class="label' + (naytaPuutteet && !h.tulos ? " missing" : "") + '">Tulos <span class="req">*</span></span><div class="chips" style="margin-bottom:14px">') +
         '<button class="chip c-note" data-a="tulos" data-v="poikkeama" aria-pressed="' + (h.tulos === "poikkeama") + '">Poikkeama' + (h.tulos === "poikkeama" ? autoTag("tulos") : "") + "</button>" +
         '<button class="chip c-ok" data-a="tulos" data-v="ok" aria-pressed="' + (h.tulos === "ok") + '">Ei huomautettavaa' + (h.tulos === "ok" ? autoTag("tulos") : "") + "</button></div>" +
-        '<div style="display:flex;justify-content:space-between;align-items:baseline"><span class="label' + (h.menetelma ? "" : " missing") + '">Menetelmä <span class="req">*</span>' + (h.menetelma ? "" : " · valitse") + '</span>' +
-        '<a class="link" href="#/menetelmat" style="font-size:13px;padding:0 0 6px">Muokkaa menetelmiä</a></div>' +
-        '<div data-mpick style="margin-bottom:14px"></div>' +
-        (k.suunnitelma.length ? '<label class="field" style="margin:0"><span>Tutkimussuunnitelman kohta</span><select data-a="kohta">' + kohtaOptions() + "</select></label>" : "") +
-        (window.Kuntoarvio && Kuntoarvio.aktiivinen() ? '<label class="field" style="margin:12px 0 0"><span>Kuntoarvion rakennusosa' + autoTag("kaOsa") + '</span><select data-a="kaosa"><option value="">Ei liitetty</option>' +
+        '<span class="label' + (naytaPuutteet && !h.menetelma ? " missing" : "") + '">Menetelmä <span class="req">*</span></span>' +
+        '<button class="btn btn-block" data-a="menetelma" style="justify-content:space-between;margin-bottom:6px"><span>' + esc(h.menetelma ? m.nimi : "Valitse menetelmä") + autoTag("menetelma") + "</span>" + icon("back", "down") + "</button>" +
+        "</div>" +
+        (mit ? '<div class="card-b mit-b">' + mit + "</div>" : "") +
+        "</section>" +
+
+        '<details class="card vocab lisa"' + (lisaAuki ? " open" : "") + ' data-lisa><summary class="card-h"><h2><span class="sec-n">3</span>Lisätiedot</h2><span class="meta">' +
+          esc([h.suunnitelmaId && h.suunnitelmaId !== "ei" ? "suunnitelma" : "", h.kaOsa ? "kuntoarvio" : "", h.tulkinta ? "tulkinta" : "", hiddenF.length ? "+" + hiddenF.length + " kenttää" : ""].filter(Boolean).join(" · ")) + "</span></summary>" +
+        '<div class="card-b">' +
+        (k.suunnitelma.length ? '<label class="field"><span>Tutkimussuunnitelman kohta</span><select data-a="kohta">' + kohtaOptions() + "</select></label>" : "") +
+        (window.Kuntoarvio && Kuntoarvio.aktiivinen() ? '<label class="field"><span>Kuntoarvion rakennusosa' + autoTag("kaOsa") + '</span><select data-a="kaosa"><option value="">Ei liitetty</option>' +
           KAData.RYHMAT.map((r) => '<optgroup label="' + esc(r.nimi) + '">' + KAData.OSAT.filter((d) => d.r === r.id).map((d) => '<option value="' + d.id + '"' + (h.kaOsa === d.id ? " selected" : "") + ">" + esc(d.nimi) + "</option>").join("") + "</optgroup>").join("") + "</select></label>" : "") +
-        "</div></section>" +
-
-        mit +
-
-        '<section class="card"><div class="card-h"><h2>Alustava tulkinta <span style="font-weight:400;color:var(--muted)">(valinnainen)</span></h2>' + dictBtnHtml("tulkinta") + "</div>" +
-        '<div class="card-b"><textarea data-t="tulkinta" style="min-height:72px" aria-label="Alustava tulkinta" placeholder="Tutkijan oma arvio, esim. todennäköinen syy">' + esc(h.tulkinta) + "</textarea>" +
-        '<div class="dict-prev" data-prev="tulkinta"></div></div></section>' +
-
-        '<button class="btn btn-danger btn-block" data-a="del">' + icon("trash") + "Poista havainto</button>" +
+        (hiddenF.length ? '<span class="label">Muut kentät</span><div class="chips more-fields" style="margin-bottom:12px">' + hiddenF.map((f) => '<button class="chip" data-a="addfield" data-k="' + f.k + '">+ ' + esc(f.l) + "</button>").join("") + "</div>" : "") +
+        '<div style="display:flex;justify-content:space-between;align-items:center"><span class="label">Alustava tulkinta</span>' + dictBtnHtml("tulkinta") + "</div>" +
+        '<textarea data-t="tulkinta" style="min-height:72px" aria-label="Alustava tulkinta" placeholder="Tutkijan oma arvio, esim. todennäköinen syy">' + esc(h.tulkinta) + "</textarea>" +
+        '<div class="dict-prev" data-prev="tulkinta"></div>' +
+        '<button class="btn btn-danger btn-block" data-a="del" style="margin-top:14px">' + icon("trash") + "Poista havainto</button>" +
+        "</div></details>" +
         "</main>" +
-        '<div class="actionbar"><a class="btn" href="#/k/' + k.id + '">' + icon("ok") + "Valmis</a>" +
-        '<button class="btn btn-primary wide" data-a="next">' + icon("cam") + "Uusi havainto</button></div>";
+        '<div class="actionbar"><button class="btn" data-a="valmis">' + icon("ok") + "Valmis</button>" +
+        '<button class="btn btn-primary wide" data-a="next">' + icon("cam") + "Seuraava havainto</button></div>";
       bindDict();
-      if (picker) picker.destroy();
-      picker = MethodPicker.mount(root.querySelector("[data-mpick]"), { selected: h.menetelma, excludeHavainto: h.id, onSelect: selectMethod });
+      const lisa = root.querySelector("[data-lisa]");
+      if (lisa) lisa.addEventListener("toggle", () => { lisaAuki = lisa.open; });
       root.querySelectorAll("[data-gl]").forEach((el) => UI.showSelected(el));
       if (m.kentat.some((f) => f.ocr) && window.LukulaiteOcr) window.LukulaiteOcr.preload();
     }
@@ -372,6 +377,7 @@
 
     /* ---------- Puuttuvat tiedot kortin yläosassa ---------- */
     function missingHtml() {
+      if (!naytaPuutteet) return "";
       const miss = Check.havaintoPuutteet(h);
       return miss.length
         ? '<div class="missing-box">' + icon("alert") + "<div><b>Puuttuu:</b> " + esc(miss.join(", ")) + "</div></div>"
@@ -573,6 +579,17 @@
       }
       else if (a === "loc") Plan.locationSheet(h.sijainti, (s) => { h.sijainti = s; Auto.manual(h, "tila"); Auto.manual(h, "rakenneosa"); if (window.FieldFill) FieldFill.apply(h); save(); paint(); });
       else if (a === "view") viewer(+b.dataset.i);
+      else if (a === "menetelma") MethodPicker.openSheet({ selected: h.menetelma, excludeHavainto: h.id, onSelect: selectMethod });
+      else if (a === "valmis") {
+        // Ensimmäinen painallus näyttää puutteet; toinen sulkee silti (puutteet näkyvät lähtötarkistuksessa)
+        if (Check.havaintoPuutteet(h).length && !naytaPuutteet) {
+          naytaPuutteet = true; paint(); window.scrollTo(0, 0);
+          toast("Täydennä puuttuvat tiedot tai paina Valmis uudelleen", 3500);
+          return;
+        }
+        save.flush();
+        location.hash = "#/k/" + k.id;
+      }
       else if (a === "next") {
         save.flush();
         S.kohde.viimeisin = { kerrosId: h.sijainti.kerrosId, tilaId: h.sijainti.tilaId, rakenneosa: h.sijainti.rakenneosa, menetelma: h.menetelma || (S.kohde.viimeisin || {}).menetelma };

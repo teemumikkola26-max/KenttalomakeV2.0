@@ -14,14 +14,17 @@ Sovellus on osa RTA-opinnäytetyön kehitystyötä ja erillinen PBM Kenttälomak
 
 | Näkymä | Tarkoitus |
 |---|---|
-| Kohde | Tutkimussuunnitelman eteneminen, viimeisimmät havainnot ja Kuva + sanelu -painike |
-| Kuva + sanelu | Tavallinen havainto kirjataan loppuun tässä näkymässä: kuvat, sanelu (pidä mikrofonia pohjassa) tai kirjoitus, menetelmä ja tulos. **Seuraava** tallentaa ja aloittaa uuden havainnon samaan paikkaan samalla menetelmällä. **Kortti** avaa havaintokortin, jos menetelmällä on täytettäviä kenttiä; merkki kertoo puuttuvien tietojen määrän. |
-| Havaintokortti | Havainto, sijainti, tulos (pakollinen), menetelmä (pakollinen), suunnitelman kohta, menetelmän kentät, mittausarvojen vahvistus ja tutkijan alustava tulkinta erikseen |
+| Uusi kohde | Nimi (voi jättää tyhjäksi, täyttyy lähtötiedoista) ja tutkija → *Jatka lähtötietoihin* |
+| Lähtötiedot | Yksi paikka kaikille lähtötiedoille (`js/lahtotiedot.js`, `#/k/<id>/lahtotiedot`). Kaikki tuontitavat näkyvät kortteina: Clauden lähtötietopaketti (suositus), tarjous tai tutkimussuunnitelma, pohjakuvat, asiakirjat ja piirustukset, syötä itse sekä tulossa oleva projektikansio. Tapoja voi yhdistää, ja jo käytetyt merkitään tehdyiksi. Sivulle pääsee kohteen sivulta milloin tahansa. |
+| Kohde | Työlista: *Seuraavaksi*-kortti (seuraava tekemätön suunnitelman kohta ja Aloita), suunnitelman rivit tilamerkein, huomioitavaa ja viimeisimmät havainnot. Harvemmin tarvittavat (lähtötiedot, yleiskuvat, olosuhdeseuranta, kuntoarvio, suunnitelman muokkaus) ovat *Lisää*-kohdan alla. |
+| Alapalkki | Kohde · Pohjakuva · kamera (keskellä) · Havainnot · Lopeta. Kamerapainike avaa Kuva + sanelun aina samasta paikasta. |
+| Kuva + sanelu | Tavallinen havainto kirjataan loppuun tässä näkymässä: kuvat, sanelu (pidä mikrofonia pohjassa) tai kirjoitus, menetelmä ja tulos. **Seuraava** tallentaa ja aloittaa uuden havainnon samaan paikkaan samalla menetelmällä. **Avaa havainto** avaa havaintokortin. Menetelmä näkyy ja vaihdetaan etsimen alareunan painikkeesta (esim. *RH · 3/6*). |
+| Havaintokortti | Kolme osaa: **1 Havainto** (teksti ja kuvat), **2 Pakolliset tiedot** (sijainti, tulos, menetelmä ja sen kentät) ja taitettu **3 Lisätiedot** (suunnitelman kohta, kuntoarvion osa, muut kentät, alustava tulkinta, poisto). Puutteet näytetään vasta, kun painaa *Valmis*: ensimmäinen painallus näyttää puuttuvat, toinen sulkee kortin puutteista huolimatta. |
 | Mittauspiste (RH) | Yhteen havaintoon kirjataan mittauspisteen kaikki lukemat taulukkona: syvyys, RH, T, absoluuttinen kosteus ja lukupäivä. Ympäröivät olosuhteet kirjataan samalla tavalla omaan taulukkoonsa. Syvyys valitaan siruista (esim. 28 mm, 70 mm), ja rinnakkaiset mittaukset kuvataan samalla syvyydellä. **Lue mittarista** lukee arvot mittarin näytöltä kameralla. |
 | Menetelmän valinta | Ehdotuksina edellinen menetelmä ja tutkimussuunnitelman tekemättömät menetelmät (esim. *Merkkiainekoe 0/1*). Hakukenttä löytää menetelmän nimen tai lyhenteen alusta, eikä välitä isoista kirjaimista tai ääkkösistä (*lampo* → Lämpökuvaus). Jos osumaa ei ole, hausta voi lisätä uuden menetelmän, jolle voi myöhemmin lisätä kenttiä Menetelmät-sivulla. |
 | Menetelmät | Menetelmien lisäys, muokkaus, järjestys, piilotus ja jakaminen tiedostona (etusivu → Menetelmät tai havaintokortti → Muokkaa menetelmiä) |
-| Pohjapiirros | Kerrokset, pohjakuva (kuva tai PDF), tilat ja niiden tutkimustilanne, havaintomerkit |
-| Lähtötarkistus | Puutteet suunnitelmaa, tiloja ja pakollisia tietoja vasten. Vienti avautuu, kun puutteet on tehty tai perusteltu. |
+| Pohjakuva | Kerrokset, pohjakuva (kuva tai PDF), tilat ja niiden tutkimustilanne, havaintomerkit |
+| Lopeta kohde | Yhteenveto kolmena lukuna (havaintoa / kesken / rajattu) ja puutteet ryhmittäin: suunnitelma, tilat ja havainnot. Kun tiloja on paljon, ne voi merkitä kerralla *ei pääsyä* yhteisellä syyllä. Vienti on aina käytettävissä; avoimet kohdat listataan pakettiin. |
 
 ## Kenttäkäytön periaatteet
 
@@ -261,7 +264,7 @@ ZIP-paketissa `havainnot.json` (`olosuhdeseuranta`) ja `havainnot.md` sisältäv
 
 ## Asetukset (`js/asetukset.js`, sivu #/asetukset)
 
-Kaikki säädettävät toiminnot ovat yhdellä sivulla (etusivu → Asetukset ja työkalut → Asetukset). Asetukset ovat laitekohtaisia (localStorage `ks.asetukset`); tallessa ovat vain oletuksesta poikkeavat arvot.
+Kaikki säädettävät toiminnot ovat yhdellä sivulla (etusivu → Asetukset ja työkalut → Asetukset). Näkyvissä ovat neljä perusasetusta (menetelmä sanelusta, tila sanelusta, mikrofonipainike, värinä); muut ovat taitettuna kohdassa *Lisäasetukset (testaus ja ylläpito)*, joka aukeaa itsestään, jos sieltä on muutettu jotain. Asetukset ovat laitekohtaisia (localStorage `ks.asetukset`); tallessa ovat vain oletuksesta poikkeavat arvot.
 
 - **Täytetään sanelusta:** menetelmä, opittu menetelmäennuste, tila, rakenneosa, tulos, mittausarvot ja kentät, kuntoarvion rakennusosa, tunnusten numerointi
 - **Pikavalinta:** milloin avautuu (jokaiselle / vain alussa / ei koskaan), tila pikavalinnassa, suunnitelman menetelmät ylimpänä, Seuraava jatkaa samalla menetelmällä
@@ -275,7 +278,7 @@ Kun menetelmä valitaan itse, uuden havainnon alussa avautuu pikavalinta: suunni
 
 ## Lähtötietopaketti Claudelta (`js/paketti.js`, kansio `claude-projekti/`)
 
-Suositeltu tapa saada lähtötiedot sovellukseen. Tutkija antaa kohteen aineiston (tarjous, piirustukset, isännöitsijäntodistus …) Clauden Lähtötiedot-projektille, joka palauttaa paketin (`kuva-sanelu-lahtotiedot`, versio 1). Kohteen sivulla *Lähtötiedot → Tuo Clauden lähtötietopaketti*: paketti valitaan tiedostona tai liitetään tekstinä.
+Suositeltu tapa saada lähtötiedot sovellukseen. Tutkija antaa kohteen aineiston (tarjous, piirustukset, isännöitsijäntodistus …) Clauden Lähtötiedot-projektille, joka palauttaa paketin (`kuva-sanelu-lahtotiedot`, versio 1). Lähtötiedot-sivulla *Clauden lähtötietopaketti*: paketti valitaan tiedostona tai liitetään tekstinä (välilehdet).
 
 1. Sovellus tarkistaa muodon, tunnukset ja arvot ja näyttää yhden kootun tarkistuksen lähteineen (epävarmat ja jo kirjattua korvaavat jäävät valitsematta).
 2. Hyväksytyt tiedot: kohteen nimi ja osoite, suunnitelman kohdat, kerrokset ja tilat, kuntoarvion perustiedot, korjaushistoria ja rakenteet, kentällä huomioitavat asiat.
@@ -285,7 +288,7 @@ Projektin ohje ja paketin kuvaus ovat kansiossa `claude-projekti/` (OHJE.md, lah
 
 ## Kuntoarvion lähtötiedot asiakirjoista (`js/kalahto.js`)
 
-Kuntoarvion sivulla *Lähtötiedot → Lisää asiakirjoja* ottaa PDF- ja kuvatiedostoja (isännöitsijäntodistus, yhtiöjärjestys, kunnossapitotarveselvitys, energiatodistus, rakennusselostus, piirustukset). Teksti luetaan puhelimessa: PDF:n tekstikerros, ja jos sitä ei ole, tekstintunnistus (enintään 8 sivua). Mitään ei lähetetä verkkoon.
+Lähtötiedot-sivun *Asiakirjat ja piirustukset* (tai kuntoarvion sivun *Lisää asiakirjoja*) ottaa PDF- ja kuvatiedostoja (isännöitsijäntodistus, yhtiöjärjestys, kunnossapitotarveselvitys, energiatodistus, rakennusselostus, piirustukset). Teksti luetaan puhelimessa: PDF:n tekstikerros, ja jos sitä ei ole, tekstintunnistus (enintään 8 sivua). Mitään ei lähetetä verkkoon. Luku jatkuu taustalla, vaikka tutkija siirtyy muualle: kohteen sivulla näkyy tila, ja valmiit ehdotukset odottavat tarkistusta, kunnes tutkija palaa kohteelle (kameraa ei keskeytetä).
 
 Sovellus ehdottaa poimittuja tietoja, ja tutkija hyväksyy ne lähdeotteen kanssa:
 - perustiedot (rakennusvuosi, tyyppi, pinta-ala, huoneistot, perustukset, runko, julkisivu, vesikatto, lämmitys)
@@ -392,17 +395,22 @@ js/meter.js            mittarin näytön kameraluku ja lukemien tarkistus
 js/lukulaite-ocr.js    tunnistusydin (kopio PBM Kenttälomakkeista)
 js/dictation.js        sanelu (puheentunnistus tai äänite)
 js/camera.js           kamera ja kuvien pienennys
-js/app.js              tila, reititys, kohteet, tutkimussuunnitelma
+js/app.js              tila, reititys, kohteet (työlista), alapalkki, tutkimussuunnitelma
 js/capture.js          Kuva + sanelu
 js/card.js             havaintokortti
-js/plan.js             pohjapiirros, kerrokset, tilat, sijainnin valinta
+js/plan.js             pohjakuva, kerrokset, tilat, sijainnin valinta
 js/planrooms.js        tilojen nimien tunnistus pohjakuvasta (PDF-teksti tai OCR)
 js/zoom.js             pohjapiirroksen zoomaus, siirto ja koko näyttö
 js/obslist.js          havaintojen haku ja valinta
 js/gallery.js          galleriakuvien liittäminen ottoajan perusteella
-js/check.js            lähtötarkistus
+js/check.js            Lopeta kohde -tarkistus
 js/seuranta.js         olosuhdeseurannan mittalaitteet
 js/planimport.js       tutkimussuunnitelma tarjouksen/suunnitelman PDF:stä
+js/lahtotiedot.js      Lähtötiedot-sivu: kaikki tuontitavat, pohjakuvat kerroksittain, syötä itse
+js/paketti.js          Clauden lähtötietopaketin tarkistus ja käyttöönotto
+js/kalahto.js          asiakirjojen luku puhelimessa (taustalla) ja yhteinen tarkistusikkuna
+js/asetukset.js        asetukset (perus + lisäasetukset)
+js/yleiskuvat.js       yleiskuvat
 js/kuntoarvio.js       kuntoarvio: rakennusosat, kuntoluokat, käyttöiät, PTS-ehdokkaat
 js/kuntoarvio-data.js  rakennusosat, tarkistuslistat ja käyttöikätaulukko
 js/export.js           ZIP-vienti ja palautus

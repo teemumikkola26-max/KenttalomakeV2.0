@@ -268,7 +268,7 @@
   function review(res, fileName) {
     const k = App.S.kohde;
     const kt = res.kohde;
-    const fill = ["nimi", "osoite", "projektinro"].filter((f) => kt[f] && !String(k[f] || "").trim());
+    const fill = ["nimi", "osoite", "projektinro"].filter((f) => kt[f] && (!String(k[f] || "").trim() || (f === "nimi" && k.nimiTilapainen)));
     const opts = (sel) => M.MENETELMAT.filter((m) => !m.piilotettu || m.id === sel).map((m) => '<option value="' + m.id + '"' + (m.id === sel ? " selected" : "") + ">" + esc(m.nimi) + "</option>").join("");
     const row = (it, i) => '<div class="pi-row' + (it.valittu ? "" : " off") + '" data-i="' + i + '">' +
       '<label class="pi-chk"><input type="checkbox" data-pi="valittu"' + (it.valittu ? " checked" : "") + ' aria-label="Lisää suunnitelmaan"></label>' +
@@ -300,7 +300,8 @@
         el.addEventListener("change", (e) => { if (e.target.dataset.pi === "menetelma") res.kohdat[+e.target.closest("[data-i]").dataset.i].menetelma = e.target.value; });
         el.querySelector("[data-ok]").addEventListener("click", async () => {
           const kc = el.querySelector("[data-kt]");
-          if (kc && kc.checked) fill.forEach((f) => { k[f] = kt[f]; });
+          if (kc && kc.checked) fill.forEach((f) => { k[f] = kt[f]; if (f === "nimi") delete k.nimiTilapainen; });
+          k.lahtoTila = Object.assign({}, k.lahtoTila, { tarjous: Date.now() });
           let n = 0;
           res.kohdat.filter((x) => x.valittu).forEach((x) => {
             const kuvaus = clean(x.kuvaus);

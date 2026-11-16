@@ -25,7 +25,7 @@
         const n = Math.min(pdf.numPages, 30);
         let btns = "";
         for (let i = 1; i <= n; i++) btns += '<button class="chip" data-p="' + i + '">Sivu ' + i + "</button>";
-        sheet("<h3>Mikä sivu on tämän kerroksen pohjapiirros?</h3><div class=\"chips\">" + btns + "</div>",
+        sheet("<h3>Mikä sivu on tämän kerroksen pohjakuva?</h3><div class=\"chips\">" + btns + "</div>",
           (el, close) => el.querySelectorAll("[data-p]").forEach((b) => b.addEventListener("click", () => close(+b.dataset.p))),
           { onClose: (v) => resolve(v || 1) });
       });
@@ -398,7 +398,7 @@
       '<button class="btn btn-primary" data-a="kuva">' + icon("cam") + "Kuva + sanelu tässä tilassa</button>" +
       (!obs.length && !t.merkinta ? '<button class="btn" data-a="ok">Tarkastettu, ei huomautettavaa</button><button class="btn" data-a="eip">Ei pääsyä + syy</button>' : "") +
       (t.merkinta ? '<button class="btn" data-a="clear">Poista merkintä (' + esc(M.TILASTATUS[t.merkinta.tila].l.toLowerCase()) + ")</button>" : "") +
-      (kerros && kerros.planId ? '<button class="btn" data-a="place">' + icon("pin") + (t.pos ? "Siirrä merkki pohjapiirroksessa" : "Sijoita pohjapiirrokseen") + "</button>" : "") +
+      (kerros && kerros.planId ? '<button class="btn" data-a="place">' + icon("pin") + (t.pos ? "Siirrä merkki pohjakuvassa" : "Sijoita pohjakuvaan") + "</button>" : "") +
       (unconf ? '<button class="btn" data-a="conf">' + icon("ok") + "Nimi on oikein</button>" : "") +
       (aptOf(t) ? '<button class="btn" data-a="apt">' + icon("edit") + "Vaihda asunnon tunnus (" + esc(aptOf(t)) + ")</button>" : "") +
       '<button class="btn" data-a="edit">' + icon("edit") + "Muokkaa</button>" +
@@ -419,7 +419,7 @@
         on("place", () => {
           close(); placingRoom = t.id; currentFloor = t.kerrosId;
           if (location.hash.indexOf("/pohja") < 0) location.hash = "#/k/" + k.id + "/pohja"; else App.render();
-          toast("Napauta tilan kohtaa pohjapiirroksessa", 3000);
+          toast("Napauta tilan kohtaa pohjakuvassa", 3000);
         });
         on("edit", async () => { close(); await roomSheet(t); App.render(); });
         on("apt", async () => {
@@ -480,7 +480,8 @@
   }
 
   /* ---------- Näkymä ---------- */
-  async function view() {
+  async function view(q) {
+    if (q && q.kerros && Model.kerros(q.kerros)) currentFloor = q.kerros;
     const k = S.kohde;
     if (!currentFloor || !Model.kerros(currentFloor)) currentFloor = k.kerrokset[0] ? k.kerrokset[0].id : null;
     const kerros = Model.kerros(currentFloor);
@@ -505,7 +506,7 @@
         (rooms.some((t) => t.tunnistus && !t.tunnistus.vahvistettu) ? '<div class="card-b hint" style="padding-top:8px;margin:0">Katkoviivalla merkityt tilat on tunnistettu pohjakuvasta. Ne vahvistuvat, kun valitset tilan havainnon sijainniksi, muokkaat sitä tai kuittaat nimen. Vahvistamattomia: ' + rooms.filter((t) => t.tunnistus && !t.tunnistus.vahvistettu).length + ".</div>" : "") +
         (rooms.map((t) => '<button class="row" data-a="room" data-id="' + t.id + '"><div class="grow"><div class="t">' + esc(Model.tilaNimi(t)) + (t.tunnistus && !t.tunnistus.vahvistettu ? ' <span class="mp-tag">tunnistettu</span>' : "") + "</div>" +
           (t.merkinta && t.merkinta.syy ? '<div class="s">' + esc(t.merkinta.syy) + "</div>" : "") + "</div>" + statusChip(Model.tilaStatus(t)) + "</button>").join("") ||
-          '<div class="empty">Ei tiloja. Lisää tilat, niin kattavuus näkyy ja lähtötarkistus muistuttaa tutkimatta jääneistä.</div>') +
+          '<div class="empty">Ei tiloja. Lisää tilat, niin kattavuus näkyy ja Lopeta kohde -tarkistus muistuttaa tutkimatta jääneistä.</div>') +
         '<div class="card-b" style="padding-top:10px"><button class="btn btn-block" data-a="addRoom">' + icon("plus") + "Lisää tila</button></div></section>" +
         '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
         (kerros.planId ? '<button class="btn btn-sm" data-a="detect">' + icon("list") + "Tunnista tilat pohjakuvasta</button>" : "") +
@@ -515,7 +516,7 @@
     }
 
     const root = document.getElementById("app");
-    root.innerHTML = App.topbar({ title: "Pohjapiirros", sub: k.nimi, back: "#/k/" + k.id }) +
+    root.innerHTML = App.topbar({ title: "Pohjakuva", sub: k.nimi, back: "#/k/" + k.id }) +
       '<main class="view"><div class="floor-tabs chips scroll">' + tabs + "</div>" + body + "</main>" +
       App.fab("#/k/" + k.id + "/kuvaus" + (kerros ? "?kerros=" + kerros.id : "")) + App.bottomnav("pohja");
 
@@ -544,7 +545,7 @@
         setPlan(kerros);
       }
       else if (a === "detect") detectRooms(kerros, null, true);
-      else if (a === "addRoom") { const t = await roomSheet(null, kerros.id); if (t) { App.render(); if (kerros.planId) { placingRoom = t.id; App.render(); toast("Napauta tilan kohtaa pohjapiirroksessa, tai peruuta", 3000); } } }
+      else if (a === "addRoom") { const t = await roomSheet(null, kerros.id); if (t) { App.render(); if (kerros.planId) { placingRoom = t.id; App.render(); toast("Napauta tilan kohtaa pohjakuvassa, tai peruuta", 3000); } } }
       else if (a === "room") roomActions(Model.tila(b.dataset.id));
       else if (a === "cancelPlace") { placingRoom = null; App.render(); }
       else if (a === "renameFloor") {

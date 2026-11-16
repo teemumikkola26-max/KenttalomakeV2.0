@@ -545,7 +545,9 @@
         '<p class="hint" style="margin:0 0 6px"><b>' + n + " / " + ehd.length + "</b> valittu valmiiksi.</p>" +
         ryhmat.map(([t, o]) => {
           const l = ehd.map((e, i) => [e, i]).filter(([e]) => e.ryhma === t);
-          return l.length ? '<span class="label" style="display:block;margin:12px 0 4px">' + o + " (" + l.length + ")</span>" +
+          // Ryhmä auki, jos siinä on tarkistettavaa (valitsematta, huomautus) tai vain muutama rivi
+          const auki = l.length <= 3 || l.some(([e]) => !e.valittu || e.huom || e.kuva);
+          return l.length ? '<details class="lt-ryhma"' + (auki ? " open" : "") + '><summary><b>' + esc(o) + '</b><span class="meta">' + l.filter(([e]) => e.valittu).length + " / " + l.length + "</span></summary>" +
             l.map(([e, i]) => {
               // Taulukon kuva kerran ennen ensimmäistä siitä luettua arvoa
               const kuva = e.kuva && !nahdyt.includes(e.kuva) ? (nahdyt.push(e.kuva), '<div class="lt-kuva"><img src="' + e.kuva + '" alt="Piirustuksen taulukko"><span class="hint">Alkuperäinen ' + esc(e.lahde) + '. Napauta kuvaa suurentaaksesi. Tarkista luvut ja korjaa kenttiin.</span></div>') : "";
@@ -554,10 +556,12 @@
                 (e.huom ? '<br><span class="as-muut" style="margin:0">' + esc(e.huom) + "</span>" : "") +
                 (e.lahde == null ? (e.ote ? '<br><span class="hint">' + esc(e.ote) + "</span>" : "")
                   : '<br><span class="hint">' + esc((e.ote ? (e.muokattava ? e.ote : "”" + e.ote + "”") + " · " : "") + e.lahde + (e.sivu > 1 ? ", s. " + e.sivu : "")) + "</span>") + "</span></label>";
-            }).join("") : "";
+            }).join("") + "</details>" : "";
         }).join("") +
-        '<div class="row-btns" style="margin-top:14px"><button class="btn" data-close>Peruuta</button><button class="btn btn-primary" data-ok>Ota valitut käyttöön</button></div>',
+        '<div class="row-btns lt-napit"><button class="btn" data-close>Peruuta</button><button class="btn btn-primary" data-ok>Ota valitut käyttöön</button></div>',
         (el, close) => {
+          // Ryhmän laskuri päivittyy valintojen mukaan
+          el.addEventListener("change", (ev) => { const d = ev.target.closest(".lt-ryhma"); if (d) { const c = d.querySelectorAll("input[data-i]"); d.querySelector(".meta").textContent = Array.from(c).filter((x) => x.checked).length + " / " + c.length; } });
           el.querySelectorAll(".lt-kuva img").forEach((im) => im.addEventListener("click", () => im.parentNode.classList.toggle("iso")));
           // Arvon muokkaus valitsee rivin; tyhjä arvo ei mene käyttöön
           el.querySelectorAll("[data-arvo]").forEach((inp) => {
@@ -574,44 +578,89 @@
     });
   }
 
+  /* Luku jatkuu taustalla: tutkija voi siirtyä muualle. Tila näkyy kohteen sivulla ja Lähtötiedot-sivulla,
+     ja valmiit ehdotukset odottavat tarkistusta, jos tutkija on muualla luvun valmistuessa. */
+  const tila = { kaynnissa: null, odottaa: {} };
+  const ilmoita = () => { try { document.dispatchEvent(new CustomEvent("ks-lahto")); } catch (e) { /* ohita */ } };
+  const tallenna = async (k) => { if (App.S.kohde && App.S.kohde.id === k.id) await App.Model.saveKohde(); else { k.updated = Date.now(); await DB.put("kohteet", k); } };
+
   async function lisaa(paivita) {
     const { toast } = UI;
+    if (tila.kaynnissa) { toast("Edellisten asiakirjojen luku on vielä kesken", 3000); return; }
     const files = await UI.pickFile("application/pdf,image/*", true);
     if (!files.length) return;
     const k = App.S.kohde;
     siirra(k); k.lahtotiedot = k.lahtotiedot || [];
     const tulokset = [], uudet = [];
-    for (let i = 0; i < files.length; i++) {
-      const f = files[i];
-      toast("Luetaan " + (i + 1) + "/" + files.length + ": " + f.name, 60000);
-      try {
-        const r = await lue(f, (t) => toast(t + " (" + f.name + ")", 60000));
-        const res = poimi(r.lines);
-        const teksti = r.lines.map((x) => x.text).join("\n");
-        const pi = r.piirustus || /piirustu|piirros/i.test(laji(f.name, teksti)) ? poimiPiirustus(r.lines, r.taulut || [], f.name) : null;
-        const tiedosto = await DB.putFile(App.S.kohde.id, f, { kind: "lahtotieto", nimi: f.name });
-        const rivi = { id: DB.uid("l_"), tiedosto, nimi: f.name, laji: laji(f.name, teksti), sivuja: r.sivuja, tapa: r.tapa, poimittu: 0, otteet: res.otteet.slice(0, 40), merkkeja: teksti.length, aika: Date.now(),
-          piirustus: pi ? pi.piirustus : undefined, tyypit: pi && pi.tyypit.length ? pi.tyypit : undefined };
-        if (pi && pi.piirustus.sisalto) { const L = { asemapiirros: "Asemapiirros", leikkaus: "Leikkauspiirustus", julkisivut: "Julkisivupiirustus", pohja: "Pohjapiirustus" }[pi.piirustus.sisalto]; if (L) rivi.laji = L; }
-        k.lahtotiedot.push(rivi); uudet.push(rivi);
-        tulokset.push({ nimi: f.name, res, pi });
-      } catch (e) {
-        console.warn("Lähtötieto", e);
-        toast("Asiakirjaa ei voitu lukea: " + f.name, 4000);
+    tila.kaynnissa = { kohdeId: k.id, i: 0, n: files.length, nimi: "", vaihe: "" };
+    ilmoita();
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const f = files[i];
+        Object.assign(tila.kaynnissa, { i: i + 1, nimi: f.name, vaihe: "" });
+        ilmoita();
+        try {
+          const r = await lue(f, (t) => { tila.kaynnissa.vaihe = t; ilmoita(); });
+          const res = poimi(r.lines);
+          const teksti = r.lines.map((x) => x.text).join("\n");
+          const pi = r.piirustus || /piirustu|piirros/i.test(laji(f.name, teksti)) ? poimiPiirustus(r.lines, r.taulut || [], f.name) : null;
+          const tiedosto = await DB.putFile(k.id, f, { kind: "lahtotieto", nimi: f.name });
+          const rivi = { id: DB.uid("l_"), tiedosto, nimi: f.name, laji: laji(f.name, teksti), sivuja: r.sivuja, tapa: r.tapa, poimittu: 0, otteet: res.otteet.slice(0, 40), merkkeja: teksti.length, aika: Date.now(),
+            piirustus: pi ? pi.piirustus : undefined, tyypit: pi && pi.tyypit.length ? pi.tyypit : undefined };
+          if (pi && pi.piirustus.sisalto) { const L = { asemapiirros: "Asemapiirros", leikkaus: "Leikkauspiirustus", julkisivut: "Julkisivupiirustus", pohja: "Pohjapiirustus" }[pi.piirustus.sisalto]; if (L) rivi.laji = L; }
+          k.lahtotiedot.push(rivi); uudet.push(rivi);
+          tulokset.push({ nimi: f.name, res, pi });
+          await tallenna(k);
+        } catch (e) {
+          console.warn("Lähtötieto", e);
+          toast("Asiakirjaa ei voitu lukea: " + f.name, 4000);
+        }
       }
+    } finally {
+      tila.kaynnissa = null;
     }
-    UI.hideToast && UI.hideToast();
-    await App.Model.saveKohde();
+    k.lahtoTila = Object.assign({}, k.lahtoTila, { asiakirjat: Date.now() });
+    await tallenna(k);
     const ehd = ehdotukset(tulokset);
-    if (!ehd.length) { toast(uudet.length ? "Asiakirjat tallennettu. Poimittavia tietoja ei löytynyt; asiakirjat kulkevat silti raportointiin." : "Ei luettavia asiakirjoja", 5000); paivita(); return; }
+    ilmoita();
+    if (!ehd.length) { toast(uudet.length ? "Asiakirjat tallennettu. Poimittavia tietoja ei löytynyt; asiakirjat kulkevat silti raportointiin." : "Ei luettavia asiakirjoja", 5000); paivita && paivita(); return; }
+    // Tutkija on muualla (toinen kohde tai kamera): ehdotukset odottavat
+    if (!App.S.kohde || App.S.kohde.id !== k.id || /\/kuvaus/.test(location.hash)) {
+      tila.odottaa[k.id] = { ehd, uudet };
+      toast("Asiakirjat luettu: " + ehd.length + " ehdotusta odottaa tarkistusta kohteen sivulla", 5000);
+      ilmoita();
+      return;
+    }
+    await kasitteleEhdotukset(ehd, uudet);
+    paivita && paivita();
+  }
+  async function kasitteleEhdotukset(ehd, uudet) {
     const valitut = await tarkista(ehd);
     if (valitut && valitut.length) {
       const n = kayta(valitut);
       uudet.forEach((u) => { u.poimittu = valitut.filter((e) => e.lahde === u.nimi || (e.nimet || []).includes(u.nimi)).length; });
       await App.Model.saveKohde();
-      toast(n + " tietoa otettu käyttöön");
+      UI.toast(n + " tietoa otettu käyttöön");
     }
-    paivita();
+  }
+  async function tarkistaOdottavat(paivita) {
+    const k = App.S.kohde, o = k && tila.odottaa[k.id];
+    if (!o) return;
+    delete tila.odottaa[k.id];
+    await kasitteleEhdotukset(o.ehd, o.uudet);
+    ilmoita();
+    paivita && paivita();
+  }
+  /* Tilarivi kohteen sivulle ja Lähtötiedot-sivulle */
+  function tilaHtml() {
+    const { esc, icon } = UI, k = App.S.kohde;
+    if (!k) return "";
+    const kk = tila.kaynnissa;
+    if (kk && kk.kohdeId === k.id) return '<div class="alert info lt-tila" data-lt-tila>' + icon("upload") + "<div><b>Luetaan asiakirjoja " + kk.i + "/" + kk.n + "</b><br>" +
+      esc(kk.nimi) + (kk.vaihe ? " · " + esc(kk.vaihe.replace(/\s*\(.*\)$/, "")) : "") + '<br><span class="hint">Voit jatkaa muuta työtä.</span></div></div>';
+    const o = tila.odottaa[k.id];
+    if (o) return '<button class="alert lt-tila" data-act="lahtoOdottaa" style="width:100%;text-align:left;cursor:pointer">' + icon("check") + "<div><b>Asiakirjat luettu</b><br>" + o.ehd.length + " ehdotusta odottaa tarkistusta. Avaa.</div></button>";
+    return "";
   }
 
   async function poista(id, paivita) {
@@ -623,6 +672,6 @@
     paivita();
   }
 
-  window.KaLahto = { siirra, kaLuo, tarkista, poimi, poimiPiirustus, lue, laji, OSAT, MATERIAALIT, kortti, lisaa, poista, lista, ehdotukset, kayta };
+  window.KaLahto = { tila, tilaHtml, tarkistaOdottavat, siirra, kaLuo, tarkista, poimi, poimiPiirustus, lue, laji, OSAT, MATERIAALIT, kortti, lisaa, poista, lista, ehdotukset, kayta };
 
 })();

@@ -38,7 +38,7 @@
     { k: "kamera.valve", t: "bool", d: true, nimi: "Näyttö pysyy päällä kuvatessa" },
 
     { ryhma: "Tarkistus ja pohjakuva" },
-    { k: "tark.tulos", t: "bool", d: true, nimi: "Tulos on pakollinen", ohje: "Pois: puuttuva tulos ei näy lähtötarkistuksessa puutteena." },
+    { k: "tark.tulos", t: "bool", d: true, nimi: "Tulos on pakollinen", ohje: "Pois: puuttuva tulos ei näy Lopeta kohde -tarkistuksessa puutteena." },
     { k: "pohja.tilat", t: "valinta", d: "varmat", nimi: "Pohjakuvasta tunnistetut tilat", o: [["varmat", "Varmat lisätään suoraan, epävarmat tarkistetaan"], ["kaikki", "Kaikki tarkistetaan ennen lisäystä"]] }
   ];
   const DEF = {};
@@ -97,12 +97,17 @@
       return '<div class="as-val"><div class="as-n"><b>' + esc(x.nimi) + "</b>" + mk + (x.ohje ? '<br><span class="hint">' + esc(x.ohje) + "</span>" : "") + '</div><div class="seg as-seg">' +
         x.o.map((o) => '<button data-as="' + x.k + '" data-v="' + esc(o[0]) + '" aria-pressed="' + (String(get(x.k)) === o[0]) + '">' + esc(o[1]) + "</button>").join("") + "</div></div>";
     };
-    let html = "", auki = false;
+    // Perusasetukset näkyvät kaikille; muut testausta ja ylläpitoa varten taitettuna
+    const PERUS = ["af.menetelma", "af.tila", "sanelu.tapa", "sanelu.varina"];
+    let html = '<section class="card"><div class="card-h"><h2>Perusasetukset</h2></div><div class="card-b">' +
+      PERUS.map((k) => SCHEMA.find((x) => x.k === k)).filter(Boolean).map((x) => rivi(Object.assign({}, x, x.k.startsWith("af.") ? { nimi: x.nimi + " sanelusta" } : {}))).join("") + "</div></section>";
+    const lisaMuutettu = Object.keys(muutetut()).filter((k) => !PERUS.includes(k)).length;
+    html += '<details class="card vocab"' + (lisaMuutettu ? " open" : "") + '><summary class="card-h"><h2>Lisäasetukset (testaus ja ylläpito)</h2>' + (lisaMuutettu ? '<span class="meta">' + lisaMuutettu + " muutettu</span>" : "") + "</summary><div class=\"card-b\">";
     SCHEMA.forEach((x) => {
-      if (x.ryhma) { if (auki) html += "</div></section>"; html += '<section class="card"><div class="card-h"><h2>' + esc(x.ryhma) + '</h2></div><div class="card-b">' + (x.ohje ? '<p class="hint" style="margin:0 0 8px">' + esc(x.ohje) + "</p>" : ""); auki = true; }
-      else html += rivi(x);
+      if (x.ryhma) html += '<h3 class="as-ryhma">' + esc(x.ryhma) + "</h3>" + (x.ohje ? '<p class="hint" style="margin:0 0 8px">' + esc(x.ohje) + "</p>" : "");
+      else if (!PERUS.includes(x.k)) html += rivi(x);
     });
-    if (auki) html += "</div></section>";
+    html += "</div></details>";
     const n = Object.keys(muutetut()).length;
     root.innerHTML = App.topbar({ title: "Asetukset", sub: "Tämä puhelin" + (n ? " · " + n + " muutettu" : " · oletukset"), back: App.paluu("#/") }) +
       '<main class="view no-nav">' + html +
