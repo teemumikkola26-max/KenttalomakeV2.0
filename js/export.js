@@ -211,6 +211,7 @@
       huomioitavaa_lahtotiedoista: (k.huomiot || []).length ? k.huomiot.map((h) => ({ teksti: h.teksti, lahde: h.lahde || undefined })) : null,
       yleiskuvat: (paths.yleiskuvat || []).length ? paths.yleiskuvat : null,
       kuntoarvio: window.Kuntoarvio ? Kuntoarvio.vienti(RN, paths.lahto) : null,
+      ...(window.Katselmus ? Katselmus.vienti() : {}),
       avoimet_puutteet: puutteet.map((x) => x.otsikko + ": " + x.selite)
     };
   }
@@ -226,6 +227,7 @@
     L.push("- Tutkimuspäivä: " + (k.tutkimuspaiva ? UI.pvm(k.tutkimuspaiva) : "–"));
     L.push("- Viety: " + UI.pvm(j.viety) + (j.keskenerainen ? " (KESKENERÄINEN: katso avoimet puutteet)" : ""));
     L.push("");
+    if (window.Katselmus) Katselmus.vientiMd(j).forEach((r) => L.push(r));
     if (j.tutkimussuunnitelma.length) {
       L.push("## Tutkimussuunnitelman toteutuminen");
       L.push("");

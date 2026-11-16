@@ -288,6 +288,8 @@ Suositeltu tapa saada lähtötiedot sovellukseen. Tutkija antaa kohteen aineisto
 
 **ZIP-paketti (suositus):** Claude palauttaa `lahtotiedot-<kohde>.zip`, jossa on `paketti.json` ja alkuperäiset tiedostot. Sovellus lukee molemmat kerralla: tiedostoja ei tarvitse valita erikseen, `pohjakuva`-kohdan tiedostot (oikea sivu) asetetaan kerroksille, ja Clauden antamat tilojen sijainnit (`sijainti: {x, y}`, 0–1 näytetyn sivun vasemmasta yläkulmasta) piirretään suoraan pohjakuvaan. Tekstikerroksesta luetut sijainnit ovat varmoja; kuvasta arvioidut (`varmuus: "arvio"`) näkyvät katkoviivalla vahvistamattomina. Jos kaikilla kerroksen tiloilla on sijainti, tekstintunnistusta ei ajeta; muuten tunnistus täydentää puuttuvat eikä siirrä Clauden merkitsemiä. Pelkkä .json toimii edelleen, jolloin tiedostot liitetään erikseen.
 
+**Katselmus ja aiemmat tutkimukset:** Kun tarjousta ei vielä ole, Claude laatii paketissa katselmussuunnitelman (`katselmus`: kysymykset, kierros tiloineen, aineistopyynnöt, jokaisella peruste aineistosta). Se näkyy kohteen sivulla Seuraavaksi-korttina ja omana näkymänään (`js/katselmus.js`, `#/k/<id>/katselmus`): kysymyksiin kirjataan vastaukset, kohdat kuitataan, ja kierroksen tilasirusta avautuu kamera suoraan siihen tilaan. Aiempien raporttien tulokset (`aiemmat`) sidotaan tiloihin ja näkyvät havaintokortilla valitun tilan kohdalla sekä kohteen sivulla raporteittain. Molemmat kulkevat viennissä raportointiin. ZIPiin viedään vain pohjakuvat; muut asiakirjat jäävät Clauden käsittelemiksi.
+
 Projektin ohje ja paketin kuvaus ovat kansiossa `claude-projekti/` (OHJE.md, lahtotietopaketti-v1.md, esimerkki-paketti.json). Puhelimessa luku (`js/kalahto.js`) jää varavaihtoehdoksi ilman verkkoa.
 
 ## Kuntoarvion lähtötiedot asiakirjoista (`js/kalahto.js`)
@@ -411,6 +413,7 @@ js/check.js            Lopeta kohde -tarkistus
 js/seuranta.js         olosuhdeseurannan mittalaitteet
 js/planimport.js       tutkimussuunnitelma tarjouksen/suunnitelman PDF:stä
 js/lahtotiedot.js      Lähtötiedot-sivu: kaikki tuontitavat, pohjakuvat kerroksittain, syötä itse
+js/katselmus.js        katselmussuunnitelma ja aiemmat tutkimukset tiloittain
 js/paketti.js          Clauden lähtötietopaketin tarkistus ja käyttöönotto
 js/kalahto.js          asiakirjojen luku puhelimessa (taustalla) ja yhteinen tarkistusikkuna
 js/asetukset.js        asetukset (perus + lisäasetukset)

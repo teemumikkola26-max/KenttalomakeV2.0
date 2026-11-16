@@ -297,6 +297,8 @@
       seur = '<section class="next-card"><div class="nc-k">Aloita</div><div class="nc-t">Lisää lähtötiedot</div>' +
         '<div class="nc-s">Clauden paketti, tarjous, pohjakuvat tai syötä itse. Voit myös aloittaa kuvaamisen heti.</div>' +
         '<a class="btn nc-btn" href="#/k/' + k.id + '/lahtotiedot">' + icon("download") + "Lähtötiedot</a></section>";
+    } else if (!k.suunnitelma.length && Katselmus.seuraavaHtml()) {
+      seur = Katselmus.seuraavaHtml();
     } else if (nx) {
       const m = M.menetelma(nx.menetelma), tehty = Model.kohtaTehty(nx), maara = nx.maara || 1;
       seur = '<section class="next-card"><div class="nc-k">Seuraavaksi</div><div class="nc-t">' + esc(m.nimi) + "</div>" +
@@ -345,7 +347,11 @@
       '<main class="view">' + (window.CloudUI ? CloudUI.syncBarHtml(k) : "") + KaLahto.tilaHtml() +
       seur +
       (k.suunnitelma.length ? '<section class="card"><div class="card-h"><h2>Tutkimussuunnitelma</h2><span class="meta">' + pr.done + " / " + pr.all + ' valmis</span><a class="link" href="#/k/' + k.id + '/suunnitelma">Muokkaa</a></div>' + plan + "</section>" : "") +
-      (hu.length ? '<div class="alert info">' + icon("alert") + "<div><b>Huomioitavaa:</b> " + hu.map((h) => esc(h.teksti)).join("<br>") + "</div></div>" : "") +
+      Katselmus.korttiHtml() +
+      (hu.length ? (hu.length <= 2 ? '<div class="alert info">' + icon("alert") + "<div><b>Huomioitavaa:</b> " + hu.map((h) => esc(h.teksti)).join("<br>") + "</div></div>"
+        : '<details class="alert info hu-taitto">' + '<summary>' + icon("alert") + "<div><b>Huomioitavaa (" + hu.length + "):</b> " + esc(hu[0].teksti) + ' <span class="hu-lisaa">Näytä kaikki</span></div></summary>' +
+          '<div class="hu-muut">' + hu.slice(1).map((h) => esc(h.teksti)).join("<br>") + "</div></details>") : "") +
+      Katselmus.aiemmatKorttiHtml() +
       (S.havainnot.length ? '<section class="card"><div class="card-h"><h2>Viimeisimmät havainnot</h2><a class="link" href="#/k/' + k.id + '/havainnot">Kaikki ' + S.havainnot.length + "</a></div>" +
         '<div class="card-b"><div class="recent">' + rec + "</div></div></section>" : "") +
       '<details class="card vocab"><summary class="card-h"><h2>Lisää</h2><span class="meta">' + esc(lisaYht) + "</span></summary><div class=\"card-b\" style=\"padding-top:0\">" +
@@ -626,6 +632,7 @@
       else if (sub === "kuntoarvio") await Kuntoarvio.view(parts[3] || null);
       else if (sub === "yleiskuvat") await Yleiskuvat.view();
       else if (sub === "lahtotiedot") await Lahtotiedot.view(parts[3] || null, q);
+      else if (sub === "katselmus") await Katselmus.view();
       else await viewKohde();
     } catch (err) {
       console.error(err);

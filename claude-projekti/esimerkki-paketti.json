@@ -25,6 +25,11 @@
       "laji": "Leikkauspiirustus",
       "kuvaus": "Leikkaus A-A ja rakennetyypit",
       "sivuja": 1
+    },
+    {
+      "nimi": "Sisailmatutkimus_2019.pdf",
+      "laji": "Aiempi tutkimus",
+      "sivuja": 12
     }
   ],
   "kohde": {
@@ -268,5 +273,56 @@
   "puuttuu": [
     "Tilavuus",
     "Kerrosala"
-  ]
+  ],
+  "aiemmat": [
+    {
+      "raportti": "Sisäilmatutkimus 2019",
+      "pvm": "3/2019",
+      "aihe": "Rakennekosteus",
+      "teksti": "Kylpyhuoneen lattiassa kohonneita pintakosteuslukemia lattiakaivon ympärillä; suositeltiin vedeneristyksen uusimista.",
+      "tilat": [
+        "PESUH"
+      ],
+      "lahde": {
+        "tiedosto": "Sisailmatutkimus_2019.pdf",
+        "sivu": 6,
+        "ote": "kohonneita pintakosteuksia lattiakaivon ympäristössä"
+      }
+    },
+    {
+      "raportti": "Sisäilmatutkimus 2019",
+      "pvm": "3/2019",
+      "aihe": "Ilmanvaihto",
+      "teksti": "Poistoilmamäärät noin 60 % suunnitellusta.",
+      "tilat": [],
+      "lahde": {
+        "tiedosto": "Sisailmatutkimus_2019.pdf",
+        "sivu": 8,
+        "ote": "poistoilmamäärät noin 60 % suunnitelluista"
+      }
+    }
+  ],
+  "katselmus": {
+    "kysymykset": [
+      {
+        "teksti": "Onko kylpyhuoneen vedeneristys uusittu vuoden 2019 suosituksen jälkeen?",
+        "peruste": "Sisäilmatutkimus 2019, s. 6."
+      }
+    ],
+    "kierros": [
+      {
+        "teksti": "Pesuhuone: pintakosteus lattiakaivon ympäriltä, kaadot, viereisten seinien alaosat.",
+        "tilat": [
+          "PESUH"
+        ],
+        "peruste": "Sisäilmatutkimus 2019: kohonneet pintakosteudet."
+      }
+    ],
+    "aineistopyynnot": [
+      {
+        "teksti": "Ilmanvaihdon säätöpöytäkirja vuoden 2019 jälkeen.",
+        "peruste": "Sisäilmatutkimus 2019: poistoilmamäärät alle suunnitellun."
+      }
+    ]
+  }
 }

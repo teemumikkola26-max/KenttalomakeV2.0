@@ -686,3 +686,26 @@ details.lisa .card-b .field{margin-bottom:12px}
 .ct-ryhma .todo{border:0;border-top:1px solid var(--line);border-radius:0;box-shadow:none;padding:10px 0;margin:0;background:transparent}
 .ct-ryhma .todo:first-of-type{border-top:0}
 .as-ryhma{font-size:14px;margin:16px 0 6px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+
+/* Katselmus ja aiemmat tutkimukset (v37) */
+.ks-kohta{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--line)}
+.ks-kohta:first-of-type{border-top:0}
+.ks-kohta .t{font-weight:600}
+.ks-kohta .s{color:var(--muted);font-size:13px;margin-top:2px}
+.ks-kohta.tehty .t{color:var(--muted)}
+.ks-chk{flex:none;width:34px;height:34px;border-radius:50%;border:2px solid var(--line);background:var(--card,#fff);display:grid;place-items:center;color:transparent;cursor:pointer}
+.ks-chk svg{width:18px;height:18px}
+.ks-chk[aria-pressed="true"]{background:var(--ok,#2e7d4f);border-color:var(--ok,#2e7d4f);color:#fff}
+.ks-vast{width:100%;margin-top:8px;font:inherit;padding:8px;border:1px solid var(--line);border-radius:8px;resize:vertical}
+.ks-tilat{margin-top:8px}
+.ks-tilat .chip svg{width:16px;height:16px;margin-right:4px}
+details.aiemmat{margin-top:8px;font-size:14px;background:var(--bg,#f6f4ef);border-radius:8px;padding:6px 10px}
+details.aiemmat summary{cursor:pointer;font-weight:600;display:flex;gap:6px;align-items:center}
+details.aiemmat summary svg{width:16px;height:16px}
+details.aiemmat ul,.aiemmat-l{margin:6px 0 0;padding-left:18px}
+.aiemmat-l li,details.aiemmat li{margin:4px 0}
+details.hu-taitto summary{list-style:none;display:flex;gap:10px;cursor:pointer}
+details.hu-taitto summary::-webkit-details-marker{display:none}
+details.hu-taitto .hu-lisaa{color:var(--accent,#c8102e);font-weight:600;white-space:nowrap}
+details.hu-taitto[open] .hu-lisaa{display:none}
+details.hu-taitto .hu-muut{margin:6px 0 0 34px}

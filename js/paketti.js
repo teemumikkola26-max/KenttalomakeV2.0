@@ -144,6 +144,27 @@
       if (!t || (k.huomiot || []).some((x) => x.teksti === t)) return;
       lisa({ t: "huomio", ryhma: "Huomioitavaa kentällä", teksti: t, otsikko: t, ote: lahdeTeksti(h) });
     });
+    // Katselmussuunnitelma (kun tarjousta / tutkimussuunnitelmaa ei vielä ole)
+    const tunnukset = (x) => [].concat(x.tilat || x.tunnukset || []).map((t) => String(t || "").trim().toUpperCase().replace(/\s+/g, "")).filter(Boolean);
+    const kat = j.katselmus || {}, olemassa = (window.Katselmus && k.katselmus) ? Katselmus.data(k) : null;
+    [["kysymykset", "Kysy"], ["kierros", "Katso"], ["aineistopyynnot", "Pyydä"]].forEach(([l, verbi]) => {
+      const laji = l === "aineistopyynnot" ? "aineisto" : l;
+      (kat[l] || []).forEach((x) => {
+        const t = String(arvo(x.teksti != null ? x.teksti : x) || "").trim();
+        if (!t || (olemassa && olemassa[laji].some((y) => y.teksti === t))) return;
+        const tu = laji === "kierros" ? tunnukset(x) : [];
+        lisa({ t: "katselmus", ryhma: "Katselmus", laji, teksti: t, peruste: String(x.peruste || "").trim(), tunnukset: tu,
+          otsikko: verbi + ": " + t + (tu.length ? " (" + tu.join(", ") + ")" : ""), ote: String(x.peruste || "").trim() || lahdeTeksti(x) });
+      });
+    });
+    // Aiemmat tutkimukset: tulokset tiloihin sidottuina
+    (j.aiemmat || []).forEach((x) => {
+      const t = String(arvo(x.teksti != null ? x.teksti : x.tulos) || "").trim();
+      if (!t || (k.aiemmat || []).some((y) => y.teksti === t && y.raportti === (x.raportti || ""))) return;
+      const tu = tunnukset(x);
+      lisa({ t: "aiempi", ryhma: "Aiemmat tutkimukset", raportti: String(x.raportti || ""), pvm: String(x.pvm || ""), aihe: String(x.aihe || ""), teksti: t, tunnukset: tu,
+        otsikko: [x.raportti, x.pvm].filter(Boolean).join(" ") + (x.aihe ? " · " + x.aihe : "") + ": " + t + (tu.length ? " (" + tu.join(", ") + ")" : ""), ote: lahdeTeksti(x) });
+    });
     // Clauden omat ristiintarkistukset ja puuttuvat tiedot
     (j.tarkistukset || []).forEach((x) => { if (x && /virhe|ristiriita|ei täsmää|poikkeaa/i.test((x.tulos || "") + " " + (x.kuvaus || ""))) varoitukset.push("Claude: " + (x.kuvaus || "") + (x.tulos ? " – " + x.tulos : "")); });
     if ((j.puuttuu || []).length) varoitukset.push("Ei löytynyt aineistosta: " + j.puuttuu.join(", ") + ".");
@@ -182,6 +203,17 @@
       });
     }
     valitut.filter((e) => e.t === "huomio").forEach((e) => { (k.huomiot = k.huomiot || []).push({ id: DB.uid("n_"), teksti: e.teksti, lahde: e.ote || "", aika: Date.now() }); n++; });
+    // Tunnukset -> tilat (tilat on luotu yllä)
+    const tilaIds = (tu) => (tu || []).map((u) => (k.tilat.find((t) => String(t.tunnus || "").toUpperCase().replace(/\s+/g, "") === u) || {}).id).filter(Boolean);
+    valitut.filter((e) => e.t === "katselmus").forEach((e) => {
+      const d = Katselmus.data(k); k.katselmus = d;
+      d[e.laji].push({ id: DB.uid("ks_"), teksti: e.teksti, peruste: e.peruste || "", tunnukset: e.tunnukset, tilaIds: tilaIds(e.tunnukset), vastaus: "", tehty: false });
+      n++;
+    });
+    valitut.filter((e) => e.t === "aiempi").forEach((e) => {
+      (k.aiemmat = k.aiemmat || []).push({ id: DB.uid("ai_"), raportti: e.raportti, pvm: e.pvm, aihe: e.aihe, teksti: e.teksti, tunnukset: e.tunnukset, tilaIds: tilaIds(e.tunnukset), lahde: e.ote || "" });
+      n++;
+    });
     await Model.saveKohde();
     return { n, pohjat };
   }
@@ -269,7 +301,8 @@
       if (t.indexOf(MUOTO) >= 0) { teksti = t; break; }
     }
     if (!teksti) { toast("ZIP-paketista ei löytynyt lähtötietopakettia (paketti.json)", 6000); return false; }
-    const TYYPIT = { pdf: "application/pdf", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp" };
+    const TYYPIT = { pdf: "application/pdf", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp",
+      docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", txt: "text/plain" };
     const mukana = [];
     for (const x of kaikki) {
       const ext = (x.name.split(".").pop() || "").toLowerCase();

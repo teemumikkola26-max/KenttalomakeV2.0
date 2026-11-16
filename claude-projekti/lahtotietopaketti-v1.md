@@ -19,6 +19,8 @@ Tämä kuvaus määrittää paketin, jonka Claude palauttaa ja jonka Kuva + sane
     "rakenteet": [ Rakenne, … ]
   },
   "huomiot": [ Huomio, … ],
+  "aiemmat": [ Aiempi, … ],
+  "katselmus": { "kysymykset": [ Katselmuskohta, … ], "kierros": [ Katselmuskohta, … ], "aineistopyynnot": [ Katselmuskohta, … ] },
   "tarkistukset": [ Tarkistus, … ],
   "puuttuu": [ "teksti", … ]
 }
@@ -108,6 +110,18 @@ Rakennusosan materiaali tai rakenne (leikkauksista, rakennetyypeistä, rakennuss
 `{ "teksti": "Isännöitsijäntodistuksen mukaan vesivahinko A12:n kylpyhuoneessa 2019", "lahde": {…} }`
 
 Kenttätyön kannalta olennaiset asiakirjoissa mainitut asiat: aiemmat vauriot ja tutkimukset, tiedossa olevat haitta-aineet, rajaukset ja tilaajan erityistoiveet. Vain asiakirjoissa sanottua, ei omia arvioita tai suosituksia.
+
+### Aiempi
+
+`{ "raportti": "210292S1", "pvm": "5/2021", "aihe": "Ilmamäärä", "teksti": "Tuloilma 21,8 l/s (suunniteltu 50 l/s).", "tilat": ["133"], "lahde": {…} }`
+
+Aiemman tutkimuksen tulos. `aihe` lyhyesti (Ilmanvaihto, Paine-ero, Lämpötila, Mikrobit ilma, Rakennekosteus…). `teksti` raportin tulos ja raportin oma tulkinta sellaisenaan lukuineen. `tilat` tunnukset valitusta pohjakuvasta; tyhjä, jos tulos koskee koko rakennusta. Sovellus näyttää tulokset tilan havainnoissa ja katselmuksessa.
+
+### Katselmuskohta
+
+`{ "teksti": "Isojen leikkihuone: hajut, pinnat, lattiarajat, ilmanvaihdon päätelaitteet.", "tilat": ["133"], "peruste": "Oireilu 2 hlö; 2022 satunnainen indikaattorimikrobi." }`
+
+Katselmussuunnitelman kohta, kun tarjousta tai tutkimussuunnitelmaa ei ole. `tilat` vain kierroksen kohdissa. `peruste` aina: mihin aineiston tietoon kohta perustuu. Sovellus näyttää katselmuksen työlistana; kysymyksiin kirjataan vastaukset, ja kierroksen tiloista pääsee suoraan kuvaamaan.
 
 ### Tarkistus
 

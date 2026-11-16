@@ -156,7 +156,7 @@
           '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn btn-sm" data-a="rr-oma">Palauta korvautunut versio</button><button class="btn btn-sm" data-a="rr-ok">Pidä nykyinen</button></div></div></div>' : "") +
         '<section class="card"><div class="card-h"><h2><span class="sec-n">1</span>Havainto</h2>' + dictBtnHtml("sanelu") + "</div>" +
         '<div class="card-b"><textarea data-t="sanelu" aria-label="Havainto" placeholder="Mitä näet ja mittaat">' + esc(h.sanelu) + "</textarea>" +
-        '<div class="dict-prev" data-prev="sanelu"></div>' + audio + "</div></section>" +
+        '<div class="dict-prev" data-prev="sanelu"></div>' + audio + (window.Katselmus ? Katselmus.aiemmatTilassaHtml(h.sijainti.tilaId) : "") + "</div></section>" +
 
         '<section class="card"><div class="card-h"><h2><span class="sec-n">2</span>Pakolliset tiedot</h2>' +
           (reqF.length ? '<span class="meta' + (naytaPuutteet && reqOk < reqF.length ? " need-meta" : "") + '">' + reqOk + "/" + reqF.length + "</span>" : "") + "</div>" +
