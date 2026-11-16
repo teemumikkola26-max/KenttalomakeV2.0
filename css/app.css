@@ -400,11 +400,12 @@ input.flag{border:2px solid #c9771d !important;background:#fff4e5}
 /* Tilojen tunnistus: vain epävarmat tarkistetaan, leikkeen kanssa */
 .rvlist2{display:flex;flex-direction:column;gap:8px;max-height:52vh;overflow:auto}
 .rvlist2.hidden{display:none}
-.rvrow2{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;padding:6px;border:1.5px solid var(--line);border-radius:10px;background:#fff}
+.rvrow2{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:6px;border:1.5px solid var(--line);border-radius:10px;background:#fff}
 .rvrow2.on{border-color:var(--ok,#2e7d32);background:#f3faf3}
 .rvrow2.off{opacity:.5;background:#f6f5f2}
-.rv-img{width:132px;height:52px;border-radius:6px;overflow:hidden;background:#eee;border:1px solid var(--line)}
-.rv-crop{width:132px;height:52px;display:block}
+.rv-img{grid-column:1/-1;border-radius:6px;overflow:hidden;background:#eee;border:1px solid var(--line);cursor:zoom-in}
+.rv-img.iso{cursor:zoom-out}
+.rv-crop{width:100%;height:auto;display:block}
 .rv-fields{min-width:0;display:flex;flex-direction:column;gap:3px}
 .rv-inp{display:grid;grid-template-columns:64px 1fr;gap:4px}
 .rv-inp input{min-height:36px;padding:4px 6px;min-width:0;font-size:14px}
@@ -413,7 +414,6 @@ input.flag{border:2px solid #c9771d !important;background:#fff4e5}
 .rv-yn button{width:40px;height:34px;border-radius:8px;border:1px solid var(--line-strong);background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer}
 .rvrow2.on .rv-y{background:var(--ok,#2e7d32);color:#fff;border-color:var(--ok,#2e7d32)}
 .rvrow2.off .rv-x{background:#7a7a7a;color:#fff;border-color:#7a7a7a}
-@media (max-width:380px){.rv-img,.rv-crop{width:100px;height:40px}}
 .pin.room.unconf{border-style:dashed}
 .pin.room.sm{font-size:8.5px;padding:1px 3px;border-width:1px;border-radius:4px}
 /* Pohjapiirroksen zoomaus */

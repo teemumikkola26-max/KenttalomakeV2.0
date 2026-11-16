@@ -85,13 +85,23 @@
       const nimi = String(arvo(e.nimi) || "").trim();
       if (!nimi) return;
       const ker = (k.kerrokset || []).find((x) => norm(x.nimi) === norm(nimi));
-      const tilat = (e.tilat || []).map((t) => ({ tunnus: String(t.tunnus || "").trim().toUpperCase().replace(/\s+/g, ""), nimi: String(t.nimi || "").trim(), asunto: t.asunto || "" }))
+      let hylatyt = 0;
+      const sij = (t) => {                     // sijainti pohjakuvassa: x, y 0–1 näytetyn sivun vasemmasta yläkulmasta
+        const v = t.sijainti || t.pos;
+        if (!v || !e.pohjakuva) return null;
+        const x = Number(v.x), y = Number(v.y);
+        if (!(x >= 0 && x <= 1 && y >= 0 && y <= 1)) { hylatyt++; return null; }
+        return { x, y, varma: v.varmuus !== "arvio" };
+      };
+      const tilat = (e.tilat || []).map((t) => ({ tunnus: String(t.tunnus || "").trim().toUpperCase().replace(/\s+/g, ""), nimi: String(t.nimi || "").trim(), asunto: t.asunto || "", sijainti: sij(t) }))
         .filter((t) => t.tunnus || t.nimi);
+      if (hylatyt) varoitukset.push(nimi + ": " + hylatyt + " tilan sijainti oli virheellinen (pitää olla 0–1) ja ohitettiin.");
       const uudet = tilat.filter((t) => !(ker && k.tilat.some((x) => x.kerrosId === ker.id && ((t.tunnus && norm(x.tunnus) === norm(t.tunnus)) || (!t.tunnus && norm(x.nimi) === norm(t.nimi))))));
       lisa({ t: "kerros", ryhma: "Kerrokset ja tilat", nimi, tilat: uudet, pohjakuva: e.pohjakuva || null,
         otsikko: (ker ? nimi : "Uusi kerros: " + nimi) + (uudet.length ? " · " + uudet.length + " tilaa" : ""),
         ote: uudet.slice(0, 12).map((t) => [t.tunnus, t.nimi].filter(Boolean).join(" ")).join(", ") + (uudet.length > 12 ? " …" : "") +
-          (e.pohjakuva && e.pohjakuva.tiedosto ? " · pohjakuva: " + e.pohjakuva.tiedosto : ""),
+          (e.pohjakuva && e.pohjakuva.tiedosto ? " · pohjakuva: " + e.pohjakuva.tiedosto + (e.pohjakuva.sivu > 1 ? " s. " + e.pohjakuva.sivu : "") : "") +
+          (uudet.some((t) => t.sijainti) ? " · " + uudet.filter((t) => t.sijainti).length + " merkitty pohjakuvaan" : ""),
         valittu: !ker || uudet.length > 0 });
     });
     // Kuntoarvio
@@ -155,11 +165,12 @@
       if (!ker) { ker = { id: DB.uid("e_"), nimi: e.nimi, planId: null }; k.kerrokset.push(ker); }
       e.tilat.forEach((t) => {
         k.tilat.push({ id: DB.uid("t_"), tunnus: t.tunnus, nimi: t.nimi || (window.PlanRooms && t.tunnus ? (PlanRooms.matchAbbr(t.tunnus.replace(/\d+[A-Z]?$/, "")) || {}).nimi || "" : ""),
-          kerrosId: ker.id, pos: null, merkinta: null, asunto: t.asunto || undefined,
-          tunnistus: { lahde: "paketti", raaka: [t.tunnus, t.nimi].join(" "), vahvistettu: true, aika: Date.now() } });
+          kerrosId: ker.id, pos: t.sijainti ? { x: t.sijainti.x, y: t.sijainti.y } : null, merkinta: null, asunto: t.asunto || undefined,
+          tunnistus: { lahde: "paketti", raaka: [t.tunnus, t.nimi].join(" "), vahvistettu: !t.sijainti || t.sijainti.varma, aika: Date.now() } });
       });
       n += 1 + e.tilat.length;
-      if (e.pohjakuva && e.pohjakuva.tiedosto) pohjat.push({ kerrosId: ker.id, tiedosto: e.pohjakuva.tiedosto, sivu: e.pohjakuva.sivu || 1 });
+      if (e.pohjakuva && e.pohjakuva.tiedosto) pohjat.push({ kerrosId: ker.id, tiedosto: e.pohjakuva.tiedosto, sivu: parseInt(e.pohjakuva.sivu, 10) || 1,
+        valmiit: e.tilat.length > 0 && e.tilat.every((t) => t.sijainti) });
     });
     const kaVal = valitut.filter((e) => e.t === "perus" || e.t === "tyo" || e.t === "rak");
     if (kaVal.length) {
@@ -176,9 +187,11 @@
   }
 
   /* ---------- Alkuperäiset tiedostot ---------- */
-  async function liitaTiedostot(j, pohjat) {
+  async function liitaTiedostot(j, pohjat, mukana) {
     const { toast } = UI;
     const nimet = (j.tiedostot || []).map((t) => t.nimi).filter(Boolean);
+    let files = mukana && mukana.length ? mukana : null;
+    if (!files) {
     const ok = await new Promise((res) => {
       UI.sheet("<h3>Liitä alkuperäiset tiedostot</h3>" +
         '<p style="margin:0 0 10px">Valitse samat tiedostot, jotka annoit Claudelle. Ne kulkevat raportointiin, ja ' +
@@ -188,8 +201,9 @@
       (el, close) => { el.querySelector("[data-ok]").addEventListener("click", () => { res(true); close(); }); }, { onClose: () => res(false) });
     });
     if (!ok) return 0;
-    const files = await UI.pickFile("application/pdf,image/*", true);
+    files = await UI.pickFile("application/pdf,image/*", true);
     if (!files.length) return 0;
+    }
     const k = S.kohde;
     KaLahto.siirra(k); k.lahtotiedot = k.lahtotiedot || [];
     const sama = (a, b) => { const x = norm(String(a).replace(/\.[a-z0-9]+$/i, "")), y = norm(String(b).replace(/\.[a-z0-9]+$/i, "")); return x && y && (x === y || x.endsWith(y) || y.endsWith(x)); };
@@ -209,7 +223,8 @@
       const ker = k.kerrokset.find((e) => e.id === p.kerrosId);
       if (!f || !ker || ker.planId) continue;
       toast("Pohjakuva kerrokselle " + ker.nimi + "…", 4000);
-      await Plan.asetaPohja(ker, f);
+      // Claude merkitsi kaikki tilat: tunnistusta ei tarvita. Muuten tunnistus täydentää puuttuvat sijainnit.
+      await Plan.asetaPohja(ker, f, { sivu: p.sivu, eiTunnistusta: p.valmiit });
     }
     return n;
   }
@@ -220,14 +235,14 @@
     const teksti = await new Promise((res) => {
       let tulos = null;
       UI.sheet("<h3>Tuo lähtötietopaketti</h3>" +
-        '<p style="margin:0 0 10px">Valitse Clauden antama paketti (.json) tai liitä sen teksti.</p>' +
+        '<p style="margin:0 0 10px">Valitse Clauden antama paketti (.zip tai .json) tai liitä sen teksti.</p>' +
         '<button class="btn btn-primary btn-block" data-tiedosto>' + UI.icon("upload") + "Valitse pakettitiedosto</button>" +
         '<label class="field" style="margin-top:12px"><span>tai liitä teksti</span><textarea data-teksti rows="5" placeholder="{ &quot;muoto&quot;: &quot;kuva-sanelu-lahtotiedot&quot;, … }"></textarea></label>' +
         '<div class="row-btns"><button class="btn" data-close>Peruuta</button><button class="btn btn-primary" data-ok>Jatka</button></div>',
       (el, close) => {
         el.querySelector("[data-tiedosto]").addEventListener("click", async () => {
-          const f = await UI.pickFile(".json,application/json,text/plain", false);
-          if (f.length) { tulos = await f[0].text(); close(); }
+          const f = await UI.pickFile(".json,.zip,application/json,application/zip,text/plain", false);
+          if (f.length) { close(); tuoTiedosto(f[0], paivita); }
         });
         el.querySelector("[data-ok]").addEventListener("click", () => { tulos = el.querySelector("[data-teksti]").value; close(); });
       }, { onClose: () => res(tulos) });
@@ -235,8 +250,38 @@
     return kasittele(teksti, paivita);
   }
 
-  /* Paketin teksti -> tarkistus -> käyttöönotto -> alkuperäiset tiedostot */
-  async function kasittele(teksti, paivita) {
+  /* Pakettitiedosto: .zip (paketti.json + alkuperäiset tiedostot) tai pelkkä .json */
+  async function tuoTiedosto(f, paivita) {
+    const { toast } = UI;
+    if (!/\.zip$/i.test(f.name) && !/zip/.test(f.type || "")) return kasittele(await f.text(), paivita);
+    toast("Avataan pakettia…", 20000);
+    let zip;
+    try {
+      if (!window.JSZip) await UI.loadScript("lib/jszip.min.js");
+      zip = await JSZip.loadAsync(f);
+    } catch (e) { toast("ZIP-tiedostoa ei voitu avata: " + (e.message || e), 6000); return false; }
+    const kaikki = Object.values(zip.files).filter((x) => !x.dir && !/(^|\/)(__MACOSX|\.)/.test(x.name));
+    const jsonit = kaikki.filter((x) => /\.json$/i.test(x.name));
+    jsonit.sort((a, b) => (/paketti/i.test(b.name) ? 1 : 0) - (/paketti/i.test(a.name) ? 1 : 0));
+    let teksti = null;
+    for (const x of jsonit) {
+      const t = await x.async("string");
+      if (t.indexOf(MUOTO) >= 0) { teksti = t; break; }
+    }
+    if (!teksti) { toast("ZIP-paketista ei löytynyt lähtötietopakettia (paketti.json)", 6000); return false; }
+    const TYYPIT = { pdf: "application/pdf", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp" };
+    const mukana = [];
+    for (const x of kaikki) {
+      const ext = (x.name.split(".").pop() || "").toLowerCase();
+      if (!TYYPIT[ext]) continue;
+      mukana.push(new File([await x.async("blob")], x.name.split("/").pop(), { type: TYYPIT[ext] }));
+    }
+    if (UI.hideToast) UI.hideToast();
+    return kasittele(teksti, paivita, mukana);
+  }
+
+  /* Paketti -> tarkistus -> käyttöönotto -> alkuperäiset tiedostot */
+  async function kasittele(teksti, paivita, mukana) {
     const { toast } = UI;
     if (!teksti || !teksti.trim()) return false;
     let j;
@@ -253,7 +298,7 @@
     S.kohde.lahtoTila = Object.assign({}, S.kohde.lahtoTila, { claude: Date.now() });
     await Model.saveKohde();
     toast(n + " tietoa otettu käyttöön", 3000);
-    const m = await liitaTiedostot(j, pohjat);
+    const m = await liitaTiedostot(j, pohjat, mukana);
     if (m) toast(m + " tiedostoa liitetty lähtötietoihin", 3000);
     paivita && paivita();
     return true;
@@ -275,5 +320,5 @@
   App.actions = App.actions || {};
   App.actions.paketti = () => tuo(() => App.render());
 
-  window.Paketti = { MUOTO, VERSIO, jasenna, ehdotukset, kayta, tuo, kasittele, kohdeKortti };
+  window.Paketti = { MUOTO, VERSIO, jasenna, ehdotukset, kayta, tuo, tuoTiedosto, kasittele, kohdeKortti };
 })();

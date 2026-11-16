@@ -27,11 +27,72 @@ Yksi kohde per keskustelu. Jos aineistossa näyttää olevan useampi rakennus ta
    - huoneistojen määrä eri asiakirjoissa
    - rakennusvuosi eri asiakirjoissa
    - tarjouksen määrät ja menetelmät
-4. Palauta paketti tiedostona `lahtotiedot-<kohde>.json`. Jos tiedoston luonti ei onnistu, anna paketti yhtenä ```json-koodilohkona ilman muuta tekstiä lohkon sisällä.
-5. Kirjoita paketin jälkeen lyhyesti suomeksi:
+4. Merkitse tilojen sijainnit pohjakuviin (ks. *Tilojen sijainnit* alla).
+5. Palauta **ZIP-paketti** `lahtotiedot-<kohde>.zip` (ks. *ZIP-paketti* alla). Jos tiedostojen luonti ei onnistu, anna paketti yhtenä ```json-koodilohkona ilman muuta tekstiä lohkon sisällä; tutkija liittää silloin tiedostot sovelluksessa itse.
+6. Kirjoita paketin jälkeen lyhyesti suomeksi:
    - mitkä tiedot olivat epävarmoja ja miksi
    - mitä aineistosta ei löytynyt
    - mitä tutkijan kannattaa tarkistaa alkuperäisestä
+
+## ZIP-paketti
+
+Tee koodin avulla yksi ZIP-tiedosto, jonka tutkija tuo sovellukseen sellaisenaan:
+
+```
+lahtotiedot-<kohde>.zip
+├── paketti.json          ← lähtötietopaketti
+└── <alkuperäiset tiedostot täsmälleen tutkijan antamilla nimillä>
+```
+
+- Mukaan kaikki tutkijan antamat PDF- ja kuvatiedostot muuttamattomina (ei uudelleentallennusta, ei pakkausta, ei nimen muutosta). Sovellus asettaa `pohjakuva`-kohdan tiedostot kerrosten pohjakuviksi ja tallentaa kaikki lähtötiedoiksi raportointia varten.
+- `paketti.json` UTF-8:na, sama sisältö kuin ilman ZIPiä.
+- Ei muita tiedostoja (ei esikatselukuvia, ei muistiinpanoja).
+
+## Tilojen sijainnit
+
+Jokaiselle tilalle, jolla on kerroksen `pohjakuva`, annetaan `sijainti` = huonemerkinnän keskipiste pohjakuvan sivulla: `{ "x": 0.412, "y": 0.268 }`. Arvot 0–1 sivun vasemmasta yläkulmasta, sivu **näytetyssä asennossa** (PDF:n kierto huomioituna), kolme desimaalia. Sovellus piirtää tilat näihin kohtiin, eikä tekstintunnistusta tarvita.
+
+**PDF, jossa on tekstikerros** (CAD-tuloste): lue merkintöjen koordinaatit tekstikerroksesta, älä arvioi kuvasta.
+
+```python
+import pdfplumber
+# pdfplumber 0.11+ antaa koordinaatit valmiiksi näytetyssä asennossa; vanhemmissa kierto lasketaan itse
+UUSI = tuple(int(v) for v in pdfplumber.__version__.split(".")[:2]) >= (0, 11)
+
+def merkinnat(polku, sivu):
+    with pdfplumber.open(polku) as pdf:
+        p = pdf.pages[sivu - 1]
+        W, H, kierto = p.width, p.height, (p.rotation or 0) % 360
+        out = []
+        for w in p.extract_words():
+            x, y = (w["x0"] + w["x1"]) / 2 / W, (w["top"] + w["bottom"]) / 2 / H
+            if not UUSI:
+                if kierto == 90:    x, y = 1 - y, x
+                elif kierto == 180: x, y = 1 - x, 1 - y
+                elif kierto == 270: x, y = y, 1 - x
+            out.append((w["text"], round(x, 3), round(y, 3)))
+        return out
+
+def tarkistuskuva(polku, sivu, tilat, ulos):
+    """Piirtää sijainnit sivun päälle samassa asennossa kuin sovellus näyttää sen."""
+    import pypdfium2 as pdfium
+    from PIL import ImageDraw
+    kuva = pdfium.PdfDocument(polku)[sivu - 1].render(scale=2).to_pil().convert("RGB")
+    d = ImageDraw.Draw(kuva)
+    for t in tilat:
+        x, y = t["sijainti"]["x"] * kuva.width, t["sijainti"]["y"] * kuva.height
+        d.ellipse((x - 8, y - 8, x + 8, y + 8), outline="red", width=3)
+        d.text((x + 10, y - 10), t["tunnus"], fill="red")
+    kuva.save(ulos)
+```
+
+Etsi listasta kunkin tilan tunnus (esim. "MH2", "KH", "102"). Jos sama tunnus on sivulla useasti (esim. mitoituksessa tai nimiössä), valitse se, joka on huoneen sisällä lähellä nimeä tai pinta-alaa. Tällainen sijainti on varma.
+
+**Skannattu piirustus tai kuva** (ei tekstikerrosta): renderöi sivu kuvaksi, piirrä päälle ruudukko (0,05 välein, akselit numeroituna) ja arvioi merkinnän keskipiste. Merkitse tällöin `"varmuus": "arvio"` sijaintiin: `{ "x": 0.41, "y": 0.27, "varmuus": "arvio" }`. Sovellus näyttää arvioidut tilat katkoviivalla, ja tutkija vahvistaa ne.
+
+**Tarkistus ennen palautusta:** piirrä kaikki sijainnit tunnuksineen sivun päälle (`tarkistuskuva`) ja katso kuva. Jokaisen merkin pitää osua oman huoneensa merkinnän päälle. Korjaa tai jätä sijainti pois, jos merkki osuu väärään huoneeseen. Väärä sijainti on huonompi kuin puuttuva: puuttuvan sovellus etsii itse tekstintunnistuksella.
+
+Pohjakuvaksi valitaan arkkitehdin pohjapiirustus (ei LVI- tai sähköpohja), yksi sivu per kerros. Kerro `pohjakuva.sivu`, jos tiedostossa on useita sivuja.
 
 ## Säännöt
 

@@ -30,6 +30,8 @@ Sovellus on osa RTA-opinnäytetyön kehitystyötä ja erillinen PBM Kenttälomak
 
 Tavoite: havainnon kirjaaminen vie saman ajan kuin pelkkä kuvaaminen. Tutkija kuvaa ja puhuu, sovellus täyttää loput.
 
+**Tila ei siirry uudelle menetelmälle.** Uusi havainto saa edellisen havainnon tilan vain, kun menetelmä on sama (esim. RH-pisteiden sarja Seuraava-painikkeella). Kun menetelmä vaihtuu, tila valitaan tai sanellaan uudelleen; edellinen tila näkyy pikavalinnassa ensimmäisenä vaihtoehtona.
+
 **Kolme vähimmäistietoa.** Havainnolle tarvitaan kuva, havainto (kirjoitettu tai saneltu) ja tila. Kameranäkymän alareunassa ne näkyvät kolmena merkkinä (Kuva, Havainto, Tila), jotka muuttuvat vihreiksi, kun tieto on saatu. Menetelmä ja tulos ovat yhdellä tiiviillä rivillä tekstikentän alla: ne täyttyvät sanelusta tai oletuksesta (katkoviivareuna = automaattinen), ja niitä voi vaihtaa yhdellä napautuksella. Menetelmän omat kentät (esim. RH-mittaukset) ovat Mittaukset-painikkeen takana.
 
 **Varma kirjaus.**
@@ -112,7 +114,7 @@ Asunnon tunnuksen voi vaihtaa (As3 → C12) minkä tahansa sen tilan valikosta, 
 Kymmenien tai satojen tilojen tarkistaminen yksitellen ei ole järkevää, joten tunnistus jakaa tilat kahteen ryhmään:
 
 - **Varmat lisätään suoraan.** Varma on esimerkiksi PDF:n tekstistä luettu nimi, nimi pinta-alan tai tilanumeron vieressä, selvästi luettu tunnettu lyhenne tai tila, joka on samassa kohdassa vähintään kolmessa samanlaisessa asunnossa. Ehdot ovat tarkoituksella tiukat: on parempi kysyä kuin lisätä väärin.
-- **Epävarmat näytetään tarkistettavaksi.** Kunkin vieressä on leike pohjakuvan siitä kohdasta, josta nimi luettiin (kierretyssä kuvassa oikein päin), ja syy, miksi tila on epävarma. Päätös on yksi napautus: ✓ tila tai ✕ ei tila. Nimen voi korjata samalla.
+- **Epävarmat näytetään tarkistettavaksi.** Kunkin yläpuolella on rivin levyinen leike pohjakuvasta, jossa luettu kohta on kehystetty (kierretyssä kuvassa oikein päin); napautus näyttää laajemman alueen ja tilan rajat, ja syy, miksi tila on epävarma. Päätös on yksi napautus: ✓ tila tai ✕ ei tila. Nimen voi korjata samalla.
 
 Jos epävarmoja ei ole, tilat lisätään ilman tarkistusnäkymää. Suoraan lisätyt tilat voi halutessaan avata tarkistettavaksi (Näytä myös suoraan lisättävät).
 
@@ -283,6 +285,8 @@ Suositeltu tapa saada lähtötiedot sovellukseen. Tutkija antaa kohteen aineisto
 1. Sovellus tarkistaa muodon, tunnukset ja arvot ja näyttää yhden kootun tarkistuksen lähteineen (epävarmat ja jo kirjattua korvaavat jäävät valitsematta).
 2. Hyväksytyt tiedot: kohteen nimi ja osoite, suunnitelman kohdat, kerrokset ja tilat, kuntoarvion perustiedot, korjaushistoria ja rakenteet, kentällä huomioitavat asiat.
 3. Tutkija liittää alkuperäiset tiedostot: ne tallentuvat lähtötiedoiksi (ZIP: `lahtotiedot/`), ja paketissa pohjakuviksi merkityt asetetaan kerroksille, jolloin tilojen tunnistus antaa paketin tiloille sijainnit.
+
+**ZIP-paketti (suositus):** Claude palauttaa `lahtotiedot-<kohde>.zip`, jossa on `paketti.json` ja alkuperäiset tiedostot. Sovellus lukee molemmat kerralla: tiedostoja ei tarvitse valita erikseen, `pohjakuva`-kohdan tiedostot (oikea sivu) asetetaan kerroksille, ja Clauden antamat tilojen sijainnit (`sijainti: {x, y}`, 0–1 näytetyn sivun vasemmasta yläkulmasta) piirretään suoraan pohjakuvaan. Tekstikerroksesta luetut sijainnit ovat varmoja; kuvasta arvioidut (`varmuus: "arvio"`) näkyvät katkoviivalla vahvistamattomina. Jos kaikilla kerroksen tiloilla on sijainti, tekstintunnistusta ei ajeta; muuten tunnistus täydentää puuttuvat eikä siirrä Clauden merkitsemiä. Pelkkä .json toimii edelleen, jolloin tiedostot liitetään erikseen.
 
 Projektin ohje ja paketin kuvaus ovat kansiossa `claude-projekti/` (OHJE.md, lahtotietopaketti-v1.md, esimerkki-paketti.json). Puhelimessa luku (`js/kalahto.js`) jää varavaihtoehdoksi ilman verkkoa.
 

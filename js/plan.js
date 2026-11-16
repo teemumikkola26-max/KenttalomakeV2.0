@@ -14,13 +14,14 @@
   let placingRoom = null; // tilan id, jota sijoitetaan pohjaan
 
   /* ---------- Pohjakuvan lisäys (kuva tai PDF) ---------- */
-  async function pdfToBlob(file) {
+  async function pdfToBlob(file, sivu) {
     await UI.loadScript(PDFJS);
     const lib = window.pdfjsLib;
     lib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
     const pdf = await lib.getDocument({ data: await file.arrayBuffer(), isEvalSupported: false }).promise;
     let pageNo = 1;
-    if (pdf.numPages > 1) {
+    if (sivu && sivu >= 1 && sivu <= pdf.numPages) pageNo = sivu;          // sivu tiedossa (esim. Clauden paketista)
+    else if (pdf.numPages > 1) {
       pageNo = await new Promise((resolve) => {
         const n = Math.min(pdf.numPages, 30);
         let btns = "";
@@ -59,11 +60,13 @@
   }
   /* Pohjakuva tiedostosta (myös lähtötietopaketin tuonnista). Tilojen tunnistus ajetaan perään:
      paketista tulleet tilat saavat sijaintinsa, kun tunnistettu nimi osuu olemassa olevaan tilaan. */
-  async function asetaPohja(kerros, f, eiTunnistusta) {
+  async function asetaPohja(kerros, f, opt) {
+    const o = typeof opt === "object" && opt ? opt : { eiTunnistusta: !!opt };
+    const eiTunnistusta = !!o.eiTunnistusta;
     toast("Käsitellään pohjakuvaa…", 4000);
     try {
       let blob, tokens = [];
-      if (f.type === "application/pdf" || /\.pdf$/i.test(f.name)) ({ blob, tokens } = await pdfToBlob(f));
+      if (f.type === "application/pdf" || /\.pdf$/i.test(f.name)) ({ blob, tokens } = await pdfToBlob(f, o.sivu));
       else blob = await Camera.shrink(f, 4096);   // pohjakuvassa pienet tekstit: tarkkuutta enemmän kuin havaintokuvissa
       const size = await imageSize(blob);
       const old = kerros.planId;
@@ -116,18 +119,32 @@
      Suoraan lisätyt tilat ovat "tunnistettuja" siihen asti, kunnes ne vahvistuvat käytössä:
      kun tila valitaan havainnon sijainniksi tai sitä muokataan, tutkija on nähnyt sen nimen. */
   async function loadImg(url) { const im = new Image(); im.src = url; await im.decode(); return im; }
-  function cropCanvas(img, r, kierto, W, H) {
-    const outW = 132, outH = 52;
-    const th = Math.max(6, (r.h || 0.01) * (kierto % 180 ? img.naturalWidth : img.naturalHeight));
-    const cw = th * 7, ch = cw * outH / outW;
-    const sw = kierto % 180 ? ch : cw, sh = kierto % 180 ? cw : ch;
-    const cx = r.x * img.naturalWidth, cy = r.y * img.naturalHeight;
-    const c = document.createElement("canvas"); c.width = outW * 2; c.height = outH * 2;
-    c.className = "rv-crop";
+  /* Leike pohjakuvasta: rivin levyinen, väljä ympäristö ja luettu kohta kehystettynä.
+     iso = napautettu: laajempi alue ja korkeampi kuva, jotta tilan rajat ja naapurit näkyvät. */
+  function cropCanvas(img, r, kierto, iso) {
+    const rot = kierto % 180 !== 0;
+    const IW = img.naturalWidth, IH = img.naturalHeight;
+    const th = Math.max(6, (r.h || 0.01) * (rot ? IW : IH));                // tekstin korkeus kuvapikseleinä
+    const tok = r.tok || {};
+    const tw = Math.max(th * 2, tok.w ? tok.w * (rot ? IH : IW) : th * 0.62 * Math.max(2, String(r.raaka || r.nimi || "").length));
+    const outW = 640, outH = iso ? 480 : 200;
+    let cw = Math.max(tw * 2.4, th * 16) * (iso ? 2.6 : 1);                  // näkyvä leveys (tekstin suunnassa)
+    cw = Math.min(cw, rot ? IH : IW);
+    const ch = cw * outH / outW;
+    const sw = rot ? ch : cw, sh = rot ? cw : ch;
+    const cx = r.x * IW, cy = r.y * IH;
+    const c = document.createElement("canvas"); c.width = outW; c.height = outH;
+    c.className = "rv-crop" + (iso ? " iso" : "");
     const g = c.getContext("2d");
     g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height);
-    g.translate(c.width / 2, c.height / 2); g.rotate((kierto || 0) * Math.PI / 180); g.scale(c.width / cw, c.width / cw);
+    g.save();
+    g.translate(c.width / 2, c.height / 2); g.rotate((kierto || 0) * Math.PI / 180); g.scale(outW / cw, outW / cw);
     g.drawImage(img, cx - sw / 2, cy - sh / 2, sw, sh, -sw / 2, -sh / 2, sw, sh);
+    g.restore();
+    // Luettu kohta: kehys keskellä (piirretään kierron jälkeen, joten se on aina vaakasuunnassa)
+    const k = outW / cw, bw = (tw + th * 0.8) * k, bh = th * 1.7 * k;
+    g.strokeStyle = "#c8102e"; g.lineWidth = 3;
+    g.strokeRect(c.width / 2 - bw / 2, c.height / 2 - bh / 2, bw, bh);
     return c;
   }
 
@@ -141,7 +158,8 @@
       const pos = { x: r.x, y: r.y };
       const old = r.olemassa && existing.includes(r.olemassa) ? r.olemassa : null;
       if (old) {
-        old.pos = pos; if (!old.tunnus && tunnus) old.tunnus = tunnus; if (nimi && !(old.tunnistus && old.tunnistus.vahvistettu && old.nimi)) old.nimi = nimi;
+        if (!(old.pos && old.tunnistus && old.tunnistus.lahde === "paketti")) old.pos = pos;   // Clauden merkitsemä sijainti säilyy
+        if (!old.tunnus && tunnus) old.tunnus = tunnus; if (nimi && !(old.tunnistus && old.tunnistus.vahvistettu && old.nimi)) old.nimi = nimi;
         if (!old.tunnistus) old.tunnistus = Object.assign(tunnistus, { vahvistettu: true });   // tutkijan itse luoma tila
         nUpd++;
       } else {
@@ -185,7 +203,7 @@
     try { img = await loadImg(Model.url(kerros.planId)); } catch (e) { img = null; }
     const rowHtml = (r, on) =>
       '<div class="rvrow2' + (on === true ? " on" : on === false ? " off" : "") + '" data-ri="' + r.i + '">' +
-      '<div class="rv-img" data-crop="' + r.i + '"></div>' +
+      '<div class="rv-img" data-crop="' + r.i + '" role="button" aria-label="Suurenna kohta pohjakuvassa"></div>' +
       '<div class="rv-fields"><div class="rv-inp"><input type="text" data-t value="' + esc(r.tunnus) + '" placeholder="Tunnus" aria-label="Tunnus" class="rv-tun">' +
       '<input type="text" data-n value="' + esc(r.nimi) + '" aria-label="Nimi"></div>' +
       '<div class="rv-info">' + esc(r.olemassa ? "päivittää: " + Model.tilaNimi(r.olemassa) : r.syy || (r.paatelty ? "päätelty muista samanlaisista asunnoista" : r.raaka ? "luettu: " + r.raaka : "")) + "</div></div>" +
@@ -196,7 +214,7 @@
 
     sheet(
       "<h3>" + rows.length + " tilaa tunnistettu · " + esc(kerros.nimi) + "</h3>" +
-      '<p><b>' + auto.length + "</b> lisätään suoraan. Tarkista <b>" + check.length + "</b> epävarmaa: onko kuvassa tilan nimi, ja onko se luettu oikein?</p>" +
+      '<p><b>' + auto.length + "</b> lisätään suoraan. Tarkista <b>" + check.length + "</b> epävarmaa: onko kehystetty kohta tilan nimi, ja onko se luettu oikein? Napauta kuvaa nähdäksesi laajemmin.</p>" +
       (res.kierto ? '<p class="hint">Piirustus on kuvassa kiertyneenä (' + res.kierto + "°). Leikkeet näytetään oikein päin.</p>" : "") +
       '<div class="rvlist2" data-check>' + check.map((r) => rowHtml(r, state[r.i])).join("") + "</div>" +
       '<button class="link" data-showall style="margin:10px 0 2px">Näytä myös suoraan lisättävät (' + auto.length + ")</button>" +
@@ -206,7 +224,7 @@
         const okBtn = el.querySelector("[data-ok]");
         const paintCrops = (root) => {
           if (!img) return;
-          root.querySelectorAll("[data-crop]:empty").forEach((d) => d.appendChild(cropCanvas(img, rows[+d.dataset.crop], res.kierto || 0)));
+          root.querySelectorAll("[data-crop]:empty").forEach((d) => d.appendChild(cropCanvas(img, rows[+d.dataset.crop], res.kierto || 0, false)));
         };
         const count = () => {
           const n = rows.filter((r) => state[r.i] === true).length, open = check.filter((r) => state[r.i] === undefined).length;
@@ -214,6 +232,13 @@
           okBtn.title = open ? open + " epävarmaa ratkaisematta: niitä ei lisätä" : "";
         };
         el.addEventListener("click", (e) => {
+          const cr = e.target.closest("[data-crop]");
+          if (cr && img) {                       // napautus: laajempi näkymä ja takaisin
+            const iso = !cr.classList.contains("iso");
+            cr.classList.toggle("iso", iso);
+            cr.replaceChildren(cropCanvas(img, rows[+cr.dataset.crop], res.kierto || 0, iso));
+            return;
+          }
           const row = e.target.closest("[data-ri]");
           if (!row) return;
           const i = +row.dataset.ri;

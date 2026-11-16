@@ -26,6 +26,7 @@
       });
     }
 
+    const periytyva = new WeakMap();   // havainto -> edellisen havainnon tila ja menetelmä
     function newObservation(preset) {
       const n = Model.newHavainto(k, preset || {});
       if (preset && preset.tilaId) {
@@ -42,6 +43,15 @@
       if (preset && preset.eiMenetelmaa && !Auto.paalla("menetelma")) n.menetelma = null;
       if (!n.menetelma && Auto.paalla("menetelma") && M.MENETELMAT.some((m) => m.id === "aisti" && !m.piilotettu)) n.menetelma = "aisti";
       if (n.menetelma) applyMemory(n);
+      // Tila ei siirry uudelle menetelmälle: edellisen havainnon tila säilyy vain, kun menetelmä on sama
+      // (esim. RH-pisteiden sarja Seuraava-painikkeella). Jos menetelmä valitaan vasta pikavalinnassa,
+      // tila palautetaan, kun valitaan sama menetelmä kuin edellä.
+      if (n.sijainti.tilaId && !(preset && preset.tilaId)) {
+        const edM = (k.viimeisin || {}).menetelma || null;
+        const peri = { tilaId: n.sijainti.tilaId, rakenneosa: n.sijainti.rakenneosa, menetelma: edM };
+        if (!n.menetelma || n.menetelma !== edM) { n.sijainti.tilaId = null; n.sijainti.rakenneosa = null; n.sijainti.piste = null; }
+        if (edM) periytyva.set(n, peri);
+      }
       Auto.markCarried(n);          // edellisestä tuotu konteksti saa vaihtua sanelun mukaan
       if (preset && preset.kaCarry && n.kaOsa) n.auto.kaOsa = true;     // kuntoarvion osa jatkuu, sanelu voi vaihtaa
       Auto.autoKohta(n); Auto.autoTunnus(n);
@@ -379,6 +389,17 @@
       if (vahvista && S.kohde) S.kohde.viimeisin = Object.assign({}, S.kohde.viimeisin || {}, { menetelma: id });
       h.menetelma = id;
       h.vahvistettu = false;
+      const peri = periytyva.get(h);
+      if (peri) {
+        if (id === peri.menetelma && !h.sijainti.tilaId) {            // sama menetelmä kuin edellä: tila jatkuu
+          h.sijainti.tilaId = peri.tilaId; h.sijainti.rakenneosa = peri.rakenneosa;
+          h.auto = Object.assign({}, h.auto, { tila: true }); if (peri.rakenneosa) h.auto.rakenneosa = true;
+        } else if (id !== peri.menetelma && h.sijainti.tilaId === peri.tilaId && h.auto && h.auto.tila === true) {   // vaihtui: periytynyt tila pois
+          h.sijainti.tilaId = null; h.sijainti.rakenneosa = null; h.sijainti.piste = null;
+          delete h.auto.tila; delete h.auto.rakenneosa;
+        }
+        if (typeof paintLoc === "function") paintLoc();
+      }
       applyMemory(h);
       const cur = Model.kohta(h.suunnitelmaId);
       if (cur && cur.menetelma !== id) { h.suunnitelmaId = null; h.auto = Object.assign({}, h.auto, { kohta: true }); }

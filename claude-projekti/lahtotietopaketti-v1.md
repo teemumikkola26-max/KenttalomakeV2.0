@@ -1,6 +1,6 @@
 # Lähtötietopaketti, versio 1
 
-Tämä kuvaus määrittää paketin, jonka Claude palauttaa ja jonka Kuva + sanelu -sovellus tuo kohteelle. Paketti on yksi JSON-objekti. Kaikki kentät ovat valinnaisia paitsi `muoto` ja `versio`. Kenttää, josta aineistossa ei ole tietoa, ei kirjoiteta.
+Tämä kuvaus määrittää paketin, jonka Claude palauttaa ja jonka Kuva + sanelu -sovellus tuo kohteelle. Paketti on yksi JSON-objekti. Ensisijaisesti se toimitetaan ZIP-tiedostona `lahtotiedot-<kohde>.zip`, jossa on `paketti.json` ja alkuperäiset tiedostot (sovellus lukee molemmat; pelkkä JSON toimii myös). Kaikki kentät ovat valinnaisia paitsi `muoto` ja `versio`. Kenttää, josta aineistossa ei ole tietoa, ei kirjoiteta.
 
 ## Rakenne
 
@@ -75,12 +75,13 @@ Joko pelkkä arvo tai objekti: `{ "arvo": "1978", "lahde": {…}, "varmuus": "va
 ```
 { "nimi": "1. krs",
   "pohjakuva": { "tiedosto": "ARK_02_Rantatie_Pohja.pdf", "sivu": 1 },
-  "tilat": [ { "tunnus": "OH1", "nimi": "Olohuone", "asunto": "A1" }, … ] }
+  "tilat": [ { "tunnus": "OH1", "nimi": "Olohuone", "asunto": "A1", "sijainti": { "x": 0.412, "y": 0.268 } }, … ] }
 ```
 
 - Kerroksen nimi lyhyesti: "Kellari", "1. krs", "2. krs", "Ullakko". Yksi kerros per pohjapiirustus.
 - `pohjakuva`: tiedosto ja sivu, jolla kerroksen pohja on. Sovellus asettaa sen kerroksen pohjakuvaksi ja merkitsee tilat siihen.
 - `tilat`: pohjapiirustuksen huonemerkinnät. `tunnus` piirustuksen merkintä sellaisenaan (esim. "MH2", "KH", "102"), `nimi` tilan nimi suomeksi. Jos merkintä on pelkkä lyhenne (MH), nimi lyhenteen mukaan alla olevasta taulukosta. `asunto` vain, jos piirustuksessa on asuntotunnus (A1, B12).
+- `sijainti`: huonemerkinnän keskipiste pohjakuvan sivulla, `x` ja `y` 0–1 vasemmasta yläkulmasta, sivu näytetyssä asennossa (kierto huomioituna). Tekstikerroksesta luettu sijainti on varma; kuvasta arvioitu merkitään `"varmuus": "arvio"`. Jätä pois, jos merkintää ei löydy varmasti. Vain kerroksille, joilla on `pohjakuva`. Sovellus tunnistaa puuttuvat sijainnit itse.
 - Toistuvien huoneistotyyppien (esim. "3H+K+S", 6 kpl) kaikkia tiloja ei listata erikseen ilman asuntotunnuksia: listaa tilat vain, jos ne voidaan yksilöidä.
 
 ### Kuntoarvion perustiedot

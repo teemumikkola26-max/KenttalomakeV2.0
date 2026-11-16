@@ -79,10 +79,10 @@
       '<section class="card"><div class="card-h"><h2>1 · Tee paketti Claudessa</h2></div><div class="card-b"><ol class="start-steps">' +
         "<li>Avaa Claudessa projekti <b>Lähtötiedot</b> ja aloita uusi keskustelu.</li>" +
         "<li>Lisää kaikki kohteen asiakirjat: tarjous, piirustukset, isännöitsijäntodistus …</li>" +
-        "<li>Claude antaa tiedoston <i>lahtotiedot-….json</i> tai tekstin.</li></ol></div></section>" +
+        "<li>Claude antaa ZIP-paketin <i>lahtotiedot-….zip</i> (paketti ja tiedostot) tai pelkän .json-tiedoston.</li></ol></div></section>" +
       '<section class="card"><div class="card-h"><h2>2 · Tuo paketti</h2></div><div class="card-b">' +
         '<div class="seg lt-tabs" role="tablist"><button role="tab" data-tab="tiedosto" aria-selected="true">Tiedosto</button><button role="tab" data-tab="teksti" aria-selected="false">Liitä teksti</button></div>' +
-        '<div data-pane="tiedosto"><button class="btn btn-block lt-drop" data-tiedosto>' + icon("upload") + "Valitse .json-tiedosto</button></div>" +
+        '<div data-pane="tiedosto"><button class="btn btn-block lt-drop" data-tiedosto>' + icon("upload") + "Valitse paketti (.zip tai .json)</button></div>" +
         '<div data-pane="teksti" class="hidden"><label class="field"><span>Paketin teksti</span><textarea data-teksti rows="6" placeholder="Kopioi Clauden vastaus kokonaan ja liitä tähän"></textarea></label>' +
         '<button class="btn btn-primary btn-block" data-jatka>Jatka</button></div>' +
       "</div></section>" +
@@ -99,8 +99,8 @@
         return;
       }
       if (e.target.closest("[data-tiedosto]")) {
-        const f = await UI.pickFile(".json,application/json,text/plain", false);
-        if (f.length && await Paketti.kasittele(await f[0].text())) valmis();
+        const f = await UI.pickFile(".json,.zip,application/json,application/zip,text/plain", false);
+        if (f.length && await Paketti.tuoTiedosto(f[0])) valmis();
         return;
       }
       if (e.target.closest("[data-jatka]")) {
