@@ -56,6 +56,7 @@ Joko pelkkä arvo tai objekti: `{ "arvo": "1978", "lahde": {…}, "varmuus": "va
 - `maara` kokonaislukuna, jos tarjouksessa on määrä (kpl, pistettä, näytettä). Muuten jätetään pois.
 - `kuvaus`: tarkennus tarjouksen sanoin (rakenne, tila, näytetyyppi), lyhyesti.
 - Yksi kohta per tarjouksen tutkimusrivi. Ei yleisiä työvaiheita (raportointi, aloituspalaveri, matkat).
+- **Rakenneavaus ja siitä otettavat näytteet ovat yksi kohta.** Jos tarjouksessa näytteet otetaan rakenneavauksista (esim. "rakenneavaukset 4 kpl, materiaalinäyte jokaisesta avauksesta"), tee yksi `avaus`-kohta: `{ "menetelma": "avaus", "maara": 4, "naytteet": 4, "kuvaus": "alapohja; materiaalinäyte (mikrobi) avauksista" }`. Näytetyypit kuvaukseen. `naytteet` = näytteiden kokonaismäärä avauksista (1 per avaus → sama kuin `maara`). Erillinen `nayte`-kohta vain näytteille, joita ei oteta rakenneavauksista (esim. ilmanäytteet, pintanäytteet).
 
 | Tunnus | Menetelmä | Käytä, kun tarjouksessa on |
 |---|---|---|
