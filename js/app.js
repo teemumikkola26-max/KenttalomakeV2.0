@@ -186,6 +186,8 @@
     Model.resetUrls();
     S.kohde = k;
     S.havainnot = (await DB.byKohde("havainnot", id)).sort((a, b) => (a.created || 0) - (b.created || 0));
+    // Vanhat näytetyyppien nimet ja merkkiainekokeen tulos uusiin (versio 41)
+    for (const h of S.havainnot) if (M.muunnaVanha(h)) await DB.put("havainnot", h);
     if (k.pilvi) { k.avattu = Date.now(); DB.put("kohteet", k); }      // vain laitteella: siivous vanhoista kohteista
     return true;
   }
@@ -356,6 +358,7 @@
     }) +
       '<main class="view">' + (window.CloudUI ? CloudUI.syncBarHtml(k) : "") + KaLahto.tilaHtml() +
       seur +
+      (!S.havainnot.length && window.Kalusto ? Kalusto.riviHtml() : "") +
       (k.suunnitelma.length ? '<section class="card"><div class="card-h"><h2>Tutkimussuunnitelma</h2><span class="meta">' + pr.done + " / " + pr.all + ' valmis</span><a class="link" href="#/k/' + k.id + '/suunnitelma">Muokkaa</a></div>' + plan + "</section>" : "") +
       Katselmus.korttiHtml() +
       (hu.length ? (hu.length <= 2 ? '<div class="alert info">' + icon("alert") + "<div><b>Huomioitavaa:</b> " + hu.map((h) => esc(h.teksti)).join("<br>") + "</div></div>"
@@ -366,6 +369,7 @@
         '<div class="card-b"><div class="recent">' + rec + "</div></div></section>" : "") +
       '<details class="card vocab"><summary class="card-h"><h2>Lisää</h2><span class="meta">' + esc(lisaYht) + "</span></summary><div class=\"card-b\" style=\"padding-top:0\">" +
         lisaRivi("#/k/" + k.id + "/lahtotiedot", "download", "Lähtötiedot", docs ? docs + " tiedostoa" : "Clauden paketti, tarjous, pohjakuvat, asiakirjat") +
+        (S.havainnot.length && k.suunnitelma.length ? lisaRivi("#/k/" + k.id + "/kalusto", "check", "Kalusto mukaan", (() => { const e = Kalusto.laske(); return e.n + " / " + e.all + " pakattu"; })()) : "") +
         lisaRivi("#/k/" + k.id + "/yleiskuvat", "image", "Yleiskuvat", ykN ? ykN + " kuvaa" : "Julkisivut ja tilat ilman havaintoa") +
         (seurPlan ? "" : lisaRivi("#/k/" + k.id + "/seuranta", "pin", "Olosuhdeseuranta", seurN ? seurN + " mittalaitetta" : "Mittalaitteiden sijainnit")) +
         (kaPlan ? "" : lisaRivi("#/k/" + k.id + "/kuntoarvio", "list", "Kuntoarvio", "Rakennusosat, kuntoluokat ja käyttöiät")) +
@@ -649,6 +653,7 @@
       else if (sub === "seuranta") await Seuranta.view(parts[3] || null);
       else if (sub === "kuntoarvio") await Kuntoarvio.view(parts[3] || null);
       else if (sub === "yleiskuvat") await Yleiskuvat.view();
+      else if (sub === "kalusto") await Kalusto.view();
       else if (sub === "lahtotiedot") await Lahtotiedot.view(parts[3] || null, q);
       else if (sub === "katselmus") await Katselmus.view();
       else await viewKohde();

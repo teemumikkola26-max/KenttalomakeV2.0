@@ -285,7 +285,7 @@
           const vis = () => {
             const t = $('[data-f="t"]').value;
             $('[data-show="u"]').classList.toggle("hidden", !(t === "num" || t === "text"));
-            $('[data-show="o"]').classList.toggle("hidden", t !== "select");
+            $('[data-show="o"]').classList.toggle("hidden", t !== "select" && t !== "multi");
             $('[data-show="mittaus"]').classList.toggle("hidden", t !== "num");
             $('[data-show="cols"]').classList.toggle("hidden", t !== "table");
             $('[data-c="muista"]').closest("label").classList.toggle("hidden", t === "table");
@@ -299,7 +299,7 @@
             if (!l) { toast("Anna kentälle otsikko"); return; }
             const t = $('[data-f="t"]').value;
             const o = $('[data-f="o"]').value.split("\n").map((x) => x.trim()).filter(Boolean);
-            if (t === "select" && o.length < 2) { toast("Valintalistassa on oltava vähintään kaksi vaihtoehtoa"); return; }
+            if ((t === "select" || t === "multi") && o.length < 2) { toast("Valintalistassa on oltava vähintään kaksi vaihtoehtoa"); return; }
             let tableDef = null;
             if (t === "table") {
               readCols();
@@ -310,7 +310,7 @@
             }
             f.l = l; f.t = t;
             f.u = (t === "num" || t === "text") ? $('[data-f="u"]').value.trim() || undefined : undefined;
-            f.o = t === "select" ? o : undefined;
+            f.o = t === "select" || t === "multi" ? o : undefined;
             f.req = $('[data-c="req"]').checked || undefined;
             f.mittaus = (t === "num" && $('[data-c="mittaus"]').checked) || undefined;
             f.muista = (t !== "table" && $('[data-c="muista"]').checked) || undefined;

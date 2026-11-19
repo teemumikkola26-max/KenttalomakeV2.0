@@ -19,12 +19,7 @@
     let prevId = null;   // edellinen havainto: pikapainike "← H05" lisäkuvia varten
     let mode = q.yk ? "yk" : "hav";   // hav = havainto, yk = yleiskuva (ei sanelua eikä havaintoa)
 
-    function applyMemory(hv) {
-      M.menetelma(hv.menetelma).kentat.forEach((f) => {
-        const mem = Model.muistiGet(hv.menetelma + "." + f.k);
-        if (f.muista && mem && !hv.kentat[f.k]) hv.kentat[f.k] = mem;
-      });
-    }
+    function applyMemory(hv) { M.taytaMuisti(hv, Model); M.laske(hv); }
 
     const periytyva = new WeakMap();   // havainto -> edellisen havainnon tila ja menetelmä
     function newObservation(preset) {
@@ -60,7 +55,10 @@
 
     // Uusi havainto alkaa aistinvaraisesta tarkastelusta (ellei avattu tietylle suunnitelman kohdalle).
     // Seuraava-painike sen sijaan jatkaa samalla menetelmällä (esim. RH-pisteiden sarja).
-    if (!h) h = newObservation({ menetelma: q.menetelma, suunnitelmaId: q.kohta, tilaId: q.tila, kerrosId: q.kerros, kaOsa: q.kaosa });
+    if (!h) {
+      h = newObservation({ menetelma: q.menetelma, suunnitelmaId: q.kohta, tilaId: q.tila, kerrosId: q.kerros, kaOsa: q.kaosa });
+      if (q.avaus && h.menetelma === "nayte") h.kentat.avaus = q.avaus;      // näyte rakenneavauksesta
+    }
 
     document.getElementById("app").innerHTML =
       '<div class="cam">' +
@@ -116,7 +114,8 @@
       const src = h.auto && h.auto.menetelma;
       // Suunnitelman eteneminen merkissä, esim. "RH · 3/6"
       const p = m && (h.suunnitelmaId ? Model.kohta(h.suunnitelmaId) : S.kohde.suunnitelma.find((x) => x.menetelma === h.menetelma && !x.pois));
-      $("[data-mname]").textContent = m ? (m.lyhyt || m.nimi) + (p && p.maara > 1 ? " · " + Model.kohtaTehty(p) + "/" + p.maara : "") : "Valitse menetelmä";
+      const nayteAvauksessa = p && p.menetelma === "avaus" && h.menetelma === "nayte";
+      $("[data-mname]").textContent = m ? (m.lyhyt || m.nimi) + (nayteAvauksessa ? " · " + Model.kohtaNaytteet(p) + "/" + p.naytteet : p && p.maara > 1 ? " · " + Model.kohtaTehty(p) + "/" + p.maara : "") : "Valitse menetelmä";
       $(".meta-chip").classList.toggle("missing", !m);
       $(".meta-chip").classList.toggle("autoset", !!SRC[src]);
       $(".meta-chip").title = m ? m.nimi + (SRC[src] ? " (" + SRC[src] + ")" : "") : "";
@@ -402,7 +401,7 @@
       }
       applyMemory(h);
       const cur = Model.kohta(h.suunnitelmaId);
-      if (cur && cur.menetelma !== id) { h.suunnitelmaId = null; h.auto = Object.assign({}, h.auto, { kohta: true }); }
+      if (cur && !Model.kohtaSopii(cur, id)) { h.suunnitelmaId = null; h.auto = Object.assign({}, h.auto, { kohta: true }); }
       Auto.manual(h, "menetelma");
       Auto.autoKohta(h); Auto.autoTunnus(h);
       if (window.FieldFill) FieldFill.apply(h);

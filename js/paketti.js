@@ -77,8 +77,10 @@
       const mid = id || "muu";
       const sama = (k.suunnitelma || []).some((x) => x.menetelma === mid && norm(x.kuvaus) === norm(kuvaus) && !x.pois);
       const kuv = id ? kuvaus : [p.menetelma, kuvaus].filter(Boolean).join(": ");
-      lisa({ t: "kohta", ryhma: "Tutkimussuunnitelma", menetelma: mid, maara, kuvaus: kuv, tila: p.tila || "",
-        otsikko: M.menetelma(mid).nimi + (maara ? " × " + maara : "") + (kuv ? ": " + kuv : ""), ote: lahdeTeksti(p), valittu: !sama, huom: sama ? "Sama kohta on jo suunnitelmassa" : "" });
+      const naytteet = mid === "avaus" ? (parseInt(p.naytteet, 10) || 0) : 0;      // näytteet rakenneavauksista samassa kohdassa
+      if (p.naytteet && mid !== "avaus") varoitukset.push("Näytemäärä ohitettiin kohdasta ”" + M.menetelma(mid).nimi + "”: näytteet avauksista kuuluvat rakenneavauksen kohtaan.");
+      lisa({ t: "kohta", ryhma: "Tutkimussuunnitelma", menetelma: mid, maara, naytteet, kuvaus: kuv, tila: p.tila || "",
+        otsikko: M.menetelma(mid).nimi + (maara ? " × " + maara : "") + (naytteet ? " + " + naytteet + " näytettä" : "") + (kuv ? ": " + kuv : ""), ote: lahdeTeksti(p), valittu: !sama, huom: sama ? "Sama kohta on jo suunnitelmassa" : "" });
     });
     // Kerrokset ja tilat
     (j.kerrokset || []).forEach((e) => {
@@ -177,7 +179,8 @@
     let n = 0;
     valitut.filter((e) => e.t === "kohde").forEach((e) => { k[e.k] = e.arvo; if (e.k === "nimi") delete k.nimiTilapainen; n++; });
     valitut.filter((e) => e.t === "kohta").forEach((e) => {
-      k.suunnitelma.push({ id: DB.uid("p_"), menetelma: e.menetelma, kuvaus: [e.kuvaus, e.tila].filter(Boolean).join(", "), maara: e.maara, tilaId: null, pois: null, lahde: "claude" });
+      k.suunnitelma.push(Object.assign({ id: DB.uid("p_"), menetelma: e.menetelma, kuvaus: [e.kuvaus, e.tila].filter(Boolean).join(", "), maara: e.maara, tilaId: null, pois: null, lahde: "claude" },
+        e.naytteet ? { naytteet: e.naytteet } : {}));
       n++;
     });
     const pohjat = [];

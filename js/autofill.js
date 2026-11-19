@@ -31,17 +31,12 @@
   const has = (t, stem) => stemRe(stem).test(t);
 
   /* ---------- Menetelmät ---------- */
-  const METHOD_WORDS = {
-    rh: ["rh mittau", "rh mitta", "rh piste", "rh anturi", "rh ", "suhteellinen kosteus", "suhteellisen kostey", "suhteellista kosteutta", "porareiä", "porarei", "porareik",
-      "rakennekosteu", "rakenteen kostey", "viiltomittau", "viiltomenetelm", "kosteusmittaukset", "rakennekosteusmittau", "putkimittau", "mittausputk", "kosteusmittaus rakenteesta", "tasaantumisaik", "mittaussyvyy", "mittauspiste", "vaisala", "hm40", "hm42"],
-    pintakosteus: ["pintakostey", "pintakosteu", "pko", "pko-arvo", "pko arvo", "yksikköä", "pinta-anturi", "b55", "b50", "hydrotest", "kosteudenosoitin", "pintakosteusmittar", "kosteuskartoitu", "gann", "hydromette", "tramex", "protimeter", "pintakosteusosoitin", "vertailukoh", "vertailuarv"],
-    avaus: ["rakenneavau", "rakennetyyppiselvity", "avauskoh", "avauskohda", "ra1", "ra2", "ra3", "avaus", "avaukse", "avattiin", "avasimme", "avattu", "purettiin", "tarkastusaukko", "kurkistusaukko", "kurkistusreik", "rakennekerrokse", "kerrokset sisältä"],
-    nayte: ["näyte", "näytte", "mik1", "mikrobimateriaalinäyte", "voc-materiaalinäyte", "voc-ilmanäyte", "mikrobi-ilmanäyte", "ilmanäyte", "laskeumanäyte", "geeliteippinäyte", "pyyhintäpölynäyte", "pölynäyte", "pölynkoostumusnäyte", "pah-näyte", "pcb-näyte", "materiaalinäyte", "mikrobinäyte", "asbestinäyte", "haitta-ainenäyte", "näytepala", "näytteenot", "otettiin näyte", "kuitunäyte", "pah näyte", "voc näyte"],
-    merkkiaine: ["merkkiain", "merkkikaasu", "merkkiainevuoto", "merkkiaineanalysaattori", "alipaineist", "sensistor", "mak1", "typpived", "tiiviyskoe", "tiiviysmittau", "tiiviystarkastelu", "injektoi", "vuotoilmaa", "ilmavuoto"],
-    lampokuvaus: ["lämpökuva", "lämpökamer", "lämpösäteily", "termografi", "pintalämpötil", "lämpötilaindeksi", "flir", "hikmicro", "kylmäsilta", "kylmävuoto"],
-    mtk: ["märkätilakartoitu", "märkätilatarkast", "märkätilan kunto", "märkätilojen kunto"],
-    paine: ["painesuhte", "paine ero", "paine-ero", "paineero", "dp-calc", "dp calc", "paine-eromittari", "alipain", "ylipain", "ilmavirta", "ilmavirra", "ilmamäärä", "tuloilmamäär", "poistoilmamäär", "painesuhdeseuran"]
-  };
+  /* Menetelmien tunnistussanat: Menetelmät ja kalusto -taulukon sanasto (js/menetelmat-data.js).
+     Sanan alku riittää. Laitemerkit ja -mallit eivät ole sanastossa. */
+  const METHOD_WORDS = {};
+  ((window.MENETELMA_DATA && MENETELMA_DATA.menetelmat) || []).forEach((m) => { if (m.sanasto && m.sanasto.length) METHOD_WORDS[m.id] = m.sanasto.map((w) => (w.length <= 3 && !/^".*"$/.test(w) ? '"' + w + '"' : w)); });   // lyhyt sana kokonaisena ("pid" ei osu sanaan pidettiin)
+  // Aistinvarainen tarkastelu valitaan vain, jos muuta menetelmää ei tunnisteta (sen sanat, kuten "havaittiin", ovat kaikissa havainnoissa)
+  const VARALLA = ["aisti"];
   function detectMethod(t) {
     const hits = [];
     M.MENETELMAT.forEach((m) => {
@@ -55,6 +50,8 @@
       if (n.length >= 5) { const i = t.indexOf(" " + n.slice(0, Math.max(5, n.length - 2))); if (i >= 0) hits.push({ id: m.id, i }); }
     });
     if (!hits.length) return null;
+    const tarkat = hits.filter((x) => !VARALLA.includes(x.id));
+    if (tarkat.length) hits.splice(0, hits.length, ...tarkat);
     hits.sort((a, b) => a.i - b.i);
     return hits[0].id;
   }
@@ -201,11 +198,16 @@
     const k = S.kohde;
     if (!h.menetelma || !k.suunnitelma.length) return false;
     if (h.suunnitelmaId && !(h.auto && h.auto.kohta)) return false;   // käyttäjä valitsi itse
-    const same = k.suunnitelma.filter((p) => p.menetelma === h.menetelma && !p.pois);
+    // Oma menetelmä ensin; näyte voi kuulua myös rakenneavauksen kohtaan (avaus + näyte per avaus)
+    const omat = k.suunnitelma.filter((p) => p.menetelma === h.menetelma && !p.pois);
+    const avaukset = h.menetelma === "nayte" ? k.suunnitelma.filter((p) => !p.pois && p.menetelma === "avaus" && p.naytteet) : [];
+    const same = (h.kentat && h.kentat.avaus) ? avaukset.concat(omat) : omat.concat(avaukset);
+    const itse = (p) => (h.suunnitelmaId === p.id ? 1 : 0);
+    const auki = (p) => p.menetelma === h.menetelma ? Model.kohtaTehty(p) - itse(p) < (p.maara || 1) : Model.kohtaNaytteet(p) - itse(p) < p.naytteet;
     let pick = null;
     if (!same.length) pick = "ei";
     else {
-      const open = same.filter((p) => Model.kohtaTehty(p) - (h.suunnitelmaId === p.id ? 1 : 0) < (p.maara || 1));
+      const open = same.filter(auki);
       const tilaMatch = open.find((p) => p.tilaId && p.tilaId === h.sijainti.tilaId);
       pick = (tilaMatch || open[0] || same[same.length - 1]).id;
     }
@@ -216,7 +218,7 @@
   }
 
   /* ---------- Juokseva tunnus (M1 -> M2, RA1 -> RA2) ---------- */
-  const TUNNUS_PREFIX = { rh: "M", avaus: "RA", nayte: "MIK", merkkiaine: "MAK" };
+  const TUNNUS_PREFIX = { rh: "M", avaus: "RA", nayte: "MIK", merkkiaine: "MAK", viilto: "VM", hetkkost: "HM", vetokoe: "MP" };
   function autoTunnus(h) {
     const m = M.menetelma(h.menetelma);
     const f = m.kentat.find((x) => x.k === "tunnus" && x.t === "text");

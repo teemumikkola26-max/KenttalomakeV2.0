@@ -166,7 +166,7 @@
       kohde: { nimi: k.nimi, osoite: k.osoite, projektinumero: k.projektinro, tutkija: k.tutkija, tutkimuspaiva: k.pvm },
       tutkimussuunnitelma: k.suunnitelma.map((p) => ({
         menetelma: M.menetelma(p.menetelma).nimi, tarkennus: p.kuvaus, maara: p.maara || 1,
-        tehty: Model.kohtaTehty(p), jatetaan_pois: p.pois ? p.pois.syy : null,
+        tehty: Model.kohtaTehty(p), ...(p.naytteet ? { naytteita: p.naytteet, naytteita_otettu: Model.kohtaNaytteet(p) } : {}), jatetaan_pois: p.pois ? p.pois.syy : null,
         havainnot: S.havainnot.filter((h) => h.suunnitelmaId === p.id).map((h) => RN(h))
       })),
       tilat: k.tilat.map((t) => {
@@ -192,7 +192,7 @@
           mittaustaulukot: taulukot(h, paths),
           tunnistettu_sanelusta: Object.keys(h.auto || {}).filter((x) => h.auto[x] === "sanelu" || h.auto[x] === "opittu" || h.auto[x] === "kuva")
             .map((x) => {
-              const f = /^[kt]:/.test(x) ? M.menetelma(h.menetelma).kentat.find((y) => y.k === x.slice(2)) : null;
+              const f = /^[kt]:/.test(x) ? M.kentta(h, x.slice(2)) : null;
               const nm = f ? f.l + (x[0] === "t" ? " (rivit)" : "") : x;
               return nm + (h.auto[x] === "opittu" ? " (opittu malli)" : h.auto[x] === "kuva" ? " (kuvasta)" : "");
             }),
@@ -235,7 +235,7 @@
       L.push("");
       j.tutkimussuunnitelma.forEach((p) => {
         L.push("- " + p.menetelma + (p.tarkennus ? ": " + p.tarkennus : "") + ". " +
-          (p.jatetaan_pois ? "Jätetty pois, syy: " + p.jatetaan_pois : "Tehty " + p.tehty + " / " + p.maara + (p.havainnot.length ? " (" + p.havainnot.join(", ") + ")" : "")));
+          (p.jatetaan_pois ? "Jätetty pois, syy: " + p.jatetaan_pois : "Tehty " + p.tehty + " / " + p.maara + (p.naytteita ? ", näytteet " + p.naytteita_otettu + " / " + p.naytteita : "") + (p.havainnot.length ? " (" + p.havainnot.join(", ") + ")" : "")));
       });
       L.push("");
     }

@@ -19,7 +19,7 @@
   "use strict";
   const { S, Model } = App;
   const ARRAYS = { kerros: "kerrokset", tila: "tilat", kohta: "suunnitelma", mir: "seuranta", yleiskuva: "yleiskuvat" };
-  const LOCAL_ONLY = ["kerrokset", "tilat", "suunnitelma", "seuranta", "kuntoarvio", "muisti", "viimeisin", "seuraavaNro", "updated", "viety", "pilvi", "avattu", "__uusiPdf"];
+  const LOCAL_ONLY = ["kalusto", "kerrokset", "tilat", "suunnitelma", "seuranta", "kuntoarvio", "muisti", "viimeisin", "seuraavaNro", "updated", "viety", "pilvi", "avattu", "__uusiPdf"];
   const BUCKET = "kohteet";
   const state = { tila: "pois", jono: 0, viesti: "", aika: 0, kaynnissa: false };
   const listeners = [];

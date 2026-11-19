@@ -21,7 +21,7 @@
       const tehty = Model.kohtaTehty(p);
       out.push({
         tyyppi: "kohta", id: p.id, otsikko: Model.kohtaNimi(p),
-        selite: "Suunnitelmassa " + (p.maara || 1) + ", tehty " + tehty + ".",
+        selite: "Suunnitelmassa " + (p.maara || 1) + ", tehty " + tehty + "." + (p.naytteet ? " Näytteitä " + p.naytteet + ", otettu " + Model.kohtaNaytteet(p) + "." : ""),
         toimintoTeksti: "Tee nyt"
       });
     });

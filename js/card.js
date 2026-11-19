@@ -20,6 +20,22 @@
   const vapaa = (f) => !f.okv && !f.suljettu && !(f.o || []).every((o) => ARVIO.test(o));
   function fieldInner(f, val, lbl, cls, nh) {
     const oma = val && !(f.o || []).includes(val);
+    const ph = f.ph ? ' placeholder="' + esc(f.ph) + '"' : "";
+    // Monivalinta: useampi siru voi olla valittuna (arvo "M2; DG18")
+    if (f.t === "multi") {
+      const sel = String(val || "").split(/\s*;\s*/).filter(Boolean);
+      return '<div class="' + cls + ' chipfield" style="grid-column:1/-1">' + lbl + '<div class="chips">' +
+        (f.o || []).concat(sel.filter((v) => !(f.o || []).includes(v))).map((o) => '<button type="button" class="chip" data-a="multiv" data-k="' + f.k + '" data-v="' + esc(o) + '" aria-pressed="' + sel.includes(o) + '">' + esc(o) + "</button>").join("") +
+        "</div>" + nh + "</div>";
+    }
+    // Laskettu arvo: sovellus laskee, tutkija ei kirjoita
+    if (f.t === "calc") {
+      return '<label class="' + cls + '">' + lbl + '<input type="text" readonly tabindex="-1" class="calc" data-fk="' + f.k + '" value="' + esc(val || "") + '" placeholder="lasketaan">' +
+        '<span class="hint" style="font-size:12px">' + esc(M.kaavaSelite(f)) + "</span></label>";
+    }
+    if (f.t === "time") {
+      return '<label class="' + cls + '">' + lbl + '<input type="time" data-fk="' + f.k + '" value="' + esc(val || "") + '">' + nh + "</label>";
+    }
     // Tarkistuslistan valinta sirurivinä: yksi napautus (napautus uudelleen tyhjentää)
     if (f.t === "select" && f.ow && !f.ryhmat) {
       return '<div class="' + cls + ' chipfield" style="grid-column:1/-1">' + lbl + '<div class="chips">' +
@@ -36,13 +52,13 @@
         (vapaa(f) ? '<option value="__muu__">Muu… (kirjoita)</option>' : "") + "</select>" + nh + "</label>";
     }
     if (f.t === "textarea") {
-      return '<label class="' + cls + '" style="grid-column:1/-1">' + lbl + '<textarea data-fk="' + f.k + '" style="min-height:72px">' + esc(val || "") + "</textarea>" + nh + "</label>";
+      return '<label class="' + cls + '" style="grid-column:1/-1">' + lbl + '<textarea data-fk="' + f.k + '"' + ph + ' style="min-height:72px">' + esc(val || "") + "</textarea>" + nh + "</label>";
     }
     if (f.t === "date") {
       return '<label class="' + cls + '">' + lbl + '<input type="date" data-fk="' + f.k + '" value="' + esc(val || "") + '">' + nh + '</label>';
     }
     const num = f.t === "num";
-    return '<label class="' + cls + '">' + lbl + '<input type="text" ' + (num ? 'inputmode="decimal" ' : "") + 'data-fk="' + f.k + '" value="' + esc(val || "") + '">' + nh + '</label>';
+    return '<label class="' + cls + '">' + lbl + '<input type="text" ' + (num ? 'inputmode="decimal" ' : "") + 'data-fk="' + f.k + '"' + ph + ' value="' + esc(val || "") + '">' + nh + '</label>';
   }
 
   function hasMittaus(h) { return M.onMittauksia(h); }
@@ -75,23 +91,21 @@
       if (h.menetelma === id) return;
       h.menetelma = id;
       h.vahvistettu = false;
-      // muistetut arvot (esim. mittalaite) valmiiksi
-      M.menetelma(h.menetelma).kentat.forEach((f) => {
-        const mem = Model.muistiGet(h.menetelma + "." + f.k);
-        if (f.muista && mem && !h.kentat[f.k]) h.kentat[f.k] = mem;
-      });
+      // muistetut arvot ja oletukset (esim. pumppu, halkaisija) valmiiksi
+      M.taytaMuisti(h, Model);
       if (window.FieldFill) FieldFill.apply(h);
+      M.laske(h);
       const cur = Model.kohta(h.suunnitelmaId);
-      if (cur && cur.menetelma !== h.menetelma) { h.suunnitelmaId = null; if (h.auto) h.auto.kohta = true; }
+      if (cur && !Model.kohtaSopii(cur, h.menetelma)) { h.suunnitelmaId = null; if (h.auto) h.auto.kohta = true; }
       Auto.manual(h, "menetelma");
       Auto.autoKohta(h); Auto.autoTunnus(h);
       save(); paint();
     }
 
     function kohtaOptions() {
-      const own = k.suunnitelma.filter((p) => p.menetelma === h.menetelma);
-      const other = k.suunnitelma.filter((p) => p.menetelma !== h.menetelma);
-      const opt = (p) => '<option value="' + p.id + '"' + (h.suunnitelmaId === p.id ? " selected" : "") + ">" + esc(Model.kohtaNimi(p)) + " (" + Model.kohtaTehty(p) + "/" + (p.maara || 1) + ")</option>";
+      const own = k.suunnitelma.filter((p) => Model.kohtaSopii(p, h.menetelma));
+      const other = k.suunnitelma.filter((p) => !Model.kohtaSopii(p, h.menetelma));
+      const opt = (p) => '<option value="' + p.id + '"' + (h.suunnitelmaId === p.id ? " selected" : "") + ">" + esc(Model.kohtaNimi(p)) + " (" + Model.kohtaMaaraTeksti(p) + ")</option>";
       return '<option value="">Valitse</option>' + own.map(opt).join("") +
         (other.length ? '<optgroup label="Muut menetelmät">' + other.map(opt).join("") + "</optgroup>" : "") +
         '<option value="ei"' + (h.suunnitelmaId === "ei" ? " selected" : "") + ">Ei suunnitelmassa</option>";
@@ -126,7 +140,8 @@
       const filled = (f) => f.t === "table" ? M.rivit(h, f).length > 0 : h.kentat[f.k] != null && String(h.kentat[f.k]).trim() !== "";
       // Tarkistuslista (lomake) näyttää kaikki tilatyypin kohdat; muut menetelmät täytetyt ja vähimmäistiedot
       const vis = M.kentat(h);
-      const shownF = vis.filter((f) => m.lomake || filled(f) || f.req || extraFields.has(f.k));
+      const shownF = vis.filter((f) => m.lomake || filled(f) || f.req || f.t === "calc" || extraFields.has(f.k));
+      const vihje = M.vihje(h);
       const hiddenF = vis.filter((f) => !shownF.includes(f));
       const reqF = vis.filter((f) => f.req), reqOk = reqF.filter(filled).length;
       const okF = vis.filter((f) => f.okv && !filled(f));
@@ -138,6 +153,7 @@
               : (h.kentat.asunto ? "" : '<button class="chip" data-a="asuntoja" data-v="0" style="margin:0 0 10px">Ei asuntoja (esim. omakotitalo)</button>'))
             : "") +
           '<div class="grid2">' + shownF.map((f) => f.t === "table" ? tableHtml(f, naytaPuutteet && f.req && !filled(f)) : fieldHtml(f, h.kentat[f.k] != null ? h.kentat[f.k] : "", !!(h.auto && h.auto["k:" + f.k] === "sanelu"), naytaPuutteet && f.req && !filled(f))).join("") + "</div>" +
+          (vihje ? '<p class="hint vihje" style="margin:4px 0 10px"><b>Muista:</b> ' + esc(vihje) + "</p>" : "") +
           (okF.length ? '<button class="btn btn-block" data-a="okloput" style="margin:6px 0 4px">' + icon("ok") + "Muut kohdat kunnossa (" + okF.length + ")</button>" +
             '<p class="hint" style="margin:0 0 8px">Merkitsee tyhjät tarkistuskohdat kunnossa-arvolla. Sanele tai valitse ensin puutteet.</p>' : "") +
           (m.kentat.some((f) => f.mittaus || (f.t === "table" && (f.sarakkeet || []).some((c) => c.mittaus)))
@@ -174,6 +190,11 @@
         (mit ? '<div class="card-b mit-b">' + mit + "</div>" : "") +
         "</section>" +
 
+        (h.menetelma === "avaus" ? (() => {
+          const tun = h.kentat.tunnus || "", nayt = S.havainnot.filter((x) => x.menetelma === "nayte" && tun && x.kentat.avaus === tun);
+          return '<section class="card"><div class="card-b">' + (nayt.length ? '<p class="hint" style="margin:0 0 8px">Näytteet tästä avauksesta: ' + esc(nayt.map((x) => (x.kentat.tunnus || nro(x)) + (x.kentat.tyyppi ? " (" + x.kentat.tyyppi + ")" : "")).join(", ")) + "</p>" : "") +
+            '<button class="btn btn-block" data-a="avausnayte">' + icon("cam") + "Ota näyte tästä avauksesta</button></div></section>";
+        })() : "") +
         '<details class="card vocab lisa"' + (lisaAuki ? " open" : "") + ' data-lisa><summary class="card-h"><h2><span class="sec-n">3</span>Lisätiedot</h2><span class="meta">' +
           esc([h.suunnitelmaId && h.suunnitelmaId !== "ei" ? "suunnitelma" : "", h.kaOsa ? "kuntoarvio" : "", h.tulkinta ? "tulkinta" : "", hiddenF.length ? "+" + hiddenF.length + " kenttää" : ""].filter(Boolean).join(" · ")) + "</span></summary>" +
         '<div class="card-b">' +
@@ -296,6 +317,13 @@
         (need ? '<span class="need-hint">Puuttuu · sano esim. ”' + esc(window.FieldFill ? FieldFill.hint(f) : "") + "” tai kuvaa mittarin näyttö</span>" : "") + "</div>";
     }
 
+    /* Lasketut arvot (vetolujuus, näytteenottoaika) päivittyvät kirjoittaessa ilman uudelleenpiirtoa */
+    function paivitaLasketut() {
+      M.laske(h).forEach((key) => {
+        const el = root.querySelector('[data-fk="' + key + '"]');
+        if (el && el !== document.activeElement) el.value = h.kentat[key] || "";
+      });
+    }
     function tableField(fk) { return M.menetelma(h.menetelma).kentat.find((x) => x.k === fk && x.t === "table"); }
     async function repaintTable(f) {
       await Model.ensureUrls(M.rivit(h, f).map((r) => r._ocr && r._ocr.rajaus).filter(Boolean));
@@ -412,8 +440,11 @@
       if (!f) return;
       h.kentat[f.k] = v;
       Auto.manual(h, "k:" + f.k);
-      if (f.muista) Model.muistiSet(h.menetelma + "." + f.k, v);
+      if (f.muista) Model.muistiSet(M.muistiAvain(h, f), v);
       if (f.etuliitteet) Auto.autoTunnus(h);
+      // näytetyypin omat muistetut arvot (pumppu, kenttänolla) valmiiksi
+      if (M.menetelma(h.menetelma).kentat.some((x) => x.kun && x.kun.k === f.k)) M.taytaMuisti(h, Model);
+      M.laske(h);
       if (window.FieldFill && f.okv) FieldFill.apply(h);
       save();
       const riippuvia = f.etuliitteet || M.menetelma(h.menetelma).kentat.some((x) => x.kun && x.kun.k === f.k);
@@ -450,12 +481,14 @@
       }
       else if (t.matches("[data-fk]") && t.type !== "date") {
         if (t.tagName === "SELECT") return;                // valinta käsitellään change-tapahtumassa
-        const f = M.menetelma(h.menetelma).kentat.find((x) => x.k === t.dataset.fk);
+        const f = M.kentta(h, t.dataset.fk);
         h.kentat[t.dataset.fk] = t.value;
         Auto.manual(h, "k:" + t.dataset.fk);
         if (t.dataset.fk === "tunnus") Auto.manual(h, "tunnus");
         if (f && f.mittaus && h.vahvistettu) { h.vahvistettu = false; const cb = root.querySelector('[data-a="vahv"]'); if (cb) cb.checked = false; }
-        if (f && f.muista) Model.muistiSet(h.menetelma + "." + f.k, t.value);
+        if (f && f.muista) Model.muistiSet(M.muistiAvain(h, f), t.value);
+        if (f && f.laske) { if (t.value) Auto.manual(h, "k:" + f.k); else if (h.auto) delete h.auto["k:" + f.k]; }
+        paivitaLasketut();
         save();
       }
     };
@@ -471,7 +504,7 @@
         if (f && row) repaintSummary(f);
       }
       else if (t.matches("[data-fk]") && (t.tagName === "SELECT" || t.type === "date")) {
-        const f = M.menetelma(h.menetelma).kentat.find((x) => x.k === t.dataset.fk);
+        const f = M.kentta(h, t.dataset.fk);
         if (t.value === "__muu__") { muuArvo(f); return; }
         asetaValinta(f, t.value);
       }
@@ -543,10 +576,21 @@
         if (!h.tulos) { h.tulos = dev ? "poikkeama" : "ok"; h.auto = h.auto || {}; h.auto.tulos = "sanelu"; }
         save(); paint(); toast(vis.length + " kohtaa merkitty kunnossa"); return;
       }
-      if (a === "muuarvo") { muuArvo(M.menetelma(h.menetelma).kentat.find((x) => x.k === b.dataset.k)); return; }
+      if (a === "muuarvo") { muuArvo(M.kentta(h, b.dataset.k)); return; }
       if (a === "chipv") {
-        const f = M.menetelma(h.menetelma).kentat.find((x) => x.k === b.dataset.k);
+        const f = M.kentta(h, b.dataset.k);
         asetaValinta(f, h.kentat[b.dataset.k] === b.dataset.v ? "" : b.dataset.v);
+        paint(); return;
+      }
+      if (a === "multiv") {
+        const f = M.kentta(h, b.dataset.k);
+        const sel = String(h.kentat[b.dataset.k] || "").split(/\s*;\s*/).filter(Boolean);
+        const i = sel.indexOf(b.dataset.v);
+        if (i >= 0) sel.splice(i, 1); else sel.push(b.dataset.v);
+        // vaihtoehtojen järjestys säilyy
+        const o = (f && f.o) || [];
+        sel.sort((x, y) => (o.indexOf(x) + 1 || 99) - (o.indexOf(y) + 1 || 99));
+        asetaValinta(f, sel.join("; "));
         paint(); return;
       }
       if (a === "tulos") { h.tulos = h.tulos === b.dataset.v ? null : b.dataset.v; Auto.manual(h, "tulos"); save(); paint(); }
@@ -562,7 +606,7 @@
           if (f.muista && mem && !h.kentat[f.k]) h.kentat[f.k] = mem;
         });
         const cur = Model.kohta(h.suunnitelmaId);
-        if (cur && cur.menetelma !== h.menetelma) h.suunnitelmaId = null;
+        if (cur && !Model.kohtaSopii(cur, h.menetelma)) h.suunnitelmaId = null;
         save(); paint();
       }
       else if (a === "addfield") { extraFields.add(b.dataset.k); paint(); const el2 = root.querySelector('[data-fk="' + b.dataset.k + '"]'); if (el2) el2.focus(); }
@@ -589,6 +633,14 @@
         }
         save.flush();
         location.hash = "#/k/" + k.id;
+      }
+      else if (a === "avausnayte") {
+        save.flush();
+        S.kohde.viimeisin = { kerrosId: h.sijainti.kerrosId, tilaId: h.sijainti.tilaId, rakenneosa: h.sijainti.rakenneosa, menetelma: "nayte" };
+        await Model.saveKohde();
+        const p = Model.kohta(h.suunnitelmaId);
+        location.hash = "#/k/" + k.id + "/kuvaus?menetelma=nayte" + (p && p.naytteet ? "&kohta=" + p.id : "") +
+          (h.sijainti.tilaId ? "&tila=" + h.sijainti.tilaId : "") + (h.kentat.tunnus ? "&avaus=" + encodeURIComponent(h.kentat.tunnus) : "");
       }
       else if (a === "next") {
         save.flush();

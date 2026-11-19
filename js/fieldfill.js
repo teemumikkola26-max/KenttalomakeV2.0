@@ -156,7 +156,8 @@
     const clauses = String(t).split(/[.,;:!?]|\s(?:ja|sekä|mutta)\s/);
     for (const c of clauses) {
       const cc = " " + c.trim() + " ";
-      if (ws.length && !ws.some((w) => new RegExp(wre(w), "u").test(cc))) continue;
+      // "ylipainemitta&nestemää": kaikkien osien pitää olla lauseessa
+      if (ws.length && !ws.some((w) => w.split("&").every((p) => new RegExp(wre(p.trim()), "u").test(cc)))) continue;
       for (const [w, o] of f.ow) if ((f.o || []).includes(o) && new RegExp(wre(w), "u").test(cc)) return o;
     }
     return null;
@@ -184,6 +185,29 @@
 
   /* ---------- Yksittäiset kentät ---------- */
   function scalarValue(f, t) {
+    if (f.t === "calc") return null;
+    // Kellonaika: "aloitusaika 9.15", "pumppu käynnistettiin kello 9 15"
+    if (f.t === "time") {
+      for (const w of wordsFor(f)) {
+        const m = t.match(new RegExp(wre(w) + "(?:\\s+[a-zåäö]+){0,3}?\\s+(?:klo\\.?\\s*|kello\\s*)?(\\d{1,2})(?:[.:,]|\\s)(\\d{2})(?!\\d)", "u"));
+        if (m && +m[1] < 24 && +m[2] < 60) return m[1].padStart(2, "0") + ":" + m[2];
+      }
+      return null;
+    }
+    // Monivalinta: kaikki mainitut vaihtoehdot ("M2- ja DG18-maljat")
+    if (f.t === "multi") {
+      const found = [];
+      (f.ow || (f.o || []).map((o) => [o.toLowerCase(), o])).forEach(([w, o]) => { if ((f.o || []).includes(o) && !found.includes(o) && new RegExp(wre(w), "u").test(t)) found.push(o); });
+      return found.length ? found.sort((a, b) => f.o.indexOf(a) - f.o.indexOf(b)).join("; ") : null;
+    }
+    // Tunniste numeroineen: "näyteputki 12345", "pumppu VC2", "kenttänolla 12346"
+    if (f.koodi) {
+      for (const w of wordsFor(f)) {
+        const m = t.match(new RegExp(wre(w) + "(?:\\s+(?:on|oli|numero|numerolla|nro|tunnus|koodi))*\\s+([a-zåäö]{0,4}-?\\d[a-zåäö0-9-]*)", "u"));
+        if (m) return m[1].toUpperCase();
+      }
+      return null;
+    }
     if (f.t === "num") {
       let r = numAfter(t, wordsFor(f), f.u);
       // pintakosteuden lukema ilman avainsanaa: "120 yksikköä" (vertailukohta mainitaan erikseen)
@@ -342,9 +366,9 @@
       if (!M.nakyy(h, f)) return;
       if (!hasText && !f.tilasta && f.k !== "asunto") return;
       const cur = h.kentat[f.k], isAuto = h.auto["k:" + f.k] === "sanelu" || (f.k === "tunnus" && h.auto.tunnus);
-      if (cur && !isAuto && !(f.muista && h.auto["k:" + f.k] === "muisti")) {
+      if (cur && !isAuto && !["muisti", "laskettu"].includes(h.auto["k:" + f.k])) {
         // muistettu arvo (esim. edellisen havainnon laite) saa vaihtua, jos sanelussa sanotaan toinen
-        const mem = f.muista && Model.muistiGet(h.menetelma + "." + f.k);
+        const mem = f.muista && Model.muistiGet(M.muistiAvain(h, f));
         if (!(mem && cur === mem)) return;
       }
       let v = f.k === "asunto" ? asunto(h, t, Model) : scalarValue(f, t);
@@ -353,10 +377,13 @@
       h.kentat[f.k] = v;
       h.auto["k:" + f.k] = "sanelu";
       if (f.k === "tunnus") delete h.auto.tunnus;
-      if (f.muista) Model.muistiSet(h.menetelma + "." + f.k, v);
+      if (f.muista) Model.muistiSet(M.muistiAvain(h, f), v);
       if (f.mittaus) h.vahvistettu = false;
       changes.push({ kentta: "kenttä", arvo: f.l + ": " + v + (f.u && f.t === "num" ? " " + f.u : "") });
     });
+    // Näytetyypin muistetut arvot (pumppu, kenttänolla) ja lasketut arvot (näytteenottoaika, vetolujuus)
+    M.taytaMuisti(h, Model);
+    M.laske(h).forEach((k) => { const f = M.kentta(h, k); if (f) changes.push({ kentta: "kenttä", arvo: f.l + ": " + h.kentat[k] + (f.u ? " " + f.u : "") }); });
     // Tarkistuslistan puute (esim. saumoissa rakoja) on poikkeama, ellei tutkija ole itse valinnut tulosta
     const dev = M.kentat(h).find((f) => f.okv && h.kentat[f.k] && h.kentat[f.k] !== f.okv);
     if (dev && h.tulos !== "poikkeama" && (!h.tulos || (h.auto && h.auto.tulos))) {
@@ -371,11 +398,15 @@
     laite: "mittalaite Vaisala HM40", tasaantuminen: "tasaantumisaika 3 vrk", mittaukset: "30 millissä 78 prosenttia 21 astetta",
     olosuhteet: "huoneilma 30 prosenttia 22 astetta", arvo: "lukema 45", vertailu: "vertailu 20", asteikko: "vertailuarvo",
     kerrokset: "kerrokset muovimatto, tasoite, betoni 80 mm", tyyppi: "mikrobinäyte", materiaali: "materiaali mineraalivilla",
-    aine: "merkkiaine typpivety", injektointi: "injektointi lattian alta", tulos: "vuotoa havaittiin / ei vuotoa",
+    aine: "merkkiaine typpivety", injektointi: "injektointi lattian alta", tulos: "vuotoa havaittiin / ei vuotoa", luokka: "pistemäinen ilmavuoto",
     t_sisa: "sisälämpötila 21 astetta", t_ulko: "ulkona miinus 5 astetta", paine: "paine-ero 5 pascalia", jakso: "jakso 7 vrk", tunnus: "piste M3"
   };
   function hint(f) {
-    if (HINTS[f.k]) return HINTS[f.k];
+    if (HINTS[f.k] && !f.koodi && f.t !== "time") return HINTS[f.k];
+    const w = (Array.isArray(f.sanat) && f.sanat[0]) || f.l.toLowerCase();
+    if (f.t === "time") return w + " 9.15";
+    if (f.koodi) return w + " 12345";
+    if (f.t === "multi" && f.o && f.o.length) return f.o.slice(0, 2).join(" ja ");
     if (f.t === "select" && f.o && f.o.length) return f.o.slice(0, 2).join(" / ").toLowerCase();
     return f.l.toLowerCase() + (f.t === "num" ? " 12" + (f.u ? " " + f.u : "") : " …");
   }
