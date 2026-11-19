@@ -71,7 +71,7 @@ main.view.no-nav{padding-bottom:110px}
 .field>span .u{font-weight:400;color:var(--muted)}
 .field>span .req,.label .req{color:var(--safety)}
 .label.missing{color:var(--safety)}
-input[type=text],input[type=number],input[type=date],input[type=search],select,textarea{
+input[type=text],input[type=number],input[type=date],input[type=time],input[type=search],select,textarea{
   width:100%;min-height:46px;padding:10px 12px;border:1px solid var(--line-strong);border-radius:10px;background:#fff;font-size:16px;
 }
 textarea{min-height:96px;resize:vertical;line-height:1.45}
@@ -709,3 +709,4 @@ details.hu-taitto summary::-webkit-details-marker{display:none}
 details.hu-taitto .hu-lisaa{color:var(--accent,#c8102e);font-weight:600;white-space:nowrap}
 details.hu-taitto[open] .hu-lisaa{display:none}
 details.hu-taitto .hu-muut{margin:6px 0 0 34px}
+input.calc{background:#f4f2ec;color:var(--ink,#222)}
