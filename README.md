@@ -311,9 +311,27 @@ Märkätilakartoituksen Asunto-kenttä jää pois, kun kohteessa ei ole asuntoja
 
 Kameranäkymässä on kaksi välilehteä: **Havainto** ja **Yleiskuva**. Yleiskuva-tilassa jokainen laukaisu tallentuu heti kohteen yleiskuviin valitun tilan kanssa, ilman sanelua ja havaintoa. Kohteen sivulla *Yleiskuvat* näyttää kuvat tiloittain; kuvalle voi lisätä kuvatekstin tai vaihtaa tilan. ZIP-paketissa kuvat ovat kansiossa `yleiskuvat/` (YK01_OH1.jpg …), ja luettelo on `havainnot.md`:ssä ja `havainnot.json`:ssa. Yleiskuvat synkronoituvat pilveen kuten muutkin kohteen tiedot.
 
+## Menetelmät ja kalusto (versio 41)
+
+Menetelmät, kentät, näytetyypit ja kalusto tulevat Menetelmät ja kalusto -taulukosta (Claude-artifakti, hyväksytty 19.11.2026). Taulukosta generoidaan `js/menetelmat-data.js` skriptillä `tools/build_data.py` (`python3 tools/build_data.py taulukko.xlsx js/menetelmat-data.js`) (taulukko ladataan xlsx:nä). Käsin ovat `js/methods.js`:ssä märkätilakartoitus, RH-taulukot, sanelun valintasanat ja näytetyyppien tunnusten etuliitteet.
+
+- **27 menetelmää**, joista uusia mm. ilmamäärä-, tiiveys-, melu-, viilto-, kalvopaksuus- ja PID-mittaus, radon (purkit / jatkuva), väestönsuoja, vetokoe ja merkkisavukoe. Laite- ja kalustokentät on poistettu; laitetiedot tulevat raporttipohjasta. Poikkeus: ilmamäärämittauksen mittalaite, koska se määrää kentät.
+- **Taso** (kohta / tila / kohde) ja **tyypilliset alimenetelmät** ovat menetelmän tiedoissa (`M.taso`, `M.alimenetelmat`). Alimenetelmien kirjaus tulee seuraavassa vaiheessa.
+- **Uudet kenttätyypit:** kellonaika (`time`), monivalinta (`multi`, arvo "M2; DG18") ja laskettu (`calc`). Vetolujuus lasketaan murtokuormasta ja halkaisijasta, näytteenottoaika aloitus- ja lopetusajasta (ellei tutkija kirjoita sitä itse).
+- **Oletusarvot:** esim. vetokokeen halkaisija 48 mm ja väestönsuojan koepaine 300 Pa täyttyvät valmiiksi, jos muistettua arvoa ei ole.
+- **Väestönsuoja** on tarkistuslista kuten märkätilakartoitus: rivit ovat siruja (Kunnossa / Korjaustarve / Puuttuu / Ei koske), ja *Muut kohdat kunnossa* kuittaa loput.
+- **Päivitys:** muuttuneet oletusmenetelmät korvautuvat versionumeron perusteella (tutkijan sanelusanat säilyvät), ja uudet menetelmät lisätään kerran, kun `OLETUSVERSIO` kasvaa. Vanhojen havaintojen näytetyypit muunnetaan uusiin nimiin kohdetta avattaessa.
+- **Sanasto:** menetelmän tunnistussanat ovat taulukosta. Aistinvarainen tarkastelu valitaan vain, jos muuta menetelmää ei tunnisteta. Enintään kolmen merkin sanat (pid, vss, akk) tunnistetaan vain kokonaisina.
+
 ## Näytteenotto (menetelmä `nayte`)
 
-Näytetyypit on ryhmitelty (materiaali-, ilma-, pinta- ja pölynäytteet). Lähtökohta on Labroc Oy:n akkreditoitu pätevyysalue (FINAS T314) sekä PBM:n raporteissa käytetyt näytteet. Tyyppi antaa tunnukselle etuliitteen (MIK1, VOCI1, AS1 …) ja näyttää vain tyypin kentät (esim. ilmanäytteelle keräin, ilmamäärä ja aika; materiaalinäytteelle materiaali). Tulos on valinnainen, koska se tulee laboratoriosta. Valintalistoihin voi kirjoittaa oman arvon (*Muu…*).
+32 näytetyyppiä Labrocin näytteenotto-ohjeiden (AO-ohjeet) mukaan, ryhmittäin: asbesti ja haitta-aineet, pöly ja kuidut, mikrobit, kemialliset ja betoni. Tyyppi antaa tunnukselle etuliitteen (VOCI1, AS1, MIK1 …) ja näyttää vain tyypin kentät omassa järjestyksessään: esim. VOC-ilmanäytteelle näyteputken ja kenttänollaputken numerot, pumppu, aloitus- ja lopetusaika, laskettu näytteenottoaika ja ilmamäärä. Putken, pumpun ja keräimen numerot tunnistetaan sanelusta numeroineen ("näyteputki 123456, pumppu VC2").
+
+Pumppu muistetaan kaikille näytteille, muut muistettavat kentät (esim. kenttänollaputki) näytetyypeittäin. Tyypin alla näkyy *Muista*-vinkki ohjeesta (esim. kenttänolla ja näytteenottoa edeltävät olosuhteet); vinkki ei ole täytettävä kenttä. Tulos on valinnainen, koska se tulee laboratoriosta.
+
+## Kalusto mukaan (`js/kalusto.js`, `#/k/<id>/kalusto`)
+
+Pakkauslista ennen kenttäkäyntiä: yleiskalusto, suunnitelman menetelmien kalusto ja näytetyyppien kalusto. Näytetyypit päätellään suunnitelman kohtien kuvauksista ("VOC-ilmanäyte") ja otetuista näytteistä; listaan voi lisätä näytetyypin tai menetelmän. Sama varuste näkyy vain kerran. Rastit tallentuvat vain tähän puhelimeen (`kohde.kalusto`, ei pilveen). Rivi näkyy kohteen sivulla ennen ensimmäistä havaintoa ja sen jälkeen *Lisää*-kohdassa.
 
 ## Pilvi ja useampi tutkija (`js/cloud.js`, `js/sync.js`, `js/cloudui.js`)
 
@@ -391,7 +409,9 @@ lib/                   kirjastot (ei CDN:stä)
 supabase/              tietokanta ja käyttöoikeustestit
 js/ui.js               kuvakkeet, ikkunat, ilmoitukset
 js/db.js               IndexedDB-tallennus
+js/menetelmat-data.js  menetelmät, näytetyypit ja kalusto taulukosta (generoitu)
 js/methods.js          oletusmenetelmät, rakenneosat, menetelmien tallennus
+js/kalusto.js          Kalusto mukaan -lista
 js/editor.js           menetelmien muokkaus
 js/vocab.js            muokattavat sanalistat (oletukset + tutkijan muutokset)
 js/vocabview.js        Sanasto-sivu ja sanelun kokeilu
