@@ -133,7 +133,7 @@
         const img = hv && hv.kuvat[0] ? '<img class="todo-img" src="' + Model.url(hv.kuvat[0]) + '" alt="">' : "";
         body += '<div class="todo"><div class="tt">' + img + '<div><div class="t">' + esc(x.otsikko) + '</div><div class="s">' + esc(x.selite) + "</div></div></div>" +
           '<div class="acts">' +
-          (needTulos ? '<button class="btn btn-sm" data-a="qtulos" data-v="poikkeama" data-id="' + x.id + '">Poikkeama</button><button class="btn btn-sm" data-a="qtulos" data-v="ok" data-id="' + x.id + '">Ei huom.</button>' : "") +
+          (needTulos ? '<button class="btn btn-sm" data-a="qtulos" data-v="poikkeama" data-id="' + x.id + '">Poikkeama</button><button class="btn btn-sm" data-a="qtulos" data-v="ok" data-id="' + x.id + '">Ei huomautettavaa</button>' : "") +
           '<button class="btn btn-sm btn-dark" data-a="do" data-t="' + t + '" data-id="' + x.id + '">' + esc(x.toimintoTeksti) + "</button>" +
           (t === "kohta" ? '<button class="btn btn-sm" data-a="pois" data-id="' + x.id + '">Jätä pois + syy</button>' : "") +
           (t === "tila" ? '<button class="btn btn-sm" data-a="eip" data-id="' + x.id + '">Ei pääsyä + syy</button>' : "") +

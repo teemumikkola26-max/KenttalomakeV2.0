@@ -311,6 +311,22 @@ Märkätilakartoituksen Asunto-kenttä jää pois, kun kohteessa ei ole asuntoja
 
 Kameranäkymässä on kaksi välilehteä: **Havainto** ja **Yleiskuva**. Yleiskuva-tilassa jokainen laukaisu tallentuu heti kohteen yleiskuviin valitun tilan kanssa, ilman sanelua ja havaintoa. Kohteen sivulla *Yleiskuvat* näyttää kuvat tiloittain; kuvalle voi lisätä kuvatekstin tai vaihtaa tilan. ZIP-paketissa kuvat ovat kansiossa `yleiskuvat/` (YK01_OH1.jpg …), ja luettelo on `havainnot.md`:ssä ja `havainnot.json`:ssa. Yleiskuvat synkronoituvat pilveen kuten muutkin kohteen tiedot.
 
+## Versio 43
+
+- **Tilaseurannan tarkennus** (pilotin palaute: ehdotukset lähes aina väärin):
+  - *Kompassi:* puhelimen eteenpäin-suunta ilmansuuntana (deviceorientationabsolute, iPhonessa webkitCompassHeading) korjaa kävelysuuntaa, kun puhelin on kädessä. Pohjakuvan pohjoinen tulee paketista (`pohjakuva.pohjoinen`) tai opitaan kävelyistä (`kerros.pohjoinenOpittu`). Magneettihäiriöt siedetään (sekamalli).
+  - *Tauot:* kun näyttö on ollut pimeänä tai sovellus taustalla, askeleita jäi laskematta: sijainti hajautetaan naapuritiloihin tauon pituuden mukaan.
+  - *Väärät askeleet:* askel hyväksytään vain kävelyjaksossa (toinen askel 1,4 s sisällä). Kyykistyminen tai laukun nosto ei siirrä sijaintia.
+  - *Tilojen ulkopuoliset alueet* (nimeämätön käytävä, porras, seinä) eivät kaada seurantaa.
+  - *Ehdotukset:* jos seuranta on epävarma, listaa täydennetään viimeksi valitulla tilalla ja sen naapuritiloilla. "Todennäköisin" vain, kun varmuus ≥ 60 %.
+  - *Sanelussa sanottu tila* kiinnittää seurannan kuten valinta. *Askelpituus* opitaan kiinnityksistä.
+  - *Loki:* askeleet, suunnat, kompassi, tauot ja tilavalinnat tallentuvat; kohteen Lisää → Vie seurannan loki. Lokilla seuranta voidaan ajaa uudelleen ja säätää.
+  - Lähtötieto-projekti: `tila_alueet.py` tarkistaa mittakaavan piirustuksen pinta-aloista; ohjeessa pohjoisnuolen luku.
+- **Kameran pikavalinta yksinkertaisemmaksi:** ensin *Havainto / Yleiskuva*, sitten "Missä olet?" (2–4 ehdotusta + Hae tila…) ja "Mitä kirjaat?" (suunnitelman menetelmät + aistinvarainen + Muu menetelmä…). Haku ja koko lista vasta pyynnöstä.
+- **Kamera:** "Täydennä tiedot" (ent. Avaa havainto), "Seuraava havainto", "Ei huomautettavaa"; vähimmäistietojen merkit poistettu kuvan päältä.
+- **Tutkimussuunnitelma:** *Lisää menetelmiä* avaa haun ja valintalistan (useita kerralla). Määrä − / + suoraan listassa, tarkennus napauttamalla nimeä. Korjaus: "Näytteitä avauksista" näkyi kaikilla menetelmillä (piilotus ei toiminut, `[hidden]`-tyyli).
+- **Havaintokortti:** valinnaiset kentät näkyvät heti pakollisten alla ("Muut tiedot · valinnaisia"). Osio 2 = *Menetelmä ja tiedot*, osio 3 = *Tulkinta ja suunnitelman kohta* (ent. Lisätiedot).
+
 ## Versio 42
 
 - **Kohdenäkymä:** omat kohteet ensin, muiden kohteet taitettuna listan lopussa. Oma = tutkijan luoma tai kirjaama pilvikohde tai Tutkija-kentässä tämän laitteen tutkijan nimi. Yli kuuden kohteen listassa haku.

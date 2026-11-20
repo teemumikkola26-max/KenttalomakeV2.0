@@ -78,9 +78,6 @@
       '<button class="vf-prev hidden" data-c="prev"></button></div><div class="vf-thumbs" data-thumbs></div>' +
       // Menetelmä yhtenä merkkinä kuvan päällä: napautus avaa pikavalinnan
       '<button class="vf-method meta-chip" data-c="more" aria-label="Vaihda menetelmä"><span data-mname></span>' + icon("back", "down") + "</button>" +
-      // Kolme vähimmäistietoa: kuva, havainto, tila
-      '<div class="vf-req" data-req><span data-rq="kuva">' + icon("cam") + "Kuva</span><span data-rq=\"hav\">" + icon("mic") + "Havainto</span>" +
-      '<button data-rq="tila" data-c="loc">' + icon("pin") + "Tila</button></div>" +
       '<div class="dict-live hidden" data-live aria-live="polite"><div class="dl-h"><span class="rec"></span><span data-lst>Sanelu</span></div><div class="dl-t" data-prev></div></div>' +
       "</div>" +
       '<div class="cam-panel">' +
@@ -89,11 +86,11 @@
       '<textarea data-text rows="2" aria-label="Havainto" placeholder="Kirjoita havainto tai pidä mikrofonia pohjassa"></textarea>' +
       '<button class="cp-need hidden" data-c="need" data-need></button>' +
       '<div class="cp-meta">' +
-      '<div class="chips" data-tulos><button class="chip c-note" data-t="poikkeama">Poikkeama</button><button class="chip c-ok" data-t="ok">Ei huom.</button></div>' +
-      '<button class="card-link" data-c="card"><span data-cl>Avaa havainto</span>' + icon("back", "flip") + "</button></div>" +
+      '<div class="chips" data-tulos><button class="chip c-note" data-t="poikkeama">Poikkeama</button><button class="chip c-ok" data-t="ok">Ei huomautettavaa</button></div>' +
+      '<button class="card-link" data-c="card"><span data-cl>Täydennä tiedot</span>' + icon("back", "flip") + "</button></div>" +
       "</div>" +
       '<div class="cam-bottom">' +
-      '<button class="cam-side" data-c="next"><span class="c">' + icon("plus") + "</span>Seuraava</button>" +
+      '<button class="cam-side" data-c="next"><span class="c">' + icon("plus") + "</span>Seuraava havainto</button>" +
       '<button class="shutter" data-c="shot" aria-label="Ota kuva"><span></span></button>' +
       '<button class="cam-side mic" data-mic aria-label="Sanele: pidä pohjassa"><span class="c" data-micic>' + icon("mic") + '</span><span data-miclbl>Pidä: sanele</span></button>' +
       "</div></div>";
@@ -141,7 +138,7 @@
       root.querySelectorAll("[data-t]").forEach((b) => {
         const on = b.dataset.t === h.tulos;
         b.setAttribute("aria-pressed", String(on));
-        b.textContent = b.dataset.t === "ok" ? "Ei huom." : "Poikkeama";
+        b.textContent = b.dataset.t === "ok" ? "Ei huomautettavaa" : "Poikkeama";
         b.classList.toggle("autoset", on && !!(h.auto && h.auto.tulos === "sanelu"));
       });
     }
@@ -179,7 +176,7 @@
       const miss = Check.havaintoPuutteet(h).filter((x) => !["kuva tai sanelu", "tila", "tulos", "menetelmä", "suunnitelman kohta"].includes(x));
       const fields = M.menetelma(h.menetelma).kentat.length;
       const warn = miss.length > 0 && hasContent();
-      $("[data-cl]").innerHTML = "Avaa havainto" + (warn ? ' <span class="cl-n" aria-label="' + miss.length + ' puuttuu">' + miss.length + "</span>" : "");
+      $("[data-cl]").innerHTML = "Täydennä tiedot" + (warn ? ' <span class="cl-n" aria-label="' + miss.length + ' puuttuu">' + miss.length + "</span>" : "");
       $(".card-link").classList.toggle("warn", warn);
       $(".card-link").setAttribute("aria-label", "Avaa havaintokortti" + (warn ? ", puuttuu: " + miss.join(", ") : "") + (fields ? ", " + fields + " kenttää" : ""));
       // Menetelmän vähimmäistiedot: mitä puuttuu ja mitä sanoa
@@ -496,12 +493,15 @@
         (S.havainnot || []).slice().sort((a, b) => b.updated - a.updated).forEach((x) => { const t = x.sijainti && x.sijainti.tilaId; if (t && !ids.includes(t)) ids.push(t); });
         return ids.slice(0, 6).map((id) => Model.tila(id)).filter(Boolean);
       };
+      /* Yksinkertainen pikavalinta: ensin Havainto / Yleiskuva, sitten tila (2–4 ehdotusta) ja menetelmä
+         (suunnitelman kohdat). Haku ja kaikki vaihtoehdot avautuvat vasta "Hae…"-painikkeesta. */
+      let tHaku = false, mHaku = false;
       g.innerHTML = '<div class="qp-box">' +
-        (kysyT ? '<div class="qp-h">Tila</div>' +
-          '<div class="qp-find"><input type="search" data-qts placeholder="Hae tai lisää tila, esim. VH2 tai Varasto" autocomplete="off" enterkeyhint="done"></div>' +
+        (alku && !pakota ? '<div class="qp-tyyppi"><button class="on" data-qhav>' + icon("cam") + '<span>Havainto<small>kuva ja sanelu</small></span></button>' +
+          '<button data-qyk>' + icon("image") + '<span>Yleiskuva<small>pelkkä kuva, ei sanelua</small></span></button></div>' : "") +
+        (kysyT ? '<div class="qp-h">Missä olet?</div><div class="qp-find" data-qtf hidden><input type="search" data-qts placeholder="Tilan nimi tai numero, esim. 102 tai varasto" autocomplete="off" enterkeyhint="done"></div>' +
           '<div class="qp-chips" data-qtl></div>' : "") +
-        (kysyM ? '<div class="qp-h">' + (alku ? "Mitä kirjaat?" : pakota ? "Vaihda menetelmä" : "Seuraavan havainnon menetelmä") + "</div>" +
-          '<div class="qp-find"><input type="search" data-qms placeholder="Hae tai lisää menetelmä" autocomplete="off" enterkeyhint="done"></div>' +
+        (kysyM ? '<div class="qp-h">' + (pakota ? "Vaihda menetelmä" : "Mitä kirjaat?") + '</div><div class="qp-find" data-qmf hidden><input type="search" data-qms placeholder="Menetelmän nimi, esim. RH tai näyte" autocomplete="off" enterkeyhint="done"></div>' +
           '<div data-qml></div>' : '<button class="btn btn-primary" data-qok style="width:100%;margin-top:12px">Valmis</button>') +
         '<button class="qp-skip" data-qskip>' + (kysyM ? "Valitse myöhemmin" : "Ohita") + "</button></div>";
       const tIn = g.querySelector("[data-qts]"), mIn = g.querySelector("[data-qms]");
@@ -510,16 +510,16 @@
         if (!kysyT) return;
         const q = norm(tIn.value);
         let l, lisaa = "";
-        if (q) {
+        if (tHaku && q) {
           const kaikki = S.kohde.tilat.filter((t) => norm(Model.tilaNimi(t)).includes(q) || norm(t.tunnus) === q);
-          // Nykyisen kerroksen tilat ensin
           l = kaikki.sort((a, b) => (a.kerrosId === h.sijainti.kerrosId ? 0 : 1) - (b.kerrosId === h.sijainti.kerrosId ? 0 : 1)).slice(0, 8);
-          if (!kaikki.some((t) => norm(Model.tilaNimi(t)) === q || norm(t.tunnus) === q)) lisaa = '<button class="qp-chip qp-add" data-qtnew>+ Lisää tila ”' + esc(tIn.value.trim()) + "”</button>";
-        } else l = viimeisetTilat();
+          if (!kaikki.some((t) => norm(Model.tilaNimi(t)) === q || norm(t.tunnus) === q)) lisaa = '<button class="qp-chip qp-add" data-qtnew>+ Uusi tila ”' + esc(tIn.value.trim()) + "”</button>";
+        } else l = viimeisetTilat().slice(0, 4);
+        const merkki = (t) => ehd.some((x) => x.tila.id === t.id && !x.naapuri) ? (ehd[0].tila.id === t.id && ehd[0].p >= 0.6 ? "todennäköisin" : "seuranta") : t.id === edell ? "edellinen" : "";
         g.querySelector("[data-qtl]").innerHTML =
           l.map((t) => '<button class="qp-chip" data-qt="' + t.id + '" aria-pressed="' + (t.id === h.sijainti.tilaId) + '">' + esc(Model.tilaNimi(t)) +
-            (!q && ehd.some((x) => x.tila.id === t.id) ? " <small>" + (ehd[0].tila.id === t.id ? "todennäköisin" : "todennäköinen") + "</small>" : !q && t.id === edell ? " <small>edellinen</small>" : "") + "</button>").join("") + lisaa +
-          (q ? "" : '<button class="qp-chip qp-more" data-qt="__muu">Pohjakuvasta…</button>') +
+            (!q && merkki(t) ? " <small>" + merkki(t) + "</small>" : "") + "</button>").join("") + lisaa +
+          (tHaku ? '<button class="qp-chip qp-more" data-qt="__muu">' + icon("pin") + " Pohjakuvasta</button>" : '<button class="qp-chip qp-more" data-qthaku>' + icon("list") + " Hae tila…</button>") +
           (q && !l.length && !lisaa ? '<span class="qp-none">Ei osumia</span>' : "");
       }
       function paintM() {
@@ -527,20 +527,19 @@
         const q = norm(mIn.value);
         const all = M.havaintoMenetelmat();
         let html;
-        if (q) {
-          const hits = all.filter((m) => norm(m.nimi).includes(q) || norm(m.lyhyt).includes(q) || (m.sanat || []).some((w) => norm(w).includes(q)));
+        if (mHaku) {
+          const hits = q ? all.filter((m) => norm(m.nimi).includes(q) || norm(m.lyhyt).includes(q) || (m.sanat || []).some((w) => norm(w).includes(q))) : all;
           const exact = all.some((m) => norm(m.nimi) === q);
           html = '<div class="qp-grid qp-small">' + hits.map((m) => '<button class="qp-m" data-qm="' + esc(m.id) + '">' + esc(m.nimi) + "</button>").join("") +
-            (exact ? "" : '<button class="qp-m qp-more" data-qmnew>+ Lisää menetelmä ”' + esc(mIn.value.trim()) + "”</button>") + "</div>";
+            (q && !exact ? '<button class="qp-m qp-more" data-qmnew>+ Uusi menetelmä ”' + esc(mIn.value.trim()) + "”</button>" : "") + "</div>";
         } else {
-          const sugg = Asetukset.get("pv.suunnitelma") ? MethodPicker.ehdotukset(h.menetelma, h.id) : [];
-          const muut = all.filter((m) => !sugg.some((x) => x.id === m.id));
-          html = (sugg.length ? '<div class="qp-grid">' +
+          // Suunnitelman kohdat ja edellinen menetelmä; aistinvarainen aina mukana. Muut haun takana.
+          let sugg = Asetukset.get("pv.suunnitelma") ? MethodPicker.ehdotukset(h.menetelma, h.id).slice(0, 5) : [];
+          if (!sugg.some((x) => x.id === "aisti") && all.some((m) => m.id === "aisti")) sugg = sugg.concat([{ id: "aisti", nimi: M.menetelma("aisti").nimi }]);
+          html = '<div class="qp-grid">' +
             sugg.map((x, i) => '<button class="qp-m' + (i === 0 && x.id === h.menetelma ? " qp-first" : "") + '" data-qm="' + esc(x.id) + '">' + esc(x.nimi) +
-              (x.id === h.menetelma && !alku ? "<small>sama kuin edellä</small>" : x.tag ? "<small>" + esc(x.tag) + "</small>" : "") + "</button>").join("") + "</div>" : "") +
-            (muut.length && sugg.length ? '<div class="qp-h">Muut menetelmät</div>' : "") +
-            '<div class="qp-grid qp-small">' + muut.map((m) => '<button class="qp-m" data-qm="' + esc(m.id) + '">' + esc(m.nimi) + "</button>").join("") +
-            '<button class="qp-m qp-yk" data-qyk>' + icon("image") + "Yleiskuva<small>ei havaintoa</small></button></div>";
+              (x.id === h.menetelma && !alku ? "<small>sama kuin edellä</small>" : x.tag ? "<small>" + esc(x.tag) + "</small>" : "") + "</button>").join("") +
+            '<button class="qp-m qp-more" data-qmhaku>' + icon("list") + " Muu menetelmä…</button></div>";
         }
         g.querySelector("[data-qml]").innerHTML = html;
       }
@@ -586,6 +585,9 @@
         if (e.target.closest("[data-qtnew]")) { uusiTila(); return; }
         if (e.target.closest("[data-qmnew]")) { uusiMenetelma(); return; }
         if (e.target.closest("[data-qyk]")) { g.remove(); setMode("yk"); return; }
+        if (e.target.closest("[data-qhav]")) return;
+        if (e.target.closest("[data-qthaku]")) { tHaku = true; g.querySelector("[data-qtf]").hidden = false; paintT(); tIn.focus(); return; }
+        if (e.target.closest("[data-qmhaku]")) { mHaku = true; g.querySelector("[data-qmf]").hidden = false; paintM(); mIn.focus(); return; }
         const tb = e.target.closest("[data-qt]");
         if (tb) {
           if (tb.dataset.qt === "__muu") {
@@ -614,7 +616,7 @@
         "<li><b>Ota kuva</b> laukaisimesta. Kuvia voi ottaa useita.</li>" +
         "<li><b>Pidä mikrofonia pohjassa</b> ja kerro havainto. Vapauta, kun olet valmis.</li>" +
         "<li><b>Seuraava</b> tallentaa ja aloittaa uuden havainnon samassa tilassa.</li>" +
-        "<li><b>Avaa havainto</b> näyttää kaikki tiedot ja mittauskentät. Sen voi avata myös ilman kuvaa.</li>" +
+        "<li><b>Täydennä tiedot</b> avaa havainnon kaikki tiedot ja mittauskentät. Sen voi avata myös ilman kuvaa.</li>" +
         "<li><b>Yleiskuva</b>-välilehdellä otat kuvia ilman havaintoa (julkisivut, tilat).</li></ol>" +
         '<p class="hint" style="color:#ddd;margin:0 0 14px">Kaikki tallentuu heti. Sen, mitä sanelusta täytetään, voi valita Sanasto-sivulla.</p>' +
         '<button class="btn btn-primary" data-ok>Selvä</button></div>';

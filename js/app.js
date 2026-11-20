@@ -78,6 +78,10 @@
       await DB.put("havainnot", h);
       const i = S.havainnot.findIndex((x) => x.id === h.id);
       if (i >= 0) S.havainnot[i] = h; else S.havainnot.push(h);
+      // Tilaseuranta: sanelussa sanottu tila on tutkijan oma valinta (uusi havainto, ei vanhan muokkaus)
+      if (window.Paikannus && h.auto && h.auto.tila === "sanelu" && h.sijainti.tilaId && h.kiinnitetty !== h.sijainti.tilaId && Date.now() - (h.created || 0) < 10 * 60000) {
+        h.kiinnitetty = h.sijainti.tilaId; Paikannus.kiinnita(h.sijainti.tilaId);
+      }
       // Pohjakuvasta tunnistettu tila vahvistuu, kun se on havainnon sijaintina (tutkija on paikalla ja näkee nimen)
       const tt = h.sijainti && h.sijainti.tilaId && Model.tila(h.sijainti.tilaId);
       if (tt && window.Plan && Plan.confirmRoom(tt, "havainto")) await Model.saveKohde();
@@ -414,7 +418,8 @@
             esc(k.paikannus ? (t.virhe ? t.virhe : !t.on ? "Napauta käynnistääksesi anturit" : t.alussa ? "Alkaa ensimmäisestä tilavalinnasta" : "Ehdottaa tiloja kirjauksessa") +
               (o.n ? " · osumat " + (o.top1 || 0) + "/" + o.n + " ensimmäisenä, " + (o.top3 || 0) + "/" + o.n + " kolmen joukossa" : "")
               : "Askelpaikannus ehdottaa kirjauksessa 2–3 todennäköisintä tilaa. Näyttö pysyy päällä; taskussa näyttö pimenee.") + "</div></div>" +
-            '<span class="chip" aria-pressed="' + !!k.paikannus + '" style="pointer-events:none">' + (k.paikannus ? "Päällä" : "Pois") + "</span></button>";
+            '<span class="chip" aria-pressed="' + !!k.paikannus + '" style="pointer-events:none">' + (k.paikannus ? "Päällä" : "Pois") + "</span></button>" +
+            (Paikannus.lokiPituus() ? '<button class="link" data-act="paikannusLoki" style="margin:0 0 8px 40px">Vie seurannan loki (tiedosto säätöä varten)</button>' : "");
         })() : "") +
         lisaRivi("#/k/" + k.id + "/yleiskuvat", "image", "Yleiskuvat", ykN ? ykN + " kuvaa" : "Julkisivut ja tilat ilman havaintoa") +
         (seurPlan ? "" : lisaRivi("#/k/" + k.id + "/seuranta", "pin", "Olosuhdeseuranta", seurN ? seurN + " mittalaitetta" : "Mittalaitteiden sijainnit")) +
@@ -500,17 +505,50 @@
   function viewSuunnitelma() {
     const k = S.kohde;
     let rows = "";
-    k.suunnitelma.forEach((p, i) => {
-      rows += '<div class="row" style="cursor:default"><div class="grow"><div class="t">' + esc(M.menetelma(p.menetelma).nimi) + (p.maara > 1 ? " × " + p.maara : "") + "</div>" +
-        '<div class="s">' + esc([p.kuvaus, Model.tilaNimi(Model.tila(p.tilaId))].filter(Boolean).join(" · ") || "–") + "</div></div>" +
-        '<button class="icon-btn" data-act="editKohta" data-id="' + p.id + '" aria-label="Muokkaa">' + icon("edit") + "</button>" +
-        '<button class="icon-btn" data-act="delKohta" data-id="' + p.id + '" aria-label="Poista">' + icon("trash") + "</button></div>";
+    k.suunnitelma.forEach((p) => {
+      rows += '<div class="row pl-ed"><button class="grow pl-ed-t" data-act="editKohta" data-id="' + p.id + '" aria-label="Muokkaa kohtaa"><div class="t">' + esc(M.menetelma(p.menetelma).nimi) + "</div>" +
+        '<div class="s">' + esc([p.kuvaus, Model.tilaNimi(Model.tila(p.tilaId)), p.naytteet ? "näytteet " + p.naytteet : ""].filter(Boolean).join(" · ") || "Lisää tarkennus napauttamalla") + "</div></button>" +
+        '<div class="maara" aria-label="Määrä"><button data-act="maara" data-id="' + p.id + '" data-d="-1" aria-label="Vähennä">−</button><b>' + (p.maara || 1) + '</b><button data-act="maara" data-id="' + p.id + '" data-d="1" aria-label="Lisää">+</button></div>' +
+        '<button class="icon-btn" data-act="delKohta" data-id="' + p.id + '" aria-label="Poista kohta">' + icon("trash") + "</button></div>";
     });
     app().innerHTML = topbar({ title: "Tutkimussuunnitelma", sub: k.nimi, back: "#/k/" + k.id }) +
-      '<main class="view no-nav"><section class="card">' + (rows || '<div class="empty">Ei kohtia.</div>') + "</section>" +
-      '<button class="btn btn-primary btn-block" data-act="addKohta">' + icon("plus") + "Lisää kohta</button>" +
+      '<main class="view no-nav"><section class="card">' + (rows || '<div class="empty">Ei vielä tutkimuksia. Lisää menetelmät alta.</div>') + "</section>" +
+      '<button class="btn btn-primary btn-block" data-act="addKohta">' + icon("plus") + "Lisää menetelmiä</button>" +
       '<div style="height:10px"></div><button class="btn btn-block" data-act="pdfKohdat">' + icon("upload") + "Tuo tarjouksesta tai suunnitelmasta (PDF)</button>" +
-      '<p class="hint">Kirjaa suunnitelman tutkimukset menetelmittäin. Määrä tarkoittaa esimerkiksi mittauspisteiden tai avausten lukumäärää. Havainto liitetään kohtaan havaintokortilla.</p></main>';
+      '<p class="hint">Valitse kerralla kaikki tutkimuksen menetelmät. Määrä (esim. mittauspisteet tai avaukset) muutetaan − / + -painikkeilla, ja tarkennuksen saa napauttamalla menetelmän nimeä.</p></main>';
+  }
+
+  /* Usean menetelmän valinta kerralla: haku + valintalista. Valitut lisätään suunnitelmaan määrällä 1. */
+  function menetelmaValinta() {
+    const valitut = new Set();
+    const lista = M.MENETELMAT.filter((m) => !m.piilotettu);
+    const norm = (x) => String(x || "").toLowerCase();
+    sheet(
+      "<h3>Lisää menetelmiä</h3>" +
+      '<label class="mp-search" style="margin:0 0 8px">' + icon("list") + '<input type="search" data-q placeholder="Hae menetelmää, esim. RH, näyte, radon" autocomplete="off"></label>' +
+      '<div class="mv-lista" data-l></div>' +
+      '<div class="row-btns" style="position:sticky;bottom:0;background:var(--raised);padding-top:8px"><button class="btn" data-close>Peruuta</button><button class="btn btn-primary" data-ok disabled>Lisää valitut</button></div>',
+      (el, close) => {
+        const q = el.querySelector("[data-q]"), box = el.querySelector("[data-l]"), ok = el.querySelector("[data-ok]");
+        const onSuunnitelmassa = (id) => S.kohde.suunnitelma.filter((p) => p.menetelma === id).length;
+        function paint() {
+          const w = norm(q.value).trim();
+          const hits = lista.filter((m) => !w || norm(m.nimi).includes(w) || norm(m.lyhyt).includes(w) || Auto.methodWords(m).some((x) => norm(x).includes(w)));
+          box.innerHTML = hits.map((m) => '<label class="ka-chk mv-r"><input type="checkbox" data-m="' + m.id + '"' + (valitut.has(m.id) ? " checked" : "") + "><span>" + esc(m.nimi) +
+            (onSuunnitelmassa(m.id) ? ' <small class="hint">jo suunnitelmassa</small>' : "") + "</span></label>").join("") || '<p class="hint">Ei osumia.</p>';
+          ok.disabled = !valitut.size;
+          ok.textContent = valitut.size ? "Lisää valitut (" + valitut.size + ")" : "Lisää valitut";
+        }
+        q.addEventListener("input", paint);
+        box.addEventListener("change", (e) => { const c = e.target.closest("[data-m]"); if (!c) return; if (c.checked) valitut.add(c.dataset.m); else valitut.delete(c.dataset.m); paint(); });
+        ok.addEventListener("click", async () => {
+          lista.filter((m) => valitut.has(m.id)).forEach((m) => S.kohde.suunnitelma.push({ id: DB.uid("p_"), menetelma: m.id, kuvaus: "", maara: 1, tilaId: null, pois: null }));
+          await Model.saveKohde(); close(); toast(valitut.size + (valitut.size === 1 ? " menetelmä lisätty" : " menetelmää lisätty")); render();
+        });
+        paint();
+        setTimeout(() => q.focus(), 50);
+      }
+    );
   }
 
   function kohtaSheet(p) {
@@ -595,8 +633,18 @@
       toast(k.paikannus ? (ok ? "Tilaseuranta päällä. Valitse tila ensimmäisessä kirjauksessa, niin seuranta alkaa siitä." : "Anturit eivät käynnisty: " + Paikannus.tilanne().virhe) : "Tilaseuranta pois", 4000);
       render();
     },
+    paikannusLoki() {
+      const k = S.kohde, data = Paikannus.vieLoki();
+      const name = "tilaseuranta_" + (k.nimi || "kohde").replace(/[^A-Za-z0-9ÅÄÖåäö_-]+/g, "_").slice(0, 40) + "_" + new Date().toISOString().slice(0, 10) + ".json";
+      const blob = new Blob([JSON.stringify(data)], { type: "application/json" }), file = new File([blob], name, { type: "application/json" });
+      if (navigator.canShare && navigator.canShare({ files: [file] }) && /Android|iPhone|iPad/i.test(navigator.userAgent)) { navigator.share({ files: [file], title: name }).catch(() => {}); return; }
+      const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+      toast("Loki ladattu: " + name, 3500);
+    },
     galleria() { Gallery.importPhotos(() => render()); },
-    addKohta() { kohtaSheet(null); },
+    addKohta() { menetelmaValinta(); },
+    async maara(el) { const p = Model.kohta(el.dataset.id); if (!p) return; p.maara = Math.max(1, (p.maara || 1) + Number(el.dataset.d)); await Model.saveKohde(); const y = window.scrollY; render(); setTimeout(() => window.scrollTo(0, y), 0); },
     pdfKohdat() { PlanImport.importPdf(); },
     editKohta(el) { kohtaSheet(Model.kohta(el.dataset.id)); },
     async delKohta(el) {

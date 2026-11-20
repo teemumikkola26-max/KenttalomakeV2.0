@@ -95,17 +95,22 @@
       active = true; estimate();
     }
     function clear() { active = false; est = null; probs = []; }
-    function step(len, psi, dpsi) {
+    // meas: kompassista laskettu kävelysuunta pohjakuvassa (rad) tai null. Sietää magneettihäiriöt (sekamalli).
+    function step(len, psi, dpsi, meas) {
       if (!active) return;
       dpsi = dpsi || 0; const adp = Math.abs(dpsi);
+      const s2 = 2 * Math.pow(30 * DEG, 2);
       let sum = 0;
       for (let i = 0; i < N; i++) {
         th[i] += gauss() * 0.4 * DEG + (gs[i] - 1) * dpsi + gauss() * 0.03 * adp;
         const h = psi + th[i] + gauss() * 4 * DEG, L = len * sc[i] * (1 + gauss() * 0.06);
         const x1 = x[i] + Math.cos(h) * L, y1 = y[i] + Math.sin(h) * L, r = roomAt(x1, y1);
         let f = 1;
-        if (r < 0) f = 0.01;
-        else if (malli.doors.length) { const c = crossesWall(x[i], y[i], x1, y1); f = c === 1 ? 0.01 : c === 2 ? 0.3 : 1; }
+        if (meas != null) { let d = h - meas; d = Math.atan2(Math.sin(d), Math.cos(d)); f *= 0.25 + 0.75 * Math.exp(-d * d / s2); }
+        // Tilojen ulkopuolella (seinän sisällä, nimeämätön käytävä tai porras): lievä rangaistus, ei kova.
+        // Pohjakuvassa on usein tiloja ilman tunnusta; kova rangaistus kaataisi seurannan niissä.
+        if (r < 0) f *= 0.15;
+        else if (malli.doors.length) { const c = crossesWall(x[i], y[i], x1, y1); f *= c === 1 ? 0.01 : c === 2 ? 0.3 : 1; }
         x[i] = x1; y[i] = y1; rm[i] = r; w[i] *= f; sum += w[i];
       }
       if (sum < 1e-200) for (let i = 0; i < N; i++) { w[i] = 1 / N; th[i] += gauss() * 20 * DEG; }
@@ -140,7 +145,24 @@
       resample(true); estimate();
     }
     function spreadHeading(sd) { for (let i = 0; i < N; i++) th[i] += gauss() * sd; }
-    return { init, clear, step, confirmRoom, spreadHeading, get active() { return active; }, get est() { return est; }, get probs() { return probs; } };
+    /* Tauko (näyttö pimeänä, toinen sovellus): askeleet jäivät laskematta. Partikkelit kävelevät
+       satunnaisesti seinien rajoissa sen verran kuin tauon aikana ehtisi, jotta naapuritilat tulevat mahdollisiksi. */
+    function diffuse(askelia) {
+      if (!active) return;
+      const n = Math.min(40, Math.max(0, Math.round(askelia)));
+      for (let i = 0; i < N; i++) {
+        for (let k = 0; k < n; k++) {
+          const a = Math.random() * TAU, x1 = x[i] + Math.cos(a) * 0.7, y1 = y[i] + Math.sin(a) * 0.7;
+          if (roomAt(x1, y1) < 0 || (malli.doors.length && crossesWall(x[i], y[i], x1, y1) === 1)) continue;
+          x[i] = x1; y[i] = y1;
+        }
+        rm[i] = roomAt(x[i], y[i]); th[i] += gauss() * 40 * DEG;
+      }
+      estimate();
+    }
+    /* Suunta tiedetään (kompassi + pohjakuvan pohjoinen): partikkelien suuntapoikkeama sen mukaan */
+    function setHeading(t, sd) { for (let i = 0; i < N; i++) th[i] = t + gauss() * sd; estimate(); }
+    return { init, clear, step, confirmRoom, spreadHeading, diffuse, setHeading, get active() { return active; }, get est() { return est; }, get probs() { return probs; } };
   })();
 
   /* ---------- Liikeanturit ---------- */
@@ -160,6 +182,7 @@
     SN.psi = h + SN.off;
   }
   function onOrient(e) {
+    if (e.webkitCompassHeading != null && e.webkitCompassAccuracy != null && e.webkitCompassAccuracy >= 0 && e.webkitCompassAccuracy < 40) SN.comp = { c: e.webkitCompassHeading * DEG, t: Date.now() };   // iPhone
     if (e.alpha == null || e.beta == null || e.gamma == null) return;
     const R = euler2R(e.alpha * DEG, e.beta * DEG, e.gamma * DEG), P = SN.Rp; SN.Rp = R;
     if (!P) return;
@@ -170,8 +193,44 @@
     SN.psiO -= sn > 1e-6 ? sz * t / sn : sz; SN.osN++; SN.osAt = Date.now();
     applyHeading();
   }
+  /* Kompassi: puhelimen "eteenpäin" (yläreuna, kun puhelin on vaakatasossa; kameran suunta, kun pystyssä)
+     ilmansuuntana. Kädessä se on kävelysuunta; taskussa ei käytetä. */
+  function onAbs(e) {
+    if (e.alpha == null || e.beta == null || e.gamma == null) return;
+    const R = euler2R(e.alpha * DEG, e.beta * DEG, e.gamma * DEG);
+    const w1 = Math.abs(R[2][2]), w2 = Math.abs(R[2][1]);
+    const fE = w1 * R[0][1] - w2 * R[0][2], fN = w1 * R[1][1] - w2 * R[1][2];
+    if (Math.hypot(fE, fN) < 0.3) return;
+    SN.comp = { c: Math.atan2(fE, fN), t: Date.now() };
+  }
+  function kompassi() {
+    if (pocket || !SN.comp || Date.now() - SN.comp.t > 700) return null;
+    return SN.comp.c;
+  }
+  /* Pohjakuvan pohjoinen (astetta myötäpäivään sivun yläreunasta): paketista tai opittu kävelyistä */
+  function pohjoinen() {
+    const ker = malli && Model.kerros(malli.kerrosId);
+    if (!ker) return null;
+    if (typeof ker.pohjoinen === "number") return ker.pohjoinen;
+    const o = ker.pohjoinenOpittu;
+    return o && o.n >= 20 && o.r > 0.8 ? o.deg : null;
+  }
+  // Kompassisuunta pohjakuvan kulmaksi (rad, +x = oikealle, myötäpäivään positiivinen)
+  function kompassiPohjaan() { const c = kompassi(), N = pohjoinen(); return c == null || N == null ? null : (-90 + N) * DEG + c; }
+  function opiPohjoinen(kavely) {
+    const c = kompassi(), ker = malli && Model.kerros(malli.kerrosId), e = PF.est;
+    if (c == null || !ker || typeof ker.pohjoinen === "number" || !e || e.p < 0.8 || e.thConf < 0.85) return;
+    const a = (kavely - c) / DEG + 90;   // pohjoisen kulma sivulla
+    const L = malli.pohj = malli.pohj || { s: 0, c: 0, n: 0 };
+    L.s += Math.sin(a * DEG); L.c += Math.cos(a * DEG); L.n++;
+    if (L.n % 10 === 0) ker.pohjoinenOpittu = { deg: Math.round(Math.atan2(L.s, L.c) / DEG), n: L.n, r: Math.hypot(L.s, L.c) / L.n };
+  }
+
   function onMotion(e) {
     const a = e.accelerationIncludingGravity, r = e.rotationRate; if (!a || a.x == null) return;
+    // Tauko (näyttö pimeänä tai sovellus taustalla): askeleita jäi laskematta
+    const tauko = SN.viimeData ? (Date.now() - SN.viimeData) / 1000 : 0;
+    if (tauko > 8 && malli && PF.active) { PF.diffuse(tauko * 0.6); kirjaa({ l: "tauko", s: Math.round(tauko) }); SN.pend = null; }
     SN.viimeData = Date.now();
     const t = performance.now() / 1000; let dt = SN.lastT ? t - SN.lastT : 0.016; SN.lastT = t; if (dt > 0.3 || dt <= 0) dt = 0.016;
     const ax = a.x * SN.iosSign, ay = a.y * SN.iosSign, az = a.z * SN.iosSign;
@@ -218,10 +277,28 @@
       if (t - SN.peakT > 1.2) { SN.phase = 0; SN.mx = -1e9; }
     }
   }
+  /* Askel hyväksytään vain kävelyjaksossa: yksittäinen "askel" (kyykistyminen, laukun nosto, puhelimen
+     heilautus mittauksen aikana) hylätään. Ensimmäinen askel odottaa, kunnes toinen tulee 1,4 s sisällä. */
   function onStep(amp) {
-    const L = SN.K * Math.pow(amp, 0.25); SN.askeleet++;
-    const now = SN.psi, avg = SN.hn ? SN.hs / SN.hn : now, pu = (avg + now) / 2, dps = SN.pu == null ? 0 : pu - SN.pu; SN.hs = 0; SN.hn = 0; SN.pu = pu;
-    if (malli && PF.active) PF.step(L, pu, dps);
+    const t = performance.now() / 1000, L = SN.K * Math.pow(amp, 0.25);
+    const now = SN.psi, avg = SN.hn ? SN.hs / SN.hn : now, pu = (avg + now) / 2; SN.hs = 0; SN.hn = 0;
+    const st = { L, pu, meas: kompassiPohjaan(), c: kompassi(), t };
+    const kavelee = SN.viimeAskel && t - SN.viimeAskel < 1.4;
+    if (!kavelee) {
+      if (SN.pend && t - SN.pend.t < 1.4) { kayta(SN.pend); SN.pend = null; kayta(st); }
+      else SN.pend = st;                 // odottaa toista askelta
+      return;
+    }
+    kayta(st);
+  }
+  function kayta(st) {
+    SN.askeleet++; SN.viimeAskel = st.t;
+    const dps = SN.pu == null ? 0 : st.pu - SN.pu; SN.pu = st.pu;
+    if (!(malli && PF.active)) return;
+    PF.step(st.L, st.pu, dps, st.meas);
+    if (PF.est) opiPohjoinen(st.pu + PF.est.th);
+    kirjaa({ l: "a", L: +st.L.toFixed(3), psi: +st.pu.toFixed(3), c: st.c == null ? null : +st.c.toFixed(3), m: st.meas == null ? null : 1, tk: pocket ? 1 : 0,
+      e: PF.est && PF.est.room >= 0 ? malli.rooms[PF.est.room].id : null, p: PF.est ? +PF.est.p.toFixed(2) : 0 });
   }
 
   /* ---------- Taskutila ---------- */
@@ -246,6 +323,25 @@
     else { if (uz > 0.55 && !walking) pkOutT += dt; else if (uz > 0.65) pkOutT += dt * 0.6; else pkOutT = 0; if (pkOutT > 0.7) { setPocket(false); pkOutT = 0; } }
   }
 
+  /* ---------- Loki (pilotin arviointi ja säätö) ----------
+     Askeleet, suunnat, kompassi, tauot ja tilavalinnat. Ei sanelua, kuvia eikä nimiä. Viedään tiedostona
+     (kohteen Lisää → Tilaseuranta → Vie loki), jotta seuranta voidaan ajaa uudelleen ja säätää. */
+  let loki = [], lokiKohde = null;
+  const lokiAvain = () => "ks_paikannusloki_" + lokiKohde;
+  function kirjaa(r) {
+    r.t = Date.now(); loki.push(r);
+    if (loki.length > 8000) loki = loki.slice(-6000);
+    if (lokiKohde && (r.l !== "a" || loki.length % 25 === 0)) LS(lokiAvain(), JSON.stringify(loki));
+  }
+  function lataaLoki(k) { lokiKohde = k.id; try { loki = JSON.parse(LS(lokiAvain()) || "[]"); } catch (e) { loki = []; } }
+  const lokiPituus = () => loki.length;
+  function vieLoki() {
+    const k = S.kohde;
+    const kerrokset = k.kerrokset.filter((e) => kaytettava(e)).map((e) => ({ id: e.id, nimi: e.nimi, leveysM: e.leveysM, w: e.w, h: e.h, pohjoinen: e.pohjoinen, pohjoinenOpittu: e.pohjoinenOpittu, ovet: e.ovet,
+      tilat: k.tilat.filter((t) => t.kerrosId === e.id && t.alue).map((t) => ({ id: t.id, tunnus: t.tunnus, alue: t.alue })) }));
+    return { muoto: "kuva-sanelu-paikannusloki", versio: 1, sovellus: window.APP_VERSION, laite: navigator.userAgent, K: SN.K, osumat: osumat(), kerrokset, loki };
+  }
+
   /* ---------- Julkinen rajapinta ---------- */
   function saatavilla(k) {
     k = k || S.kohde;
@@ -261,24 +357,28 @@
     } catch (e) { tila.virhe = e.message || String(e); return false; }
     SN.u2ok = false; SN.yrp = 0; SN.Rp = null; SN.osN = 0; SN.src = null; SN.hs = 0; SN.hn = 0; SN.still = 0; SN.pu = null; SN.lastT = 0;
     window.addEventListener("devicemotion", onMotion); window.addEventListener("deviceorientation", onOrient);
+    window.addEventListener("deviceorientationabsolute", onAbs);
     SN.on = true; tila.virhe = ""; requestWake();
     return true;
   }
   function pysayta() {
     if (!SN.on) return;
     window.removeEventListener("devicemotion", onMotion); window.removeEventListener("deviceorientation", onOrient);
+    window.removeEventListener("deviceorientationabsolute", onAbs);
     SN.on = false; setPocket(false); releaseWake(); PF.clear(); malli = null;
   }
   const tila = { virhe: "" };
   /* Kohteen avaus: seuranta käyntiin, jos se on kohteessa päällä (iOS vaatii napautuksen: kaynnista() painikkeesta) */
   async function kohdeAuki(k) {
     if (!k || !k.paikannus || !saatavilla(k)) { pysayta(); return; }
+    if (lokiKohde !== k.id) lataaLoki(k);
     if (malli && !k.kerrokset.some((e) => e.id === malli.kerrosId)) { PF.clear(); malli = null; }
     await kaynnista();
   }
   async function asetaPaalle(on) {
     const k = S.kohde; if (!k) return false;
     k.paikannus = !!on; await Model.saveKohde();
+    if (on && lokiKohde !== k.id) lataaLoki(k);
     if (on) return kaynnista();
     pysayta(); return true;
   }
@@ -296,15 +396,38 @@
       o.n = (o.n || 0) + 1; if (i === 0) o.top1 = (o.top1 || 0) + 1; if (i >= 0) o.top3 = (o.top3 || 0) + 1;
       LS("ks_paikannus_osumat", JSON.stringify(o));
     }
+    // Askelpituuden oppiminen: seuranta oli oikeassa tilassa varmana → partikkelien askelkerroin talteen
+    const e0 = PF.est, oikein = e0 && malli && e0.room >= 0 && malli.rooms[e0.room].id === tilaId;
+    if (oikein && e0.p > 0.6 && SN.askeleet - (SN.askelKiinn || 0) >= 15) { SN.K = Math.min(0.75, Math.max(0.3, SN.K * (0.7 + 0.3 * e0.K))); LS("ks_askelK", String(SN.K)); }
+    SN.viimeTila = tilaId;
+    kirjaa({ l: "k", tila: tilaId, eh: eh.map((x) => [x.tila.id, +x.p.toFixed(2)]), e: e0 && malli && e0.room >= 0 ? malli.rooms[e0.room].id : null });
+    SN.askelKiinn = SN.askeleet;
     if (!malli || malli.kerrosId !== ker.id) { rakennaMalli(ker); PF.clear(); }
     const ri = malli.rooms.findIndex((r) => r.id === tilaId);
-    if (ri >= 0) PF.confirmRoom(ri);
+    if (ri < 0) return;
+    const oliAktiivinen = PF.active;
+    PF.confirmRoom(ri);
+    // Suunta kompassista, jos pohjakuvan pohjoinen tiedetään (muuten suunta selviää seinistä kävellessä)
+    const m = kompassiPohjaan();
+    if (m != null && (!oliAktiivinen || PF.est.thConf < 0.5)) PF.setHeading(m - SN.psi, 30 * DEG);
+    if (ker.pohjoinenOpittu) Model.saveKohde();
   }
   /* 2–3 todennäköisintä tilaa: [{ tila, p }] */
+  /* Ehdotukset: seurannan todennäköisimmät tilat. Jos seuranta on epävarma, loput paikat täytetään
+     viimeksi valitulla tilalla ja sen naapuritiloilla (ovien kautta): tutkija liikkuu yleensä viereiseen tilaan. */
   function ehdotukset(n) {
+    n = n || 3;
     if (!SN.on || !malli || !PF.active || !PF.est) return [];
-    return PF.probs.map((p, i) => ({ tila: Model.tila(malli.rooms[i].id), p })).filter((x) => x.tila && x.p >= 0.05)
-      .sort((a, b) => b.p - a.p).slice(0, n || 3);
+    const out = PF.probs.map((p, i) => ({ tila: Model.tila(malli.rooms[i].id), p })).filter((x) => x.tila && x.p >= 0.1).sort((a, b) => b.p - a.p).slice(0, n);
+    const lisaa = (id, p) => { const t = Model.tila(id); if (t && out.length < n && !out.some((x) => x.tila.id === id)) out.push({ tila: t, p, naapuri: true }); };
+    if (!out.length || out[0].p < 0.6) {
+      const kesk = out[0] ? out[0].tila.id : null, viim = SN.viimeTila;
+      [viim, kesk].filter(Boolean).forEach((id) => {
+        if (id === viim) lisaa(id, 0);
+        malli.doors.filter((d) => d.a === id || d.b === id).forEach((d) => lisaa(d.a === id ? d.b : d.a, 0));
+      });
+    }
+    return out;
   }
   function osumat() { try { return JSON.parse(LS("ks_paikannus_osumat") || "{}"); } catch (e) { return {}; } }
   function tilanne() {
@@ -312,7 +435,8 @@
     return { on: SN.on, data: Date.now() - SN.viimeData < 3000, askeleet: SN.askeleet, alussa: !PF.active, arvio: t, p: e ? e.p : 0, tasku: pocket, virhe: tila.virhe };
   }
   /* Testaus pöytäkoneella: askel nykyiseen suuntaan / käännös */
-  const testi = { askel(m) { onStep(Math.pow((m || 0.7) / SN.K, 4)); }, kaanna(deg) { SN.psi += deg * DEG; SN.off += deg * DEG; }, tasku: setPocket, get malli() { return malli; } };
+  const testi = { askel(m) { onStep(Math.pow((m || 0.7) / SN.K, 4)); }, psi(v) { SN.psi = v; }, kompassi(c) { SN.comp = c == null ? null : { c, t: Date.now() }; },
+    tauko(s) { if (malli && PF.active) PF.diffuse(s * 0.6); }, get SN() { return SN; }, get PF() { return PF; }, kaanna(deg) { SN.psi += deg * DEG; SN.off += deg * DEG; }, tasku: setPocket, get malli() { return malli; } };
 
-  window.Paikannus = { saatavilla, kaynnista, pysayta, kohdeAuki, asetaPaalle, kiinnita, ehdotukset, osumat, tilanne, testi };
+  window.Paikannus = { vieLoki, lokiPituus, saatavilla, kaynnista, pysayta, kohdeAuki, asetaPaalle, kiinnita, ehdotukset, osumat, tilanne, testi };
 })();

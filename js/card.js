@@ -196,6 +196,9 @@
           (vihje ? '<p class="hint vihje" style="margin:4px 0 10px"><b>Muista:</b> ' + esc(vihje) + "</p>" : "") +
           (okF.length ? '<button class="btn btn-block" data-a="okloput" style="margin:6px 0 4px">' + icon("ok") + "Muut kohdat kunnossa (" + okF.length + ")</button>" +
             '<p class="hint" style="margin:0 0 8px">Merkitsee tyhjät tarkistuskohdat kunnossa-arvolla. Sanele tai valitse ensin puutteet.</p>' : "") +
+          // Valinnaiset kentät näkyvissä heti pakollisten alla: napautus lisää kentän (ei piilossa Lisätiedoissa)
+          (hiddenF.length ? '<div class="valinn"><span class="label">Muut tiedot <span class="u" style="text-transform:none;font-weight:400">· valinnaisia, kirjaa jos tiedossa</span></span>' +
+            '<div class="chips more-fields">' + hiddenF.map((f) => '<button class="chip" data-a="addfield" data-k="' + f.k + '">+ ' + esc(f.l) + "</button>").join("") + "</div></div>" : "") +
           (m.kentat.some((f) => f.mittaus || (f.t === "table" && (f.sarakkeet || []).some((c) => c.mittaus)))
             ? '<p class="hint">Oranssi lukema: tarkista napauttamalla. Mikrofoni: luku tuli sanelusta.</p>'
             : "") +
@@ -214,8 +217,8 @@
         '<div class="card-b"><textarea data-t="sanelu" aria-label="Havainto" placeholder="Mitä näet ja mittaat">' + esc(h.sanelu) + "</textarea>" +
         '<div class="dict-prev" data-prev="sanelu"></div>' + audio + (window.Katselmus ? Katselmus.aiemmatTilassaHtml(h.sijainti.tilaId) : "") + "</div></section>" +
 
-        '<section class="card"><div class="card-h"><h2><span class="sec-n">2</span>Pakolliset tiedot</h2>' +
-          (reqF.length ? '<span class="meta' + (naytaPuutteet && reqOk < reqF.length ? " need-meta" : "") + '">' + reqOk + "/" + reqF.length + "</span>" : "") + "</div>" +
+        '<section class="card"><div class="card-h"><h2><span class="sec-n">2</span>Menetelmä ja tiedot</h2>' +
+          (reqF.length ? '<span class="meta' + (naytaPuutteet && reqOk < reqF.length ? " need-meta" : "") + '">pakolliset ' + reqOk + "/" + reqF.length + "</span>" : "") + "</div>" +
         '<div class="card-b">' +
         '<span class="label' + (naytaPuutteet && !h.sijainti.tilaId ? " missing" : "") + '">Sijainti</span>' +
         '<button class="btn btn-block" data-a="loc" style="justify-content:flex-start;margin-bottom:14px">' + icon("pin") + esc(Model.sijaintiTeksti(h.sijainti) || "Valitse sijainti") +
@@ -236,15 +239,14 @@
           return '<section class="card"><div class="card-b"><a class="btn btn-block" href="#/k/' + k.id + "/tiiviys/" + h.id + '">' + icon("edit") + "Mittauslaskuri: ala, vaippa ja tilavuus</a>" +
             (t && t.ala ? '<p class="hint" style="margin:8px 0 0">Laskettu: ' + esc(String(Math.round(t.ala * 10) / 10).replace(".", ",")) + " m², " + esc(String(Math.round(t.tilavuus * 10) / 10).replace(".", ",")) + " m³, vaippa " + esc(String(Math.round(t.vaippa * 10) / 10).replace(".", ",")) + " m²</p>" : "") + "</div></section>";
         })() : "") +
-        '<details class="card vocab lisa"' + (lisaAuki ? " open" : "") + ' data-lisa><summary class="card-h"><h2><span class="sec-n">3</span>Lisätiedot</h2><span class="meta">' +
-          esc([h.suunnitelmaId && h.suunnitelmaId !== "ei" ? "suunnitelma" : "", h.kaOsa ? "kuntoarvio" : "", h.akkOsa ? "osio" : "", h.tulkinta ? "tulkinta" : "", hiddenF.length ? "+" + hiddenF.length + " kenttää" : ""].filter(Boolean).join(" · ")) + "</span></summary>" +
+        '<details class="card vocab lisa"' + (lisaAuki ? " open" : "") + ' data-lisa><summary class="card-h"><h2><span class="sec-n">3</span>Tulkinta ja suunnitelman kohta</h2><span class="meta">' +
+          esc([h.tulkinta ? "tulkinta kirjattu" : "", h.suunnitelmaId && h.suunnitelmaId !== "ei" ? "kohta valittu" : ""].filter(Boolean).join(" · ")) + "</span></summary>" +
         '<div class="card-b">' +
         (k.suunnitelma.length ? '<label class="field"><span>Tutkimussuunnitelman kohta</span><select data-a="kohta">' + kohtaOptions() + "</select></label>" : "") +
         (window.AKK && AKK.aktiivinen() ? '<label class="field"><span>Kuntotarkastuksen osio' + autoTag("akkOsa") + '</span><select data-a="akkosa"><option value="">Ei liitetty</option>' +
           AKK.OSIOT.map((d) => '<option value="' + d.id + '"' + (h.akkOsa === d.id ? " selected" : "") + ">" + esc(d.luku + " " + d.nimi) + "</option>").join("") + "</select></label>" : "") +
         (window.Kuntoarvio && Kuntoarvio.aktiivinen() ? '<label class="field"><span>Kuntoarvion rakennusosa' + autoTag("kaOsa") + '</span><select data-a="kaosa"><option value="">Ei liitetty</option>' +
           KAData.RYHMAT.map((r) => '<optgroup label="' + esc(r.nimi) + '">' + KAData.OSAT.filter((d) => d.r === r.id).map((d) => '<option value="' + d.id + '"' + (h.kaOsa === d.id ? " selected" : "") + ">" + esc(d.nimi) + "</option>").join("") + "</optgroup>").join("") + "</select></label>" : "") +
-        (hiddenF.length ? '<span class="label">Muut kentät</span><div class="chips more-fields" style="margin-bottom:12px">' + hiddenF.map((f) => '<button class="chip" data-a="addfield" data-k="' + f.k + '">+ ' + esc(f.l) + "</button>").join("") + "</div>" : "") +
         '<div style="display:flex;justify-content:space-between;align-items:center"><span class="label">Alustava tulkinta</span>' + dictBtnHtml("tulkinta") + "</div>" +
         '<textarea data-t="tulkinta" style="min-height:72px" aria-label="Alustava tulkinta" placeholder="Tutkijan oma arvio, esim. todennäköinen syy">' + esc(h.tulkinta) + "</textarea>" +
         '<div class="dict-prev" data-prev="tulkinta"></div>' +

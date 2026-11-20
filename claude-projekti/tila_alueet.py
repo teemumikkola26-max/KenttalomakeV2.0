@@ -5,8 +5,8 @@ tila_alueet.py – tilojen alueet ja oviaukot pohjapiirustuksesta (lähtötietop
 Käyttö Clauden lähtötieto-projektissa (koodin suoritus):
     python3 tila_alueet.py pohja.pdf --sivu 1 --mittakaava 1:100 --tilat tilat.json --ulos alueet.json [--kuva tarkistus.png]
 
-tilat.json = paketin saman kerroksen tilat sijainteineen:
-    [ { "tunnus": "101", "sijainti": { "x": 0.412, "y": 0.268 } }, … ]   (x, y 0–1 sivun vasemmasta yläkulmasta)
+tilat.json = paketin saman kerroksen tilat sijainteineen (ala = piirustuksen pinta-ala, jos merkitty; tarkistaa mittakaavan):
+    [ { "tunnus": "101", "sijainti": { "x": 0.412, "y": 0.268 }, "ala": 14.5 }, … ]   (x, y 0–1 sivun vasemmasta yläkulmasta)
 
 Tulos (alueet.json):
     { "leveys_m": 62.9, "korkeus_m": 29.7,
@@ -147,6 +147,16 @@ ovet = [o for o in ovet if o["a"] != o["b"]]
 ilman = [t["tunnus"] for t in res if not any(o["a"] == t["tunnus"] or o["b"] == t["tunnus"] for o in ovet)]
 if ilman: huom.append("Tiloille ei löytynyt ovea: " + ", ".join(ilman) + ". Lisää ovi käsin (tai tila on suljettu, esim. hormi).")
 
+# Mittakaavan tarkistus: tunnistetut alat vs. piirustuksen alat (tilat.json: "ala"). Jos PDF on tulostettu
+# eri kokoon kuin piirustus (esim. A1-piirustus A3:lle), kaikki alat ovat väärin samassa suhteessa.
+suhteet = []
+for t in res:
+    a0 = next((tt.get("ala") for tt in tilat if tt["tunnus"] == t["tunnus"]), None)
+    if a0 and t["varmuus"] == "varma" and 3 < float(a0) < 300: suhteet.append(t["ala_m2"] / float(a0))
+if len(suhteet) >= 5:
+    med = float(np.median(suhteet))
+    if abs(med - 1) > 0.12:
+        huom.append(f"MITTAKAAVA: tunnistetut alat ovat keskimäärin {med:.2f}-kertaiset piirustuksen aloihin nähden. Sivu on todennäköisesti tulostettu eri kokoon. Aja uudelleen mittakaavalla 1:{round(sk / med ** 0.5)} tai tarkista nimiö.")
 json.dump({"leveys_m": round(W / PPM, 2), "korkeus_m": round(H / PPM, 2), "tilat": res, "ovet": ovet, "huomiot": huom}, open(A.ulos, "w"), ensure_ascii=False, indent=1)
 print(len(res), "/", len(tilat), "tilaa,", len(ovet), "oviaukkoa,", "leveys", round(W / PPM, 1), "m")
 for h in huom: print("HUOM:", h)

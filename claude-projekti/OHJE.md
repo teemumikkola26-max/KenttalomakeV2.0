@@ -127,15 +127,16 @@ Pohjakuvaksi valitaan arkkitehdin pohjapiirustus (ei LVI- tai sähköpohja), yks
 
 Sovellus tunnistaa tilan mistä tahansa kohdasta pohjakuvaa ja ehdottaa kirjauksessa todennäköisimmät tilat askelpaikannuksen avulla. Siihen tarvitaan tilojen alueet, oviaukot ja mittakaava. Tee ne, kun pohjakuva on PDF, jossa on tekstikerros, ja piirustuksen mittakaava on tiedossa (nimiöstä, esim. 1:100). Skannatuille kuville ja pelkille luonnoksille ei tehdä alueita.
 
-1. Tee tiedosto `tilat.json` saman kerroksen tiloista sijainteineen (sama lista kuin paketissa).
-2. Aja projektin skripti `tila_alueet.py`:
+1. Tee tiedosto `tilat.json` saman kerroksen tiloista sijainteineen (sama lista kuin paketissa) ja lisää `ala`, jos piirustuksessa on tilan pinta-ala. Skripti tarkistaa niistä mittakaavan.
+2. Kirjoita projektin tiedoston `tila_alueet.py` sisältö sellaisenaan samannimiseksi tiedostoksi työhakemistoon ja aja se (asenna puuttuvat kirjastot: `pip install pdfplumber pypdfium2 scikit-image opencv-python-headless`):
    `python3 tila_alueet.py pohja.pdf --sivu 1 --mittakaava 1:100 --tilat tilat.json --ulos alueet.json --kuva tarkistus_alueet.png`
 3. **Katso tarkistuskuva.** Jokaisen tilan värialueen pitää peittää oma huoneensa, ja oranssit pisteet ovat oviaukkoja.
    - Jos alue vuotaa naapuriin tai ulos, merkitse sen `"varmuus": "arvio"`. Jos se on selvästi väärä, jätä tilan `alue` pois.
    - Jos tilasta puuttuu ovi (skripti luettelee ne), lisää ovi käsin `ovet`-listaan: `{ "a": "101", "b": "102", "x": …, "y": … }`, kohta seinällä 0–1 sivun koordinaateissa. Ulko-ovea ei tarvita.
    - Ylimääräinen ovi (ohut väliseinä tulkittu oveksi) ei haittaa paljon; puuttuva ovi haittaa, koska tilaan ei silloin pääse.
-4. Kopioi tuloksesta kerrokseen `mittakaava` ja `leveys_m`, tiloille `alue` ja `ala_m2` sekä `ovet`. Kerro vastauksessa, kuinka monelle tilalle alue tehtiin ja mitkä jäivät arvioiksi.
-5. Tarkista alat: tunnistettu ala (`ala_m2`) vs. piirustuksen pinta-ala. Yli 25 % ero → `"varmuus": "arvio"`.
+4. Etsi piirustuksesta pohjoisnuoli ja anna sen suunta `pohjakuva.pohjoinen` asteina myötäpäivään sivun yläreunasta (katso kuvasta; 0 = ylös). Jos nuolta ei ole pohjakuvassa mutta on asemapiirroksessa, päättele suunta rakennuksen asennosta ja merkitse `"pohjoinen_varmuus": "arvio"`.
+5. Kopioi tuloksesta kerrokseen `mittakaava` ja `leveys_m`, tiloille `alue` ja `ala_m2` sekä `ovet`. Kerro vastauksessa, kuinka monelle tilalle alue tehtiin ja mitkä jäivät arvioiksi.
+6. Tarkista alat: tunnistettu ala (`ala_m2`) vs. piirustuksen pinta-ala. Yli 25 % ero → `"varmuus": "arvio"`.
 
 ## Säännöt
 

@@ -92,7 +92,7 @@ Joko pelkkä arvo tai objekti: `{ "arvo": "1978", "lahde": {…}, "varmuus": "va
 
 ```
 { "nimi": "1. krs",
-  "pohjakuva": { "tiedosto": "ARK_02_Rantatie_Pohja.pdf", "sivu": 1, "mittakaava": "1:100", "leveys_m": 62.99 },
+  "pohjakuva": { "tiedosto": "ARK_02_Rantatie_Pohja.pdf", "sivu": 1, "mittakaava": "1:100", "leveys_m": 62.99, "pohjoinen": 15 },
   "tilat": [ { "tunnus": "OH1", "nimi": "Olohuone", "asunto": "A1", "sijainti": { "x": 0.412, "y": 0.268 },
                "alue": [[0.39, 0.22], [0.45, 0.22], [0.45, 0.31], [0.39, 0.31]], "ala_m2": 24.1, "varmuus": "varma" }, … ],
   "ovet": [ { "a": "OH1", "b": "ET", "x": 0.431, "y": 0.311 }, … ] }
@@ -103,6 +103,7 @@ Joko pelkkä arvo tai objekti: `{ "arvo": "1978", "lahde": {…}, "varmuus": "va
 - `tilat`: pohjapiirustuksen huonemerkinnät. `tunnus` piirustuksen merkintä sellaisenaan (esim. "MH2", "KH", "102"), `nimi` tilan nimi suomeksi. Jos merkintä on pelkkä lyhenne (MH), nimi lyhenteen mukaan alla olevasta taulukosta. `asunto` vain, jos piirustuksessa on asuntotunnus (A1, B12).
 - `sijainti`: huonemerkinnän keskipiste pohjakuvan sivulla, `x` ja `y` 0–1 vasemmasta yläkulmasta, sivu näytetyssä asennossa (kierto huomioituna). Tekstikerroksesta luettu sijainti on varma; kuvasta arvioitu merkitään `"varmuus": "arvio"`. Jätä pois, jos merkintää ei löydy varmasti. Vain kerroksille, joilla on `pohjakuva`. Sovellus tunnistaa puuttuvat sijainnit itse.
 - `alue` (valinnainen): tilan rajat monikulmiona samoissa 0–1-koordinaateissa kuin `sijainti`, tehdään skriptillä `tila_alueet.py` (OHJE: *Tilojen alueet ja ovet*). `ala_m2` tunnistettu ala. `varmuus: "arvio"`, jos alue on epävarma (avotila, vuoto naapuriin). Sovellus tunnistaa tilan alueen mistä tahansa kohdasta ja käyttää alueita askelpaikannuksessa.
+- `pohjoinen` (valinnainen): piirustuksen pohjoisnuolen suunta asteina myötäpäivään sivun yläreunasta (0 = pohjoinen ylöspäin, 90 = oikealle). Sovellus käyttää sitä tilaseurannan kompassisuuntaan. Jos nuoli puuttuu tai on epäselvä, jätä pois (sovellus oppii suunnan itse). Asemapiirroksesta päätelty suunta: `"pohjoinen_varmuus": "arvio"`, jolloin sovellus ei käytä sitä.
 - `ovet` (valinnainen): oviaukot tilojen välillä (`a`, `b` tilojen tunnukset, `x`, `y` kohta seinällä). `pohjakuva.mittakaava` ja `leveys_m` (sivun leveys metreinä mittakaavassa) tarvitaan askelpaikannukseen; ilman niitä alueita käytetään vain tilan tunnistukseen.
 - Toistuvien huoneistotyyppien (esim. "3H+K+S", 6 kpl) kaikkia tiloja ei listata erikseen ilman asuntotunnuksia: listaa tilat vain, jos ne voidaan yksilöidä.
 
