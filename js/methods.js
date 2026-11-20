@@ -163,12 +163,13 @@
   ];
 
   /* Menetelmäkohtaiset lisätiedot, joita taulukossa ei ole */
-  const VERSIOT = { pintakosteus: 2, rh: 4, nayte: 4, merkkiaine: 2, lampokuvaus: 2, paine: 2, mtk: 2 };
+  const VERSIOT = { pintakosteus: 2, rh: 4, nayte: 4, merkkiaine: 2, lampokuvaus: 2, paine: 2, mtk: 2, asuntokauppa: 2 };
   const MENETELMA_LISA = {
     nayte: { tulosVapaa: true },
     mtk: { lomake: true, laskenta: "asunto", sisaltaa: ["pintakosteus", "aisti"] },
     seuranta: { seuranta: true, kohdetaso: true },
     kuntoarvio: { kuntoarvio: true, kohdetaso: true },
+    asuntokauppa: { akk: true, kohdetaso: true },
     vss: { lomake: true }
   };
   const TARKISTUS_OW = [["korjaustarv", "Korjaustarve"], ["korjattava", "Korjaustarve"], ["korjausta", "Korjaustarve"], ["vika", "Korjaustarve"], ["rikki", "Korjaustarve"],

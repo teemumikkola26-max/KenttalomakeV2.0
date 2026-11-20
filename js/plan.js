@@ -618,6 +618,24 @@
     return out.slice(0, n || 6);
   }
 
+  /* Tila, jonka alueella piste on (x, y 0–1 pohjakuvassa). Alue tulee lähtötietopaketista (tilat[].alue). */
+  function sisalla(v, x, y) {
+    let ins = false;
+    for (let i = 0, j = v.length - 1; i < v.length; j = i++) {
+      const a = v[i], b = v[j];
+      if ((a.y > y) !== (b.y > y) && x < (b.x - a.x) * (y - a.y) / (b.y - a.y) + a.x) ins = !ins;
+    }
+    return ins;
+  }
+  function tilaPisteessa(kerrosId, p) {
+    if (!p) return null;
+    const hit = S.kohde.tilat.filter((t) => t.kerrosId === kerrosId && Array.isArray(t.alue) && t.alue.length > 2 && sisalla(t.alue, p.x, p.y));
+    if (hit.length < 2) return hit[0] || null;
+    // päällekkäiset alueet: pienin (esim. komero isomman tilan sisällä)
+    const ala = (v) => Math.abs(v.reduce((s2, a, i) => { const b = v[(i + 1) % v.length]; return s2 + a.x * b.y - b.x * a.y; }, 0));
+    return hit.sort((a, b) => ala(a.alue) - ala(b.alue))[0];
+  }
+
   /* opts: noPart (ei rakenneosaa), title, hint, mirExcept (mittalaite, jonka vanha merkki piilotetaan) */
   function locationSheet(sij, onDone, opts) {
     opts = opts || {};
@@ -645,7 +663,8 @@
       if (kerros && kerros.planId) await Model.ensureUrls([kerros.planId]);
       const rooms = k.tilat.filter((t) => t.kerrosId === s.kerrosId);
       const cur = s.tilaId && Model.tila(s.tilaId);
-      const recent = recentRooms(6).filter((t) => !cur || t.id !== cur.id);
+      const ehd = window.Paikannus && opts.paikannus !== false ? Paikannus.ehdotukset(3) : [];
+      const recent = recentRooms(6).filter((t) => (!cur || t.id !== cur.id) && !ehd.some((x) => x.tila.id === t.id));
       const many = rooms.length > 15;
       el.querySelector("[data-body]").innerHTML =
         '<div class="loc-head"><h3 style="margin:0">' + esc(opts.title || "Sijainti") + '</h3><span class="loc-cur' + (cur ? "" : " missing") + '">' + icon("pin") +
@@ -653,6 +672,7 @@
         '<label class="mp-search" style="margin:10px 0 0">' + icon("list") +
           '<input type="search" data-q value="' + esc(query) + '" placeholder="Hae tila: A101, wc, keittiö…" aria-label="Hae tila" autocomplete="off"></label>' +
         '<div data-res></div>' +
+        (ehd.length ? '<div class="sect"><span class="label">Todennäköisimmät (tilaseuranta)</span><div class="chips">' + ehd.map((x) => roomChip(x.tila)).join("") + "</div></div>" : "") +
         (recent.length ? '<div class="sect"><span class="label">Viimeksi käytetyt</span><div class="chips">' + recent.map(roomChip).join("") + "</div></div>" : "") +
         (k.kerrokset.length > 1 || !k.kerrokset.length ? '<div class="sect"><span class="label">Kerros</span><div class="chips">' +
           k.kerrokset.map((e) => '<button class="chip" data-k="' + e.id + '" aria-pressed="' + (e.id === s.kerrosId) + '">' + esc(e.nimi) + "</button>").join("") +
@@ -687,8 +707,9 @@
         const p = relPos(e, plan.querySelector("img"));
         s.piste = { x: p.x, y: p.y };
         // Tilan merkin napautus valitsee tilan; muuten lähin tilamerkki, jos tila on vielä valitsematta
-        const rp = e.target.closest("[data-room]");
+        const rp = e.target.closest("[data-room]"), alueella = tilaPisteessa(s.kerrosId, p);
         if (rp) s.tilaId = rp.dataset.room;
+        else if (alueella) s.tilaId = alueella.id;         // tilan alue (lähtötiedoista): mikä tahansa kohta tilassa
         else {
           const kk = Model.kerros(s.kerrosId), near = k.tilat.filter((t) => t.kerrosId === s.kerrosId && t.pos)
             .map((t) => ({ t, d: Math.hypot(t.pos.x - p.x, (t.pos.y - p.y) * ((kk && kk.h && kk.w) ? kk.h / kk.w : 1)) })).sort((a, b) => a.d - b.d);
@@ -730,11 +751,15 @@
       } else if (b.dataset.a === "all") { showAll = true; }
       else if (b.dataset.a === "clearPt") { s.piste = null; }
       else if (b.dataset.a === "cancel") { ref.close(); return; }
-      else if (b.dataset.a === "ok") { ref.close(); onDone(s); return; }
+      else if (b.dataset.a === "ok") {
+        // Tutkijan valitsema tila kiinnittää tilaseurannan (ei vanhojen havaintojen muokkauksessa)
+        if (s.tilaId && s.tilaId !== (sij || {}).tilaId && window.Paikannus && opts.paikannus !== false) Paikannus.kiinnita(s.tilaId);
+        ref.close(); onDone(s); return;
+      }
       paint();
     });
     paint();
   }
 
-  window.Plan = { view, locationSheet, kysyTila, luoTila, asetaPohja, detectRooms, searchRooms, recentRooms, roomActions, pinsHtml, detectRooms, reviewRooms, confirmRoom };
+  window.Plan = { tilaPisteessa, sisalla, view, locationSheet, kysyTila, luoTila, asetaPohja, detectRooms, searchRooms, recentRooms, roomActions, pinsHtml, detectRooms, reviewRooms, confirmRoom };
 })();

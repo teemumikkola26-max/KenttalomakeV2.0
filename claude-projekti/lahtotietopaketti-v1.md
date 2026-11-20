@@ -67,24 +67,43 @@ Joko pelkkä arvo tai objekti: `{ "arvo": "1978", "lahde": {…}, "varmuus": "va
 | `nayte` | Näytteenotto | materiaali-, mikrobi-, ilma-, VOC-, asbesti-, PAH-, PCB-, kuitu- tai pölynäyte |
 | `merkkiaine` | Merkkiainekoe | merkkiainekoe, ilmavuotojen tutkimus merkkiaineella |
 | `lampokuvaus` | Lämpökuvaus | lämpökuvaus, termografia |
-| `paine` | IV / painesuhdemittaus | painesuhteet, paine-eromittaus, ilmamäärät, ilmanvaihdon toiminta |
+| `paine` | Paine-eromittaus | painesuhteet, paine-eromittaus (kertamittaus) |
+| `ilmamaara` | Ilmamäärämittaus | ilmamäärät, ilmanvaihdon toiminta, päätelaitteiden ilmavirrat |
+| `tiiviys` | Tiiveysmittaus | tiiveysmittaus, ilmanpitävyys, q50, n50 |
+| `sisailma` | Sisäilman olosuhteiden kertamittaus | lämpötila, kosteus ja CO2 käynnin aikana |
+| `puukosteus` | Puun kosteusmittaus | puun kosteus, piikkimittaus |
+| `kalvopaksuus` | Kalvopaksuusmittaus | vedeneristeen kalvopaksuus |
+| `viilto` | Viiltomittaus | viiltomittaus, maton alta mittaus |
+| `hetkkost` | Hetkellinen rakenteen kosteusmittaus | hetkellinen / suuntaa antava rakennekosteusmittaus |
+| `melu` | Melumittaus | melumittaus, äänitaso |
+| `radon_purkki` | Radonmittaus, pitkäaikainen (purkit) | radonmittaus purkeilla, 2 kk |
+| `radon_jatkuva` | Radonmittaus, lyhytaikainen seuranta | jatkuvatoiminen radonmittaus |
+| `vss` | Väestönsuojan tarkastus | väestönsuojan tiiveyskoe ja tarkastus |
+| `vetokoe` | Vetokoe | vetokoe, tartuntalujuus |
+| `pid` | VOC-kenttämittaus (PID) | PID-mittaus, VOC-kenttämittaus |
+| `savukoe` | Merkkisavukoe | merkkisavu, ilmavirtausten suunnat |
 | `mtk` | Märkätilakartoitus | märkätilakartoitus, märkätilojen kuntotarkastus |
 | `seuranta` | Olosuhdeseuranta | olosuhdeseuranta, jatkuvatoiminen mittaus (lämpötila, kosteus, CO2, paine-ero) |
-| `kuntoarvio` | Kuntoarvio | kuntoarvio, kuntotarkastus (koko rakennus, PTS) |
-| `muu` | Muu menetelmä | muut tutkimukset (esim. radon, viemärikuvaus, kosteuskartoitus rakennuttajalle) |
+| `kuntoarvio` | Kuntoarvio | kuntoarvio, PTS, kuntoarvio koko rakennukselle |
+| `asuntokauppa` | Asuntokaupan kuntotarkastus | asuntokaupan kuntotarkastus, kuntotarkastus kaupan yhteydessä (KH 90-00394, RT 103996) |
+| `muu` | Muu menetelmä | muut tutkimukset (esim. viemärikuvaus, kosteuskartoitus rakennuttajalle) |
 
 ### Kerros
 
 ```
 { "nimi": "1. krs",
-  "pohjakuva": { "tiedosto": "ARK_02_Rantatie_Pohja.pdf", "sivu": 1 },
-  "tilat": [ { "tunnus": "OH1", "nimi": "Olohuone", "asunto": "A1", "sijainti": { "x": 0.412, "y": 0.268 } }, … ] }
+  "pohjakuva": { "tiedosto": "ARK_02_Rantatie_Pohja.pdf", "sivu": 1, "mittakaava": "1:100", "leveys_m": 62.99 },
+  "tilat": [ { "tunnus": "OH1", "nimi": "Olohuone", "asunto": "A1", "sijainti": { "x": 0.412, "y": 0.268 },
+               "alue": [[0.39, 0.22], [0.45, 0.22], [0.45, 0.31], [0.39, 0.31]], "ala_m2": 24.1, "varmuus": "varma" }, … ],
+  "ovet": [ { "a": "OH1", "b": "ET", "x": 0.431, "y": 0.311 }, … ] }
 ```
 
 - Kerroksen nimi lyhyesti: "Kellari", "1. krs", "2. krs", "Ullakko". Yksi kerros per pohjapiirustus.
 - `pohjakuva`: tiedosto ja sivu, jolla kerroksen pohja on. Sovellus asettaa sen kerroksen pohjakuvaksi ja merkitsee tilat siihen.
 - `tilat`: pohjapiirustuksen huonemerkinnät. `tunnus` piirustuksen merkintä sellaisenaan (esim. "MH2", "KH", "102"), `nimi` tilan nimi suomeksi. Jos merkintä on pelkkä lyhenne (MH), nimi lyhenteen mukaan alla olevasta taulukosta. `asunto` vain, jos piirustuksessa on asuntotunnus (A1, B12).
 - `sijainti`: huonemerkinnän keskipiste pohjakuvan sivulla, `x` ja `y` 0–1 vasemmasta yläkulmasta, sivu näytetyssä asennossa (kierto huomioituna). Tekstikerroksesta luettu sijainti on varma; kuvasta arvioitu merkitään `"varmuus": "arvio"`. Jätä pois, jos merkintää ei löydy varmasti. Vain kerroksille, joilla on `pohjakuva`. Sovellus tunnistaa puuttuvat sijainnit itse.
+- `alue` (valinnainen): tilan rajat monikulmiona samoissa 0–1-koordinaateissa kuin `sijainti`, tehdään skriptillä `tila_alueet.py` (OHJE: *Tilojen alueet ja ovet*). `ala_m2` tunnistettu ala. `varmuus: "arvio"`, jos alue on epävarma (avotila, vuoto naapuriin). Sovellus tunnistaa tilan alueen mistä tahansa kohdasta ja käyttää alueita askelpaikannuksessa.
+- `ovet` (valinnainen): oviaukot tilojen välillä (`a`, `b` tilojen tunnukset, `x`, `y` kohta seinällä). `pohjakuva.mittakaava` ja `leveys_m` (sivun leveys metreinä mittakaavassa) tarvitaan askelpaikannukseen; ilman niitä alueita käytetään vain tilan tunnistukseen.
 - Toistuvien huoneistotyyppien (esim. "3H+K+S", 6 kpl) kaikkia tiloja ei listata erikseen ilman asuntotunnuksia: listaa tilat vain, jos ne voidaan yksilöidä.
 
 ### Kuntoarvion perustiedot

@@ -121,6 +121,46 @@
     }
 
     const extraFields = new Set();
+    /* Alimenetelmät: tämän havainnon sisällä tehdyt menetelmät (esim. avauksesta RH-mittaus ja näyte).
+       Alimenetelmä perii sijainnin ja suunnitelman kohdan; raportilla se esitetään tämän havainnon osana. */
+    const ALI_KAIKKI = ["aisti", "pintakosteus", "rh", "nayte", "avaus", "merkkiaine", "lampokuvaus"];
+    function aliValinnat() {
+      const m = M.menetelma(h.menetelma);
+      if (!h.menetelma || M.taso(m) === "kohde") return [];
+      let ids = M.alimenetelmat(m);
+      if (ids.includes("*")) ids = ALI_KAIKKI;
+      return ids.filter((id) => id !== h.menetelma && M.MENETELMAT.some((x) => x.id === id && !x.piilotettu && !x.kohdetaso));
+    }
+    function lapset() {
+      const tun = h.menetelma === "avaus" && h.kentat.tunnus;
+      return S.havainnot.filter((x) => x.id !== h.id && (x.emo === h.id || (tun && !x.emo && x.menetelma === "nayte" && x.kentat.avaus === tun)));
+    }
+    // Alimenetelmä: kamera aukeaa, sijainti ja suunnitelman kohta periytyvät tältä havainnolta
+    async function aliAloita(mid) {
+      save.flush();
+      S.kohde.viimeisin = { kerrosId: h.sijainti.kerrosId, tilaId: h.sijainti.tilaId, rakenneosa: h.sijainti.rakenneosa, menetelma: mid };
+      await Model.saveKohde();
+      const p = Model.kohta(h.suunnitelmaId);
+      location.hash = "#/k/" + k.id + "/kuvaus?menetelma=" + mid + "&emo=" + h.id + (p && Model.kohtaSopii(p, mid) ? "&kohta=" + p.id : "") +
+        (h.sijainti.tilaId ? "&tila=" + h.sijainti.tilaId : "") + (h.sijainti.kerrosId ? "&kerros=" + h.sijainti.kerrosId : "") +
+        (h.menetelma === "avaus" && mid === "nayte" && h.kentat.tunnus ? "&avaus=" + encodeURIComponent(h.kentat.tunnus) : "");
+    }
+    function aliHtml() {
+      const emo = h.emo && Model.havainto(h.emo), ls = lapset(), val = aliValinnat();
+      if (!emo && !ls.length && !val.length) return "";
+      const rivi = (x) => '<button class="row" data-a="avaahav" data-id="' + x.id + '" style="width:100%;text-align:left;background:none;border:0;padding:8px 0"><div class="grow"><div class="t">' +
+        esc(nro(x) + " · " + M.menetelma(x.menetelma).nimi + (x.kentat.tunnus ? " " + x.kentat.tunnus : "")) + '</div><div class="s">' +
+        esc([x.kentat.tyyppi, x.tulos ? M.TULOKSET[x.tulos] : ""].filter(Boolean).join(" · ") || (x.sanelu || "").slice(0, 60)) + "</div></div>" + icon("back", "flip") + "</button>";
+      return '<section class="card ali"><div class="card-b">' +
+        (emo ? '<p class="hint" style="margin:0 0 8px">Osa havaintoa ' + '<button class="link" data-a="avaahav" data-id="' + emo.id + '">' + esc(nro(emo) + " " + M.menetelma(emo.menetelma).nimi + (emo.kentat.tunnus ? " " + emo.kentat.tunnus : "")) + "</button></p>" : "") +
+        (ls.length ? '<span class="label">Tässä tehty</span>' + ls.map(rivi).join("") : "") +
+        (val.length ? '<span class="label" style="margin-top:6px">Lisää tähän' + (h.kentat.tunnus ? " (" + esc(h.kentat.tunnus) + ")" : "") + '</span><div class="chips">' +
+          val.map((id) => '<button class="chip" data-a="ali" data-m="' + id + '">' + icon("cam") + " " + esc(M.menetelma(id).nimi) + "</button>").join("") + "</div>" +
+          // Minkä tahansa kohtatason menetelmän voi lisätä (taulukko: Taso)
+          '<select data-a="alimuu" style="margin-top:8px"><option value="">Muu menetelmä…</option>' + M.havaintoMenetelmat().filter((x) => x.id !== h.menetelma && !val.includes(x.id) && M.taso(x) !== "kohde")
+            .map((x) => '<option value="' + x.id + '">' + esc(x.nimi) + "</option>").join("") + "</select>" : "") +
+        "</div></section>";
+    }
     function suggestions() {
       const m = M.menetelma(h.menetelma);
       const units = new Set(m.kentat.filter((f) => f.u).map((f) => f.u));
@@ -190,15 +230,18 @@
         (mit ? '<div class="card-b mit-b">' + mit + "</div>" : "") +
         "</section>" +
 
-        (h.menetelma === "avaus" ? (() => {
-          const tun = h.kentat.tunnus || "", nayt = S.havainnot.filter((x) => x.menetelma === "nayte" && tun && x.kentat.avaus === tun);
-          return '<section class="card"><div class="card-b">' + (nayt.length ? '<p class="hint" style="margin:0 0 8px">Näytteet tästä avauksesta: ' + esc(nayt.map((x) => (x.kentat.tunnus || nro(x)) + (x.kentat.tyyppi ? " (" + x.kentat.tyyppi + ")" : "")).join(", ")) + "</p>" : "") +
-            '<button class="btn btn-block" data-a="avausnayte">' + icon("cam") + "Ota näyte tästä avauksesta</button></div></section>";
+        aliHtml() +
+        (h.menetelma === "tiiviys" && window.Tiiviys ? (() => {
+          const t = h.tiiviys ? Tiiviys.tulokset(h) : null;
+          return '<section class="card"><div class="card-b"><a class="btn btn-block" href="#/k/' + k.id + "/tiiviys/" + h.id + '">' + icon("edit") + "Mittauslaskuri: ala, vaippa ja tilavuus</a>" +
+            (t && t.ala ? '<p class="hint" style="margin:8px 0 0">Laskettu: ' + esc(String(Math.round(t.ala * 10) / 10).replace(".", ",")) + " m², " + esc(String(Math.round(t.tilavuus * 10) / 10).replace(".", ",")) + " m³, vaippa " + esc(String(Math.round(t.vaippa * 10) / 10).replace(".", ",")) + " m²</p>" : "") + "</div></section>";
         })() : "") +
         '<details class="card vocab lisa"' + (lisaAuki ? " open" : "") + ' data-lisa><summary class="card-h"><h2><span class="sec-n">3</span>Lisätiedot</h2><span class="meta">' +
-          esc([h.suunnitelmaId && h.suunnitelmaId !== "ei" ? "suunnitelma" : "", h.kaOsa ? "kuntoarvio" : "", h.tulkinta ? "tulkinta" : "", hiddenF.length ? "+" + hiddenF.length + " kenttää" : ""].filter(Boolean).join(" · ")) + "</span></summary>" +
+          esc([h.suunnitelmaId && h.suunnitelmaId !== "ei" ? "suunnitelma" : "", h.kaOsa ? "kuntoarvio" : "", h.akkOsa ? "osio" : "", h.tulkinta ? "tulkinta" : "", hiddenF.length ? "+" + hiddenF.length + " kenttää" : ""].filter(Boolean).join(" · ")) + "</span></summary>" +
         '<div class="card-b">' +
         (k.suunnitelma.length ? '<label class="field"><span>Tutkimussuunnitelman kohta</span><select data-a="kohta">' + kohtaOptions() + "</select></label>" : "") +
+        (window.AKK && AKK.aktiivinen() ? '<label class="field"><span>Kuntotarkastuksen osio' + autoTag("akkOsa") + '</span><select data-a="akkosa"><option value="">Ei liitetty</option>' +
+          AKK.OSIOT.map((d) => '<option value="' + d.id + '"' + (h.akkOsa === d.id ? " selected" : "") + ">" + esc(d.luku + " " + d.nimi) + "</option>").join("") + "</select></label>" : "") +
         (window.Kuntoarvio && Kuntoarvio.aktiivinen() ? '<label class="field"><span>Kuntoarvion rakennusosa' + autoTag("kaOsa") + '</span><select data-a="kaosa"><option value="">Ei liitetty</option>' +
           KAData.RYHMAT.map((r) => '<optgroup label="' + esc(r.nimi) + '">' + KAData.OSAT.filter((d) => d.r === r.id).map((d) => '<option value="' + d.id + '"' + (h.kaOsa === d.id ? " selected" : "") + ">" + esc(d.nimi) + "</option>").join("") + "</optgroup>").join("") + "</select></label>" : "") +
         (hiddenF.length ? '<span class="label">Muut kentät</span><div class="chips more-fields" style="margin-bottom:12px">' + hiddenF.map((f) => '<button class="chip" data-a="addfield" data-k="' + f.k + '">+ ' + esc(f.l) + "</button>").join("") + "</div>" : "") +
@@ -496,6 +539,8 @@
       const t = e.target;
       if (t.matches('[data-a="kohta"]')) { h.suunnitelmaId = t.value || null; Auto.manual(h, "kohta"); save(); }
       else if (t.matches('[data-a="kaosa"]')) { h.kaOsa = t.value || null; Auto.manual(h, "kaOsa"); save(); }
+      else if (t.matches('[data-a="alimuu"]') && t.value) { aliAloita(t.value); }
+      else if (t.matches('[data-a="akkosa"]')) { h.akkOsa = t.value || null; Auto.manual(h, "akkOsa"); save(); }
       else if (t.matches('textarea[data-t="sanelu"]')) runAuto();
       else if (t.matches("[data-tc]")) {
         const f = tableField(t.dataset.tf);
@@ -621,7 +666,7 @@
           toast(target.l + ": " + s.arvo.replace(".", ",") + " " + s.u + ". Tarkista arvo.");
         }
       }
-      else if (a === "loc") Plan.locationSheet(h.sijainti, (s) => { h.sijainti = s; Auto.manual(h, "tila"); Auto.manual(h, "rakenneosa"); if (window.FieldFill) FieldFill.apply(h); save(); paint(); });
+      else if (a === "loc") Plan.locationSheet(h.sijainti, (s) => { h.sijainti = s; Auto.manual(h, "tila"); Auto.manual(h, "rakenneosa"); if (window.FieldFill) FieldFill.apply(h); save(); paint(); }, { paikannus: Date.now() - (h.created || 0) < 10 * 60000 });   // vanhan havainnon tila ei siirrä seurantaa
       else if (a === "view") viewer(+b.dataset.i);
       else if (a === "menetelma") MethodPicker.openSheet({ selected: h.menetelma, excludeHavainto: h.id, onSelect: selectMethod });
       else if (a === "valmis") {
@@ -634,14 +679,8 @@
         save.flush();
         location.hash = "#/k/" + k.id;
       }
-      else if (a === "avausnayte") {
-        save.flush();
-        S.kohde.viimeisin = { kerrosId: h.sijainti.kerrosId, tilaId: h.sijainti.tilaId, rakenneosa: h.sijainti.rakenneosa, menetelma: "nayte" };
-        await Model.saveKohde();
-        const p = Model.kohta(h.suunnitelmaId);
-        location.hash = "#/k/" + k.id + "/kuvaus?menetelma=nayte" + (p && p.naytteet ? "&kohta=" + p.id : "") +
-          (h.sijainti.tilaId ? "&tila=" + h.sijainti.tilaId : "") + (h.kentat.tunnus ? "&avaus=" + encodeURIComponent(h.kentat.tunnus) : "");
-      }
+      else if (a === "ali") await aliAloita(b.dataset.m);
+      else if (a === "avaahav") { save.flush(); location.hash = "#/k/" + k.id + "/h/" + b.dataset.id; }
       else if (a === "next") {
         save.flush();
         S.kohde.viimeisin = { kerrosId: h.sijainti.kerrosId, tilaId: h.sijainti.tilaId, rakenneosa: h.sijainti.rakenneosa, menetelma: h.menetelma || (S.kohde.viimeisin || {}).menetelma };

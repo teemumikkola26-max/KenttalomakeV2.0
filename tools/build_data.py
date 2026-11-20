@@ -131,10 +131,50 @@ for r in rows("Kalusto"):
 if not any(x["n"].startswith("Veden lämpötila") for x in kal.get("asuntokauppa", [])):
     kal.setdefault("asuntokauppa", []).append({"n": "Veden lämpötilamittari", "aina": True})
 
-data = {"lahde": "Menetelmät ja kalusto -taulukko (hyväksytty 19.11.2026)", "menetelmat": out_m,
+# ---- Asuntokaupan kuntotarkastus (välilehti Kuntotarkastus, jos on)
+import unicodedata
+def slug(t):
+    t = unicodedata.normalize("NFKD", t.lower().replace("ä", "a").replace("ö", "o").replace("å", "a"))
+    return re.sub(r"[^a-z0-9]+", "_", t).strip("_")[:28]
+AKK_TYYPIT = {"Teksti": "text", "Pitkä teksti": "textarea", "Numero": "num", "Päivämäärä": "date", "Valinta": "select", "Monivalinta": "multi"}
+akk = None
+if "Kuntotarkastus" in wb.sheetnames:
+    akk = {"yleiset": [], "osiot": [], "sarake": [], "kunto": [], "toimenpide": []}
+    osiot = collections.OrderedDict()
+    for r in rows("Kuntotarkastus"):
+        if r.get("Tila", "").lower().startswith("poista"):
+            continue
+        osio, luku, kentta, tyyppi, opt = r["Osio"], r["Raportin luku"], r["Kenttä / tarkastuskohta"], r["Tyyppi"], r.get("Vaihtoehdot / ohje", "")
+        if osio == "Jokainen luvun 5 osio":
+            if tyyppi == "Taulukko": akk["sarake"] = split(opt.split("Sarake:", 1)[1])
+            elif kentta == "Kunto": akk["kunto"] = split(opt)
+            elif kentta == "Toimenpide": akk["toimenpide"] = split(opt)
+            continue
+        if luku.startswith("5"):
+            o = osiot.setdefault(osio, {"id": slug(osio), "nimi": osio, "luku": luku.split(" ")[0], "rivit": [], "kentat": [], "ali": []})
+            if tyyppi == "Taulukko":
+                for x in split(opt.split("Rivit:", 1)[1].split(". Sarake:")[0]):
+                    if "(alimenetelmä)" in x: o["ali"].append("pintakosteus")
+                    else: o["rivit"].append(x)
+            elif tyyppi == "Alimenetelmä":
+                o["ali"].append("mtk" if "Märkätila" in opt else "pintakosteus")
+            elif tyyppi in AKK_TYYPIT:
+                f = {"k": slug(kentta), "l": kentta, "t": AKK_TYYPIT[tyyppi]}
+                if f["t"] in ("select", "multi"): f["o"] = split(opt)
+                m = re.match(r"^([^()]+?)\s*(\(mittausarvo\))?$", opt)
+                if f["t"] == "num" and opt: f["u"] = re.sub(r"\s*\(mittausarvo\)", "", opt); f["mittaus"] = "mittausarvo" in opt
+                o["kentat"].append(f)
+            continue
+        f = {"k": slug(kentta), "l": kentta, "t": AKK_TYYPIT.get(tyyppi, "auto"), "ryhma": osio, "luku": luku, "lahde": r.get("Lähde", "")}
+        if f["t"] in ("select", "multi"): f["o"] = [x for x in split(opt) if not x.startswith("Muu (")] + (["Muu"] if "Muu (" in opt else [])
+        elif opt: f["ohje"] = opt
+        akk["yleiset"].append(f)
+    akk["osiot"] = list(osiot.values())
+
+data = {"akk": akk, "lahde": "Menetelmät ja kalusto -taulukko (hyväksytty 19.11.2026)", "menetelmat": out_m,
         "naytetyypit": ntyy, "naytekentat": {"yhteiset": yhteiset, "tyyppikohtaiset": nkentat}, "kalusto": kal}
 js = ("/* Generoitu tiedostosta Menetelmät ja kalusto (Sheets) – älä muokkaa käsin.\n"
       "   Märkätilakartoitus, RH-taulukot ja sanelun valintasanat ovat methods.js:ssä. */\n"
       "window.MENETELMA_DATA = " + json.dumps(data, ensure_ascii=False, indent=0).replace("\n", "") + ";\n")
 open(OUT, "w").write(js)
-print(len(out_m), "menetelmää,", len(ntyy), "näytetyyppiä,", len(nkentat), "+", len(yhteiset), "näytekenttää,", sum(len(v) for v in kal.values()), "kalustoriviä,", len(vss_rivit), "VSS-riviä")
+print(len(akk["osiot"]) if akk else 0, "AKK-osiota,", len(out_m), "menetelmää,", len(ntyy), "näytetyyppiä,", len(nkentat), "+", len(yhteiset), "näytekenttää,", sum(len(v) for v in kal.values()), "kalustoriviä,", len(vss_rivit), "VSS-riviä")

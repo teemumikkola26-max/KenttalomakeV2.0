@@ -19,7 +19,7 @@
   "use strict";
   const { S, Model } = App;
   const ARRAYS = { kerros: "kerrokset", tila: "tilat", kohta: "suunnitelma", mir: "seuranta", yleiskuva: "yleiskuvat" };
-  const LOCAL_ONLY = ["kalusto", "kerrokset", "tilat", "suunnitelma", "seuranta", "kuntoarvio", "muisti", "viimeisin", "seuraavaNro", "updated", "viety", "pilvi", "avattu", "__uusiPdf"];
+  const LOCAL_ONLY = ["paikannus", "kalusto", "kerrokset", "tilat", "suunnitelma", "seuranta", "kuntoarvio", "akk", "muisti", "viimeisin", "seuraavaNro", "updated", "viety", "pilvi", "avattu", "__uusiPdf"];
   const BUCKET = "kohteet";
   const state = { tila: "pois", jono: 0, viesti: "", aika: 0, kaynnissa: false };
   const listeners = [];
@@ -50,6 +50,10 @@
       rows["ka:ka"] = { perustiedot: ka.perustiedot || {}, rajaukset: ka.rajaukset || "", ptsVuodet: ka.ptsVuodet || 10 };
       Object.entries(ka.osat || {}).forEach(([id, o]) => { rows["kaosa:" + id] = clone(o); });
     }
+    if (k.akk) {
+      rows["akk:akk"] = { tiedot: k.akk.tiedot || {} };
+      Object.entries(k.akk.osiot || {}).forEach(([id, o]) => { rows["akkosa:" + id] = clone(o); });
+    }
     havainnot.forEach((h) => { rows["havainto:" + h.id] = clone(h); });
     tiedostot.forEach((f) => { rows["tiedosto:" + f.id] = { id: f.id, type: f.type || (f.blob && f.blob.type) || "", kind: f.kind || null, havaintoId: f.havaintoId || null, seuranta: f.seuranta || null, created: f.created || null }; });
     return rows;
@@ -69,6 +73,8 @@
     }
     if (laji === "ka") { k.kuntoarvio = k.kuntoarvio || { osat: {} }; if (!deleted) Object.assign(k.kuntoarvio, clone(data)); return; }
     if (laji === "kaosa") { k.kuntoarvio = k.kuntoarvio || { perustiedot: {}, rajaukset: "", ptsVuodet: 10, osat: {} }; if (deleted) delete k.kuntoarvio.osat[id]; else k.kuntoarvio.osat[id] = clone(data); return; }
+    if (laji === "akk") { k.akk = k.akk || { tiedot: {}, osiot: {} }; if (!deleted) k.akk.tiedot = clone(data.tiedot || {}); return; }
+    if (laji === "akkosa") { k.akk = k.akk || { tiedot: {}, osiot: {} }; if (deleted) delete k.akk.osiot[id]; else k.akk.osiot[id] = clone(data); return; }
     if (laji === "havainto") {
       const i = havainnot.findIndex((x) => x.id === id);
       if (deleted) { if (i >= 0) havainnot.splice(i, 1); return; }

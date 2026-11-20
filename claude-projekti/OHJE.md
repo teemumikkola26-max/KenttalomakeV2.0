@@ -1,6 +1,6 @@
 # Lähtötiedot – projektin ohje
 
-Liitä tämä teksti Claude-projektin ohjeeksi (Project instructions). Lisää projektin tiedostoiksi `lahtotietopaketti-v1.md` ja `esimerkki-paketti.json`.
+Liitä tämä teksti Claude-projektin ohjeeksi (Project instructions). Lisää projektin tiedostoiksi `lahtotietopaketti-v1.md`, `esimerkki-paketti.json` ja `tila_alueet.py`.
 
 ---
 
@@ -30,6 +30,7 @@ Yksi kohde per keskustelu. Jos aineistossa näyttää olevan useampi rakennus ta
 4. Jos aineistossa on aiempia tutkimusraportteja, poimi niiden tulokset tiloittain (ks. *Aiemmat tutkimukset* alla).
 5. Jos tarjousta tai tutkimussuunnitelmaa ei ole, laadi katselmussuunnitelma (ks. *Katselmussuunnitelma* alla).
 6. Valitse pohjakuva(t) ja merkitse tilojen sijainnit (ks. *Pohjakuvan valinta* ja *Tilojen sijainnit* alla).
+   Jos pohjakuvassa on tekstikerros ja mittakaava, tee myös tilojen alueet ja oviaukot (ks. *Tilojen alueet ja ovet*).
 7. Palauta **ZIP-paketti** `lahtotiedot-<kohde>.zip` (ks. *ZIP-paketti* alla). Jos tiedostojen luonti ei onnistu, anna paketti yhtenä ```json-koodilohkona ilman muuta tekstiä lohkon sisällä; tutkija liittää silloin tiedostot sovelluksessa itse.
 8. Kirjoita paketin jälkeen lyhyesti suomeksi:
    - mitkä tiedot olivat epävarmoja ja miksi
@@ -121,6 +122,20 @@ Etsi listasta kunkin tilan tunnus (esim. "MH2", "KH", "102"). Jos sama tunnus on
 **Tarkistus ennen palautusta:** piirrä kaikki sijainnit tunnuksineen sivun päälle (`tarkistuskuva`) ja katso kuva. Jokaisen merkin pitää osua oman huoneensa merkinnän päälle. Korjaa tai jätä sijainti pois, jos merkki osuu väärään huoneeseen. Väärä sijainti on huonompi kuin puuttuva: puuttuvan sovellus etsii itse tekstintunnistuksella.
 
 Pohjakuvaksi valitaan arkkitehdin pohjapiirustus (ei LVI- tai sähköpohja), yksi sivu per kerros. Kerro `pohjakuva.sivu`, jos tiedostossa on useita sivuja.
+
+## Tilojen alueet ja ovet
+
+Sovellus tunnistaa tilan mistä tahansa kohdasta pohjakuvaa ja ehdottaa kirjauksessa todennäköisimmät tilat askelpaikannuksen avulla. Siihen tarvitaan tilojen alueet, oviaukot ja mittakaava. Tee ne, kun pohjakuva on PDF, jossa on tekstikerros, ja piirustuksen mittakaava on tiedossa (nimiöstä, esim. 1:100). Skannatuille kuville ja pelkille luonnoksille ei tehdä alueita.
+
+1. Tee tiedosto `tilat.json` saman kerroksen tiloista sijainteineen (sama lista kuin paketissa).
+2. Aja projektin skripti `tila_alueet.py`:
+   `python3 tila_alueet.py pohja.pdf --sivu 1 --mittakaava 1:100 --tilat tilat.json --ulos alueet.json --kuva tarkistus_alueet.png`
+3. **Katso tarkistuskuva.** Jokaisen tilan värialueen pitää peittää oma huoneensa, ja oranssit pisteet ovat oviaukkoja.
+   - Jos alue vuotaa naapuriin tai ulos, merkitse sen `"varmuus": "arvio"`. Jos se on selvästi väärä, jätä tilan `alue` pois.
+   - Jos tilasta puuttuu ovi (skripti luettelee ne), lisää ovi käsin `ovet`-listaan: `{ "a": "101", "b": "102", "x": …, "y": … }`, kohta seinällä 0–1 sivun koordinaateissa. Ulko-ovea ei tarvita.
+   - Ylimääräinen ovi (ohut väliseinä tulkittu oveksi) ei haittaa paljon; puuttuva ovi haittaa, koska tilaan ei silloin pääse.
+4. Kopioi tuloksesta kerrokseen `mittakaava` ja `leveys_m`, tiloille `alue` ja `ala_m2` sekä `ovet`. Kerro vastauksessa, kuinka monelle tilalle alue tehtiin ja mitkä jäivät arvioiksi.
+5. Tarkista alat: tunnistettu ala (`ala_m2`) vs. piirustuksen pinta-ala. Yli 25 % ero → `"varmuus": "arvio"`.
 
 ## Säännöt
 

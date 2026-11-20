@@ -305,6 +305,11 @@
       const ko = Kuntoarvio.tunnistaOsa(h.sanelu);
       if (ko && ko !== h.kaOsa) { h.kaOsa = ko; h.auto.kaOsa = "sanelu"; changes.push({ kentta: "rakennusosa", arvo: Kuntoarvio.osa(ko).nimi }); }
     }
+    // Kuntotarkastuksen osio sanelusta ("räystäskouru vuotaa" -> Vesikatto, räystäät ja varusteet)
+    if (af.kaosa && window.AKK && AKK.aktiivinen() && canSet("akkOsa", h.akkOsa)) {
+      const ao = AKK.tunnistaOsio(h.sanelu);
+      if (ao && ao !== h.akkOsa) { h.akkOsa = ao; h.auto.akkOsa = "sanelu"; changes.push({ kentta: "osio", arvo: AKK.osio(ao).nimi }); }
+    }
     if (autoKohta(h)) changes.push({ kentta: "suunnitelma", arvo: h.suunnitelmaId === "ei" ? "ei suunnitelmassa" : Model.kohtaNimi(Model.kohta(h.suunnitelmaId)) });
     if (autoTunnus(h)) changes.push({ kentta: "tunnus", arvo: h.kentat.tunnus });
     // Menetelmän kentät sanelusta (mittalaite, lukemat, kerrokset ...)

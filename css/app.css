@@ -710,3 +710,39 @@ details.hu-taitto .hu-lisaa{color:var(--accent,#c8102e);font-weight:600;white-sp
 details.hu-taitto[open] .hu-lisaa{display:none}
 details.hu-taitto .hu-muut{margin:6px 0 0 34px}
 input.calc{background:#f4f2ec;color:var(--ink,#222)}
+
+/* Asuntokaupan kuntotarkastus (akk.js): poikkeukset yhdellä napautuksella */
+.akk-row{display:flex;align-items:center;gap:10px;cursor:default}
+.akk-row a.grow{min-width:0}
+.akk-st.ok{color:var(--ok)} .akk-st.note{color:var(--note-line);font-weight:600} .akk-st.warn{color:var(--note)} .akk-st.ei{opacity:.7}
+.akk-ok{flex:0 0 auto;width:var(--tap);height:var(--tap);border-radius:50%;border:1.5px solid var(--line-strong);background:#fff;color:var(--muted,#6b6557);display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+.akk-ok[aria-pressed="true"]{background:var(--ok);border-color:var(--ok);color:#fff}
+.akk-r{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line)}
+.akk-r:first-of-type{border-top:0}
+.akk-r.on .akk-rl{font-weight:600}
+.akk-rl{flex:1 1 auto;min-width:0;font-size:15px}
+.akk-rc{flex:0 0 auto;display:flex;gap:6px}
+.akk-c{width:40px;height:40px;border-radius:10px;border:1px solid var(--line-strong);background:#fff;font-weight:700;font-size:17px;cursor:pointer}
+.akk-c[aria-pressed="true"]{background:var(--note-bg);border-color:var(--note-line);color:var(--note-line)}
+.chip.ehd{border-style:dashed}
+.akk-h3{font-size:13px;text-transform:uppercase;letter-spacing:.04em;opacity:.7;margin:14px 0 6px}
+.auto-tag{font-size:11.5px;font-weight:600;color:var(--ok);margin-left:4px}
+
+/* Tilaseurannan taskutila: musta näyttö, kosketukset estetty */
+.taskutila{position:fixed;inset:0;z-index:9999;background:#000;color:#666;display:flex;align-items:center;justify-content:center;text-align:center;font-size:15px;touch-action:none;user-select:none}
+.taskutila small{font-size:13px;color:#444}
+.cam-ehd{display:flex;gap:6px;overflow-x:auto;padding:0 12px 6px;scrollbar-width:none}
+.cam-ehd[hidden]{display:none}
+.cam-ehd-c{flex:0 0 auto;min-height:36px;border:1px dashed rgba(255,255,255,.55);background:rgba(0,0,0,.35);color:#fff;border-radius:99px;padding:4px 12px;font-size:13.5px;cursor:pointer}
+.cam-ehd-c.on{border-style:solid;background:rgba(255,255,255,.2)}
+
+/* Tiiveysmittauksen laskuri (tiiviys.js) */
+.tv-nimi{border:0;background:transparent;font:inherit;font-weight:700;padding:0;min-height:0;width:100%}
+.tv-nimi:focus{outline:2px solid var(--line-strong);border-radius:6px}
+.tv-res{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:12px;align-items:center;margin-top:6px}
+.tv-svg{width:100%;max-height:180px;display:block}
+.tv-num{font-size:14px;line-height:1.5}
+.tv-ok{color:var(--ok)} .tv-bad{color:var(--note-line);font-weight:600}
+.tv-sum{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;text-align:center}
+.tv-sum b{display:block;font-size:19px}
+.tv-sum span{font-size:12.5px;color:var(--muted)}

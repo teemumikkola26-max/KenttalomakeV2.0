@@ -49,6 +49,7 @@
       }
       Auto.markCarried(n);          // edellisestä tuotu konteksti saa vaihtua sanelun mukaan
       if (preset && preset.kaCarry && n.kaOsa) n.auto.kaOsa = true;     // kuntoarvion osa jatkuu, sanelu voi vaihtaa
+      if (preset && preset.kaCarry && n.akkOsa) n.auto.akkOsa = true;   // kuntotarkastuksen osio samoin
       Auto.autoKohta(n); Auto.autoTunnus(n);
       return n;
     }
@@ -56,8 +57,11 @@
     // Uusi havainto alkaa aistinvaraisesta tarkastelusta (ellei avattu tietylle suunnitelman kohdalle).
     // Seuraava-painike sen sijaan jatkaa samalla menetelmällä (esim. RH-pisteiden sarja).
     if (!h) {
-      h = newObservation({ menetelma: q.menetelma, suunnitelmaId: q.kohta, tilaId: q.tila, kerrosId: q.kerros, kaOsa: q.kaosa });
+      h = newObservation({ menetelma: q.menetelma, suunnitelmaId: q.kohta, tilaId: q.tila, kerrosId: q.kerros, kaOsa: q.kaosa, akkOsa: q.akkosa });
       if (q.avaus && h.menetelma === "nayte") h.kentat.avaus = q.avaus;      // näyte rakenneavauksesta
+      // Alimenetelmä: koko sijainti (myös pohjakuvan piste ja rakenneosa) toiselta havainnolta
+      const emo = q.emo && Model.havainto(q.emo);
+      if (emo) { h.emo = emo.id; h.sijainti = JSON.parse(JSON.stringify(emo.sijainti)); if (!h.suunnitelmaId && emo.kaOsa) h.kaOsa = emo.kaOsa; }
     }
 
     document.getElementById("app").innerHTML =
@@ -67,6 +71,7 @@
       '<button class="loc-chip" data-c="loc">' + icon("pin") + '<span class="txt"><b data-loc></b><small data-locsub></small></span><span class="ch">vaihda</span></button>' +
       '<button class="cam-round" data-c="ohje" aria-label="Ohje">?</button>' +
       "</div>" +
+      '<div class="cam-ehd" data-ehd hidden></div>' +
       '<div class="viewfinder"><video autoplay playsinline muted></video><div class="flash"></div>' +
       '<div class="vf-msg" data-vfmsg>Käynnistetään kameraa…</div>' +
       '<div class="vf-left"><button class="vf-count" data-c="switch" aria-label="Vaihda havaintoa: lisää kuvia aiempaan havaintoon"><span data-count></span> ' + icon("back", "down") + "</button>" +
@@ -107,7 +112,17 @@
       $("[data-loc]").innerHTML = t ? esc(Model.tilaNimi(t)) + (SRC[src] ? ' <span class="mp-tag">' + SRC[src] + "</span>" : src === true ? ' <span class="mp-tag">edellinen</span>' : "") : "Valitse tila";
       $("[data-locsub]").textContent = [S.kohde.kerrokset.length > 1 && ker ? ker.nimi : "", h.sijainti.rakenneosa, h.sijainti.piste ? "kohta merkitty" : ""].filter(Boolean).join(" · ");
       $(".loc-chip").classList.toggle("missing", !t);
+      paintEhd();
       paintReq();
+    }
+    /* Tilaseurannan ehdotukset kameran yläpalkin alla: yksi napautus valitsee tilan ja kiinnittää seurannan.
+       Ei näy, kun tutkija on itse valinnut tilan tälle havainnolle. */
+    function paintEhd() {
+      const box = $("[data-ehd]"); if (!box) return;
+      const oma = h.sijainti.tilaId && (!h.auto || !h.auto.tila);
+      const eh = window.Paikannus && !oma && mode === "hav" ? Paikannus.ehdotukset(3) : [];
+      box.hidden = !eh.length;
+      box.innerHTML = eh.map((x, i) => '<button class="cam-ehd-c' + (x.tila.id === h.sijainti.tilaId ? " on" : "") + '" data-ehdt="' + x.tila.id + '">' + esc(Model.tilaNimi(x.tila)) + (i === 0 ? "" : "") + "</button>").join("");
     }
     function paintMethods() {
       const m = h.menetelma ? M.menetelma(h.menetelma) : null;
@@ -206,7 +221,7 @@
     function paintThumbs0() { if (mode === "hav") paintThumbs(); }
     async function setMode(m) {
       if (m === mode) return;
-      if (m === "yk") { await flush(); if (saved) { prevId = h.id; h = newObservation({ menetelma: h.menetelma, kaOsa: h.kaOsa, kaCarry: true, tilaId: h.sijainti.tilaId, kerrosId: h.sijainti.kerrosId }); saved = false; syncUrl(); } }
+      if (m === "yk") { await flush(); if (saved) { prevId = h.id; h = newObservation({ menetelma: h.menetelma, kaOsa: h.kaOsa, akkOsa: h.akkOsa, kaCarry: true, tilaId: h.sijainti.tilaId, kerrosId: h.sijainti.kerrosId }); saved = false; syncUrl(); } }
       mode = m;
       try { history.replaceState(null, "", "#/k/" + k.id + "/kuvaus" + (saved ? "/" + h.id : "") + (mode === "yk" ? "?yk=1" : "")); } catch (e) { /* ei historiaa */ }
       paintAll();
@@ -356,7 +371,7 @@
       toast(nro(h) + " tallennettu" + (miss.length ? " · täydennä myöhemmin: " + miss.slice(0, 2).join(", ") + (miss.length > 2 ? "…" : "") : ""), 2600);
       // Uusi havainto samaan paikkaan samalla menetelmällä
       prevId = h.id;
-      h = newObservation(Asetukset.get("pv.sama") ? { menetelma: h.menetelma, kaOsa: h.kaOsa, kaCarry: true } : { kaOsa: h.kaOsa, kaCarry: true, eiMenetelmaa: true });
+      h = newObservation(Asetukset.get("pv.sama") ? { menetelma: h.menetelma, kaOsa: h.kaOsa, akkOsa: h.akkOsa, kaCarry: true } : { kaOsa: h.kaOsa, akkOsa: h.akkOsa, kaCarry: true, eiMenetelmaa: true });
       saved = false;
       syncUrl();
       paintAll();
@@ -376,7 +391,7 @@
         toast("Kuvat menevät nyt havaintoon " + nro(h), 2200);
       } else {
         prevId = from;
-        h = newObservation({ menetelma: h.menetelma, kaOsa: h.kaOsa, kaCarry: true });
+        h = newObservation({ menetelma: h.menetelma, kaOsa: h.kaOsa, akkOsa: h.akkOsa, kaCarry: true });
         saved = false;
       }
       try { history.replaceState(null, "", "#/k/" + k.id + "/kuvaus" + (saved ? "/" + h.id : "")); } catch (e) { /* ei historiaa */ }
@@ -414,6 +429,15 @@
     root.addEventListener("click", async (e) => {
       const md = e.target.closest("[data-mode]");
       if (md) { setMode(md.dataset.mode); return; }
+      const eh = e.target.closest("[data-ehdt]");
+      if (eh) {
+        const t = Model.tila(eh.dataset.ehdt); if (!t) return;
+        Paikannus.kiinnita(t.id);
+        h.sijainti.tilaId = t.id; h.sijainti.kerrosId = t.kerrosId; h.sijainti.piste = null;
+        Auto.manual(h, "tila"); Auto.autoKohta(h); if (window.FieldFill) FieldFill.apply(h);
+        paintLoc(); paintStatus(); if (saved) persist();
+        return;
+      }
       const m = e.target.closest("[data-m]");
       if (m) { selectMethod(m.dataset.m); return; }
       const t = e.target.closest("[data-t]");
@@ -449,7 +473,7 @@
     naytaOhje();
     // Uusi havainto: pikavalinta, jos menetelmä (tai tila) valitaan itse. Ei, kun jatketaan
     // olemassa olevaa havaintoa tai kuvaus avattiin tietylle suunnitelman kohdalle.
-    if (mode === "hav" && !saved && !q.menetelma && !q.kohta && !q.kaosa && Asetukset.get("pv.milloin") !== "ei") pikavalinta(true);
+    if (mode === "hav" && !saved && !q.menetelma && !q.kohta && !q.kaosa && !q.akkosa && Asetukset.get("pv.milloin") !== "ei") pikavalinta(true);
 
     /* Pikavalinta: tila (jos valitaan itse) ja menetelmä yhdellä näytöllä. Menetelmän napautus sulkee.
        Molemmissa on hakukenttä: kirjoitus rajaa listaa, ja jos osumaa ei ole, sama kenttä lisää uuden. */
@@ -463,8 +487,10 @@
       const norm = (x) => String(x || "").toLowerCase().replace(/\s+/g, " ").trim();
       // Edellinen tila = viimeksi tallennetun havainnon tila
       const edell = (S.havainnot || []).slice().sort((a, b) => b.updated - a.updated).map((x) => x.sijainti && x.sijainti.tilaId).find(Boolean) || null;
+      // Tilaseuranta: 2–3 todennäköisintä tilaa ensin
+      const ehd = window.Paikannus ? Paikannus.ehdotukset(3) : [];
       const viimeisetTilat = () => {
-        const ids = [];
+        const ids = ehd.map((x) => x.tila.id);
         if (edell) ids.push(edell);
         if (h.sijainti.tilaId && !ids.includes(h.sijainti.tilaId)) ids.push(h.sijainti.tilaId);
         (S.havainnot || []).slice().sort((a, b) => b.updated - a.updated).forEach((x) => { const t = x.sijainti && x.sijainti.tilaId; if (t && !ids.includes(t)) ids.push(t); });
@@ -492,7 +518,7 @@
         } else l = viimeisetTilat();
         g.querySelector("[data-qtl]").innerHTML =
           l.map((t) => '<button class="qp-chip" data-qt="' + t.id + '" aria-pressed="' + (t.id === h.sijainti.tilaId) + '">' + esc(Model.tilaNimi(t)) +
-            (!q && t.id === edell ? " <small>edellinen</small>" : "") + "</button>").join("") + lisaa +
+            (!q && ehd.some((x) => x.tila.id === t.id) ? " <small>" + (ehd[0].tila.id === t.id ? "todennäköisin" : "todennäköinen") + "</small>" : !q && t.id === edell ? " <small>edellinen</small>" : "") + "</button>").join("") + lisaa +
           (q ? "" : '<button class="qp-chip qp-more" data-qt="__muu">Pohjakuvasta…</button>') +
           (q && !l.length && !lisaa ? '<span class="qp-none">Ei osumia</span>' : "");
       }
@@ -522,6 +548,7 @@
       root.appendChild(g);
       const sulje = () => { g.remove(); paintAll(); };
       function asetaTila(t) {
+        if (window.Paikannus) Paikannus.kiinnita(t.id);
         h.sijainti.tilaId = t.id; h.sijainti.kerrosId = t.kerrosId; h.sijainti.piste = null;
         Auto.manual(h, "tila"); Auto.autoKohta(h); if (window.FieldFill) FieldFill.apply(h);
         paintLoc(); paintStatus();
@@ -602,7 +629,8 @@
       $("[data-vfmsg]").innerHTML = "<div>Selaimen kameraa ei saatu käyttöön.<br>Laukaisin avaa puhelimen kamerasovelluksen.</div>";
     }
 
-    S.cleanup = () => { alive = false; if (window.Sync) Sync.kesken = null; release(); dict.stop(); Camera.stop(); h.sanelu = ta.value; persist.flush(); };
+    const ehdAjastin = setInterval(() => { if (alive && document.visibilityState === "visible") paintEhd(); }, 2000);
+    S.cleanup = () => { clearInterval(ehdAjastin); alive = false; if (window.Sync) Sync.kesken = null; release(); dict.stop(); Camera.stop(); h.sanelu = ta.value; persist.flush(); };
   }
 
   window.Capture = { view };

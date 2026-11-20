@@ -48,6 +48,7 @@
     });
 
     if (window.Kuntoarvio) Kuntoarvio.puutteet().forEach((x) => out.push(x));
+    if (window.AKK) AKK.puutteet().forEach((x) => out.push(x));
     (k.seuranta || []).forEach((x) => {
       const puuttuu = Seuranta.puutteet(x);
       if (!puuttuu.length || puuttuu.length === 4) return;   // täysin tyhjä luonnos ei ole puute
@@ -96,6 +97,7 @@
     if (n("tila")) parts.push(n("tila") + (n("tila") === 1 ? " tila" : " tilaa") + " tutkimatta");
     if (n("havainto")) parts.push(n("havainto") + (n("havainto") === 1 ? " havainnosta" : " havainnosta") + " puuttuu tietoja");
     if (n("kuntoarvio")) parts.push("kuntoarvio kesken");
+    if (n("akk")) parts.push("kuntotarkastus kesken");
     if (n("seuranta")) parts.push(n("seuranta") + (n("seuranta") === 1 ? " mittalaitteelta" : " mittalaitteelta") + " puuttuu tietoja");
     return parts.join(", ") + ".";
   }
@@ -115,7 +117,8 @@
       ["havainto", "Havainnot", (n) => n + " puutteellinen"],
       ["tila", "Tilat", (n) => n + " tutkimatta"],
       ["seuranta", "Olosuhdeseuranta", (n) => n + " puutteellinen"],
-      ["kuntoarvio", "Kuntoarvio", () => "kesken"]
+      ["kuntoarvio", "Kuntoarvio", () => "kesken"],
+      ["akk", "Kuntotarkastus", () => "kesken"]
     ];
     let body = "";
     groups.forEach(([t, title, sel]) => {
@@ -162,6 +165,7 @@
         if (b.dataset.t === "kohta") App.kohtaActions(Model.kohta(id));
         else if (b.dataset.t === "tila") Plan.roomActions(Model.tila(id));
         else if (b.dataset.t === "kuntoarvio") location.hash = "#/k/" + k.id + "/kuntoarvio";
+        else if (b.dataset.t === "akk") location.hash = "#/k/" + k.id + "/akk";
         else if (b.dataset.t === "seuranta") location.hash = "#/k/" + k.id + "/seuranta/" + id;
         else location.hash = "#/k/" + k.id + "/h/" + id + "?puutteet=1";
       } else if (a === "pois") {

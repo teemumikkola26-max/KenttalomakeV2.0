@@ -95,16 +95,29 @@
         if (!(x >= 0 && x <= 1 && y >= 0 && y <= 1)) { hylatyt++; return null; }
         return { x, y, varma: v.varmuus !== "arvio" };
       };
-      const tilat = (e.tilat || []).map((t) => ({ tunnus: String(t.tunnus || "").trim().toUpperCase().replace(/\s+/g, ""), nimi: String(t.nimi || "").trim(), asunto: t.asunto || "", sijainti: sij(t) }))
+      // Tilan alue monikulmiona (0–1 kuten sijainti); virheellinen alue ohitetaan
+      const alue = (t) => {
+        if (!Array.isArray(t.alue) || t.alue.length < 3 || !e.pohjakuva) return null;
+        const v = t.alue.map((p) => Array.isArray(p) ? { x: Number(p[0]), y: Number(p[1]) } : { x: Number(p.x), y: Number(p.y) });
+        return v.every((p) => p.x >= 0 && p.x <= 1 && p.y >= 0 && p.y <= 1) ? v.map((p) => ({ x: Math.round(p.x * 1e4) / 1e4, y: Math.round(p.y * 1e4) / 1e4 })) : null;
+      };
+      const tilat = (e.tilat || []).map((t) => ({ tunnus: String(t.tunnus || "").trim().toUpperCase().replace(/\s+/g, ""), nimi: String(t.nimi || "").trim(), asunto: t.asunto || "", sijainti: sij(t),
+        alue: alue(t), alueArvio: t.varmuus === "arvio" || (t.alue_varmuus === "arvio") }))
         .filter((t) => t.tunnus || t.nimi);
+      const nt = (x) => String(x || "").trim().toUpperCase().replace(/\s+/g, "");
+      const ovet = (Array.isArray(e.ovet) ? e.ovet : []).map((o) => ({ a: nt(o.a), b: nt(o.b), x: Number(o.x), y: Number(o.y) }))
+        .filter((o) => o.a && o.x >= 0 && o.x <= 1 && o.y >= 0 && o.y <= 1);
+      const pk = e.pohjakuva || {}, leveysM = Number(pk.leveys_m) > 0 ? Number(pk.leveys_m) : null;
+      const alueita = tilat.filter((t) => t.alue).length;
       if (hylatyt) varoitukset.push(nimi + ": " + hylatyt + " tilan sijainti oli virheellinen (pitää olla 0–1) ja ohitettiin.");
       const uudet = tilat.filter((t) => !(ker && k.tilat.some((x) => x.kerrosId === ker.id && ((t.tunnus && norm(x.tunnus) === norm(t.tunnus)) || (!t.tunnus && norm(x.nimi) === norm(t.nimi))))));
-      lisa({ t: "kerros", ryhma: "Kerrokset ja tilat", nimi, tilat: uudet, pohjakuva: e.pohjakuva || null,
+      lisa({ t: "kerros", ryhma: "Kerrokset ja tilat", nimi, tilat: uudet, alueet: tilat.filter((t) => t.alue), ovet, leveysM, pohjakuva: e.pohjakuva || null,
         otsikko: (ker ? nimi : "Uusi kerros: " + nimi) + (uudet.length ? " · " + uudet.length + " tilaa" : ""),
         ote: uudet.slice(0, 12).map((t) => [t.tunnus, t.nimi].filter(Boolean).join(" ")).join(", ") + (uudet.length > 12 ? " …" : "") +
           (e.pohjakuva && e.pohjakuva.tiedosto ? " · pohjakuva: " + e.pohjakuva.tiedosto + (e.pohjakuva.sivu > 1 ? " s. " + e.pohjakuva.sivu : "") : "") +
-          (uudet.some((t) => t.sijainti) ? " · " + uudet.filter((t) => t.sijainti).length + " merkitty pohjakuvaan" : ""),
-        valittu: !ker || uudet.length > 0 });
+          (uudet.some((t) => t.sijainti) ? " · " + uudet.filter((t) => t.sijainti).length + " merkitty pohjakuvaan" : "") +
+          (alueita ? " · " + alueita + " tilan alue" + (ovet.length ? ", " + ovet.length + " ovea" : "") + (leveysM ? ", mittakaava" : "") : ""),
+        valittu: !ker || uudet.length > 0 || (alueita > 0 && !(ker.leveysM && k.tilat.some((x) => x.kerrosId === ker.id && x.alue))) });
     });
     // Kuntoarvio
     const kj = j.kuntoarvio || {}, pt = kj.perustiedot || {}, a = S.kohde.kuntoarvio || { perustiedot: {}, osat: {} };
@@ -193,6 +206,12 @@
           tunnistus: { lahde: "paketti", raaka: [t.tunnus, t.nimi].join(" "), vahvistettu: !t.sijainti || t.sijainti.varma, aika: Date.now() } });
       });
       n += 1 + e.tilat.length;
+      // Tilojen alueet ja ovet (myös jo olemassa oleville tiloille, joilta alue puuttuu): tilan tunnistus
+      // mistä kohdasta tahansa ja askelpaikannus
+      const tilaT = (tun) => k.tilat.find((x) => x.kerrosId === ker.id && String(x.tunnus || "").toUpperCase().replace(/\s+/g, "") === tun);
+      (e.alueet || []).forEach((a) => { const t = tilaT(a.tunnus); if (t && !t.alue) { t.alue = a.alue; if (a.alueArvio) t.alueArvio = true; n++; } });
+      if ((e.ovet || []).length) ker.ovet = e.ovet.map((o) => ({ a: (tilaT(o.a) || {}).id || null, b: (tilaT(o.b) || {}).id || null, x: o.x, y: o.y })).filter((o) => o.a || o.b);
+      if (e.leveysM) ker.leveysM = e.leveysM;
       if (e.pohjakuva && e.pohjakuva.tiedosto) pohjat.push({ kerrosId: ker.id, tiedosto: e.pohjakuva.tiedosto, sivu: parseInt(e.pohjakuva.sivu, 10) || 1,
         valmiit: e.tilat.length > 0 && e.tilat.every((t) => t.sijainti) });
     });

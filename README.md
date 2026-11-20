@@ -311,6 +311,15 @@ Märkätilakartoituksen Asunto-kenttä jää pois, kun kohteessa ei ole asuntoja
 
 Kameranäkymässä on kaksi välilehteä: **Havainto** ja **Yleiskuva**. Yleiskuva-tilassa jokainen laukaisu tallentuu heti kohteen yleiskuviin valitun tilan kanssa, ilman sanelua ja havaintoa. Kohteen sivulla *Yleiskuvat* näyttää kuvat tiloittain; kuvalle voi lisätä kuvatekstin tai vaihtaa tilan. ZIP-paketissa kuvat ovat kansiossa `yleiskuvat/` (YK01_OH1.jpg …), ja luettelo on `havainnot.md`:ssä ja `havainnot.json`:ssa. Yleiskuvat synkronoituvat pilveen kuten muutkin kohteen tiedot.
 
+## Versio 42
+
+- **Kohdenäkymä:** omat kohteet ensin, muiden kohteet taitettuna listan lopussa. Oma = tutkijan luoma tai kirjaama pilvikohde tai Tutkija-kentässä tämän laitteen tutkijan nimi. Yli kuuden kohteen listassa haku.
+- **Alimenetelmät** (`havainto.emo`): havaintokortin *Lisää tähän* -siruista toinen menetelmä samaan kohtaan (esim. rakenneavauksesta RH-mittaus tai näyte). Perii sijainnin, pohjakuvan kohdan, rakenneosan ja suunnitelman kohdan. Kortissa *Tässä tehty* ja *Osa havaintoa*; viennissä `osa_havaintoa` ja `alimenetelmat` (LUE_MINUT 16).
+- **Asuntokaupan kuntotarkastus** (`js/akk.js`, `#/k/<id>/akk`): Kuntotarkastus-välilehden osiot (5.1–5.14.4). Osio kuitataan ✓:lla, poikkeamat kuvalla ja sanelulla (osio tunnistetaan sanelusta), tarkastuslistan rivit vain poikkeuksina (! ? –), *Ei voitu tarkastaa* koko osiolle tai riville syineen → raportin kohta 1.8. Rakennetiedot ja vinkit lähtötiedoista, ei pakollisia kenttiä. Vienti `kuntotarkastus` (LUE_MINUT 17).
+- **Tilojen alueet ja tilaseuranta** (`js/paikannus.js`): lähtötietopaketin `tilat[].alue`, `kerrokset[].ovet` ja `pohjakuva.leveys_m` (Clauden skripti `claude-projekti/tila_alueet.py`). Pohjakuvasta tunnistetaan tila mistä tahansa kohdasta. Tilaseuranta kytketään kohteen *Lisää*-kohdasta; se ei näy kenttätyön aikana, vaan kamerassa ja sijaintivalinnassa näkyy 2–3 todennäköisintä tilaa. Valinta kiinnittää sijainnin. Taskutila pimentää näytön ja estää kosketukset. Osumatarkkuus (1. / 2–3 ehdotus) tallentuu laitteelle.
+- **Tiiveysmittauksen laskuri** (`js/tiiviys.js`, `#/k/<id>/tiiviys/<havainto>`): kerroksittain kiertävä mittaus (pituus + oikea/vasen), muoto ja sulkeutumisen tarkistus, osa-alueiden korkeuserot; lattiapinta-ala, ilmatilavuus ja vaipan ala havainnon kenttiin. Laskelma viedään raportille (`tiiveyslaskelma`).
+- **Korjauksia:** kuntoarvio ei enää ole "kesken" pelkistä lähtötietojen perustiedoista (perustiedot viedään silloin `rakennuksen_perustiedot`-kohtana); kuntotarkastus samoin vasta, kun se on suunnitelmassa tai osio on kuitattu.
+
 ## Menetelmät ja kalusto (versio 41)
 
 Menetelmät, kentät, näytetyypit ja kalusto tulevat Menetelmät ja kalusto -taulukosta (Claude-artifakti, hyväksytty 19.11.2026). Taulukosta generoidaan `js/menetelmat-data.js` skriptillä `tools/build_data.py` (`python3 tools/build_data.py taulukko.xlsx js/menetelmat-data.js`) (taulukko ladataan xlsx:nä). Käsin ovat `js/methods.js`:ssä märkätilakartoitus, RH-taulukot, sanelun valintasanat ja näytetyyppien tunnusten etuliitteet.
@@ -412,6 +421,9 @@ js/db.js               IndexedDB-tallennus
 js/menetelmat-data.js  menetelmät, näytetyypit ja kalusto taulukosta (generoitu)
 js/methods.js          oletusmenetelmät, rakenneosat, menetelmien tallennus
 js/kalusto.js          Kalusto mukaan -lista
+js/akk.js              asuntokaupan kuntotarkastus
+js/paikannus.js        tilaseuranta (askelpaikannus)
+js/tiiviys.js          tiiveysmittauksen laskuri
 js/editor.js           menetelmien muokkaus
 js/vocab.js            muokattavat sanalistat (oletukset + tutkijan muutokset)
 js/vocabview.js        Sanasto-sivu ja sanelun kokeilu

@@ -47,7 +47,11 @@
     if (!k.kuntoarvio) k.kuntoarvio = { perustiedot: {}, rajaukset: "", ptsVuodet: 10, osat: {} };
     return k.kuntoarvio;
   }
-  const aktiivinen = () => !!(S.kohde && (S.kohde.kuntoarvio || S.kohde.suunnitelma.some((p) => M.menetelma(p.menetelma).kuntoarvio)));
+  // Kuntoarvio on käynnissä, kun se on suunnitelmassa tai tutkija on arvioinut osan. Pelkät lähtötiedot
+  // (Clauden paketin perustiedot ja rakenteet, myös asuntokaupan kuntotarkastuksessa ja kuntotutkimuksessa)
+  // eivät tee kuntoarviosta keskeneräistä.
+  const aktiivinen = () => !!(S.kohde && (S.kohde.suunnitelma.some((p) => M.menetelma(p.menetelma).kuntoarvio && !p.pois) ||
+    (S.kohde.kuntoarvio && Object.values(S.kohde.kuntoarvio.osat || {}).some((o) => o && (o.kl || o.ei || o.huom || (o.tark || []).length)))));
   const tila = (id) => { const o = ka().osat[id] || (ka().osat[id] = { kl: null, ei: false, rakenteet: [], tark: [], huom: "", valiton: false, lisatutk: false, asiantuntija: false }); return siirra(o); };
   /* Osassa voi olla useita rakenteita (esim. kolme eri lattiapinnoitetta). Kuntoluokka on yksi koko osalle.
      Vanha muoto { nimike, vuosi } siirretään listaan. */

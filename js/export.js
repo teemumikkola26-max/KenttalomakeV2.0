@@ -181,15 +181,19 @@
         return {
           tunnus: RN(h),
           kuntoarvion_osa: h.kaOsa && window.Kuntoarvio && Kuntoarvio.osa(h.kaOsa) ? Kuntoarvio.osa(h.kaOsa).nimi : null,
+          kuntotarkastuksen_osio: h.akkOsa && window.AKK && AKK.osio(h.akkOsa) ? AKK.osio(h.akkOsa).luku + " " + AKK.osio(h.akkOsa).nimi : null,
           sijainti: { kerros: e ? e.nimi : null, tila: t ? Model.tilaNimi(t) : null, rakenneosa: h.sijainti.rakenneosa || null,
             pohjapiirros: h.sijainti.piste ? { x_pros: Math.round(h.sijainti.piste.x * 1000) / 10, y_pros: Math.round(h.sijainti.piste.y * 1000) / 10 } : null },
           menetelma: M.menetelma(h.menetelma).nimi,
+          osa_havaintoa: (() => { const e2 = h.emo && Model.havainto(h.emo); return e2 ? RN(e2) + " " + M.menetelma(e2.menetelma).nimi + (e2.kentat && e2.kentat.tunnus ? " " + e2.kentat.tunnus : "") : null; })(),
+          alimenetelmat: S.havainnot.filter((x) => x.emo === h.id).map((x) => RN(x)),
           tulos: h.tulos ? M.TULOKSET[h.tulos] : null,
           suunnitelman_kohta: h.suunnitelmaId === "ei" ? "Ei suunnitelmassa" : (p ? Model.kohtaNimi(p) : null),
           havainto_sanelu: h.sanelu || "",
           tiedot: rivit.filter((r) => !r.mittaus).map((r) => ({ kentta: r.kentta, arvo: r.arvo, yksikko: r.yksikko })),
           mittaustulokset: rivit.filter((r) => r.mittaus).map((r) => ({ kentta: r.kentta, arvo: r.arvo, yksikko: r.yksikko })),
           mittaustaulukot: taulukot(h, paths),
+          tiiveyslaskelma: window.Tiiviys && h.tiiviys ? Tiiviys.vienti(h) : undefined,
           tunnistettu_sanelusta: Object.keys(h.auto || {}).filter((x) => h.auto[x] === "sanelu" || h.auto[x] === "opittu" || h.auto[x] === "kuva")
             .map((x) => {
               const f = /^[kt]:/.test(x) ? M.kentta(h, x.slice(2)) : null;
@@ -210,7 +214,10 @@
       }) : null,
       huomioitavaa_lahtotiedoista: (k.huomiot || []).length ? k.huomiot.map((h) => ({ teksti: h.teksti, lahde: h.lahde || undefined })) : null,
       yleiskuvat: (paths.yleiskuvat || []).length ? paths.yleiskuvat : null,
-      kuntoarvio: window.Kuntoarvio ? Kuntoarvio.vienti(RN, paths.lahto) : null,
+      kuntoarvio: window.Kuntoarvio && Kuntoarvio.aktiivinen() ? Kuntoarvio.vienti(RN, paths.lahto) : null,
+      // Lähtötietojen perustiedot ilman kuntoarviota (esim. kuntotutkimus tai asuntokaupan kuntotarkastus)
+      rakennuksen_perustiedot: window.Kuntoarvio && !Kuntoarvio.aktiivinen() && k.kuntoarvio && Object.keys(k.kuntoarvio.perustiedot || {}).length ? k.kuntoarvio.perustiedot : null,
+      kuntotarkastus: window.AKK ? AKK.vienti(RN) : null,
       vaihe: !k.suunnitelma.length && window.Katselmus && Katselmus.onKatselmus(k) ? "katselmus" : "tutkimus",
       ...(window.Katselmus ? Katselmus.vienti() : {}),
       avoimet_puutteet: puutteet.map((x) => x.otsikko + ": " + x.selite)
@@ -230,6 +237,7 @@
     if (j.vaihe === "katselmus") L.push("- Vaihe: katselmus (tutkimussuunnitelmaa ei vielä ole; laaditaan katselmusmuistio, ks. LUE_MINUT kohta 13)");
     L.push("");
     if (window.Katselmus) Katselmus.vientiMd(j).forEach((r) => L.push(r));
+    if (window.AKK && j.kuntotarkastus) AKK.vientiMd(j.kuntotarkastus).forEach((r) => L.push(r));
     if (j.tutkimussuunnitelma.length) {
       L.push("## Tutkimussuunnitelman toteutuminen");
       L.push("");
@@ -252,6 +260,9 @@
       L.push("### " + h.tunnus + " · " + ([s.kerros, s.tila, s.rakenneosa].filter(Boolean).join(" · ") || "sijainti puuttuu"));
       L.push("");
       L.push("- Menetelmä: " + h.menetelma);
+      if (h.kuntotarkastuksen_osio) L.push("- Kuntotarkastuksen osio: " + h.kuntotarkastuksen_osio);
+      if (h.osa_havaintoa) L.push("- Osa havaintoa: " + h.osa_havaintoa + " (alimenetelmä)");
+      if (h.alimenetelmat && h.alimenetelmat.length) L.push("- Alimenetelmät: " + h.alimenetelmat.join(", "));
       L.push("- Tulos: " + (h.tulos || "ei valittu"));
       if (h.suunnitelman_kohta) L.push("- Suunnitelman kohta: " + h.suunnitelman_kohta);
       if (h.tunnistettu_sanelusta && h.tunnistettu_sanelusta.length) L.push("- Sovellus tunnisti sanelusta (tutkija ei muuttanut): " + h.tunnistettu_sanelusta.join(", "));
@@ -416,7 +427,19 @@
     "   joita ei kysytty tai katsottu, ovat avoimia, eivät kielteisiä vastauksia.\n" +
     "15. Aiemmat tutkimukset (aiemmat_tutkimukset) ovat lähtötietoja aiemmista\n" +
     "   raporteista lähteineen, eivät tämän käynnin tuloksia. Esitä ne lähtötiedoissa\n" +
-    "   ja vertaa niihin; tilaviittaukset noudattavat tämän paketin tilanumerointia.\n";
+    "   ja vertaa niihin; tilaviittaukset noudattavat tämän paketin tilanumerointia.\n" +
+    "16. Alimenetelmät (osa_havaintoa, alimenetelmat). Havainto voi olla toisen\n" +
+    "   havainnon osa, esim. rakenneavauksesta tehty RH-mittaus tai näyte, tai\n" +
+    "   kuntotarkastuksen osiossa tehty pintakosteuskartoitus. Esitä alimenetelmän\n" +
+    "   tulos sen havainnon yhteydessä, jonka osa se on, ja raportoi menetelmä\n" +
+    "   lisäksi omana tutkimusmenetelmänään.\n" +
+    "17. Asuntokaupan kuntotarkastus (kuntotarkastus). Raportti PBM:n kuntotarkastus-\n" +
+    "   pohjan lukujen mukaan. Oletus on ei huomautettavaa: kuitatun osion\n" +
+    "   tarkastuslistan kohta, jota tutkija ei muuttanut, katsottiin eikä siinä ollut\n" +
+    "   huomautettavaa. Poikkeamat ovat havainnoissa (kuntotarkastuksen_osio).\n" +
+    "   Rakennetiedot, joiden lähde on lähtötiedot, ovat asiakirjoista: esitä ne\n" +
+    "   lähtötietoina. Luvun 1.8 rajaukset ovat kohdassa rajaukset_1_8. Vinkit\n" +
+    "   ovat sovelluksen muistutuksia, eivät havaintoja.\n";
 
   /* Viennin ajankohta: etusivu muistuttaa, jos kohteessa on vientiä uudempia muutoksia (puhelimen
      katoaminen tai rikkoutuminen ei vie kenttäpäivän työtä) */
