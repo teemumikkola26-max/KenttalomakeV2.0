@@ -220,25 +220,54 @@
     if (!ker) return null;
     if (typeof ker.pohjoinen === "number") return ker.pohjoinen;
     const o = ker.pohjoinenOpittu;
-    return o && o.n >= 20 && o.r > 0.8 ? o.deg : null;
+    return o && o.tapa === "tilavalinnat" ? o.deg : null;
   }
   // Kompassisuunta pohjakuvan kulmaksi (rad, +x = oikealle, myötäpäivään positiivinen)
   function kompassiPohjaan() { const c = kompassi(), N = pohjoinen(); return c == null || N == null ? null : (-90 + N) * DEG + c; }
-  /* Pohjoisen oppiminen: näytteet kerätään kävellessä puskuriin ja otetaan käyttöön vasta, kun tutkijan
-     seuraava tilavalinta vahvistaa, että seuranta oli oikeassa tilassa. Väärin varma seuranta ei opeta väärää pohjoista. */
-  function opiPohjoinen(kavely) {
-    const c = kompassi(), ker = malli && Model.kerros(malli.kerrosId), e = PF.est;
-    if (c == null || !ker || typeof ker.pohjoinen === "number" || !e || e.p < 0.8 || e.thConf < 0.85) return;
-    (malli.pohjBuf = malli.pohjBuf || []).push((kavely - c) / DEG + 90);   // pohjoisen kulma sivulla
-    if (malli.pohjBuf.length > 400) malli.pohjBuf.shift();
+  /* Pohjoisen oppiminen tilavalinnoista (pilottiloki 20.11.: kompassi oli luotettava, mutta pohjoista ei tiedetty,
+     joten sitä ei käytetty). Kahden tilavalinnan välinen kävely tallennetaan kompassin mukaisena siirtymävektorina.
+     Pohjoinen on kulma, jolla vektorit vievät edellisen tilan keskeltä parhaiten seuraavaan tilaan. Ei riipu siitä,
+     oliko seuranta oikeassa: sovitus käyttää vain tutkijan valitsemia tiloja. */
+  const segAvain = (kerrosId) => "ks_pohjseg_" + (S.kohde && S.kohde.id) + "_" + kerrosId;
+  function keskipiste(v) {
+    let a = 0, cx = 0, cy = 0;
+    for (let i = 0; i < v.length; i++) { const p = v[i], q = v[(i + 1) % v.length], c = p.x * q.y - q.x * p.y; a += c; cx += (p.x + q.x) * c; cy += (p.y + q.y) * c; }
+    return Math.abs(a) < 1e-9 ? { x: v[0].x, y: v[0].y } : { x: cx / (3 * a), y: cy / (3 * a) };
   }
-  function vahvistaPohjoinen(oikein) {
-    const ker = malli && Model.kerros(malli.kerrosId), buf = (malli && malli.pohjBuf) || [];
-    if (malli) malli.pohjBuf = [];
-    if (!oikein || !ker || buf.length < 5) return;
-    const L = malli.pohj = malli.pohj || { s: 0, c: 0, n: 0 };
-    buf.forEach((a) => { L.s += Math.sin(a * DEG); L.c += Math.cos(a * DEG); L.n++; });
-    ker.pohjoinenOpittu = { deg: Math.round(Math.atan2(L.s, L.c) / DEG), n: L.n, r: Math.hypot(L.s, L.c) / L.n };
+  function etaisyysTilaan(r, x, y) {
+    if (inPoly(r.v, x, y)) return 0;
+    let m = 1e9;
+    for (let i = 0; i < r.v.length; i++) {
+      const a = r.v[i], b = r.v[(i + 1) % r.v.length], dx = b.x - a.x, dy = b.y - a.y;
+      const t = Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / (dx * dx + dy * dy || 1)));
+      m = Math.min(m, Math.hypot(a.x + t * dx - x, a.y + t * dy - y));
+    }
+    return m;
+  }
+  function sovitaPohjoinen(ker) {
+    let segs = []; try { segs = JSON.parse(LS(segAvain(ker.id)) || "[]"); } catch (e) { segs = []; }
+    const R = malli.rooms, idx = (id) => R.findIndex((r) => r.id === id);
+    const ok = segs.map((g) => ({ g, ia: idx(g.a), ib: idx(g.b) })).filter((x) => x.ia >= 0 && x.ib >= 0);
+    if (ok.length < 3) return null;
+    ok.forEach((x) => { x.c = keskipiste(R[x.ia].v); });
+    const tulos = [];
+    for (let deg = 0; deg < 360; deg += 2) {
+      const ph = deg * DEG, cs = Math.cos(ph), sn = Math.sin(ph);
+      let e = 0;
+      ok.forEach((x) => { const px = x.c.x + cs * x.g.vx - sn * x.g.vy, py = x.c.y + sn * x.g.vx + cs * x.g.vy; e += Math.min(8, etaisyysTilaan(R[x.ib], px, py)); });
+      tulos.push({ deg, e: e / ok.length });
+    }
+    tulos.sort((a, b) => a.e - b.e);
+    const b = tulos[0], toinen = tulos.find((t) => { const d = Math.abs(t.deg - b.deg); return Math.min(d, 360 - d) > 40; });
+    if (b.e > 2 || !toinen || toinen.e - b.e < 1.5) return null;
+    return { deg: ((b.deg + 90) % 360 + 360) % 360, n: ok.length, virhe: +b.e.toFixed(2), tapa: "tilavalinnat" };
+  }
+  function tallennaSegmentti(tilaId) {
+    const g = SN.seg; SN.seg = null;
+    if (!g || g.a === tilaId || g.kerrosId !== malli.kerrosId || g.n < 5 || g.nc < g.n * 0.7 || Date.now() - g.t0 > 10 * 60000) return;
+    let segs = []; try { segs = JSON.parse(LS(segAvain(g.kerrosId)) || "[]"); } catch (e) { segs = []; }
+    segs.push({ a: g.a, b: tilaId, vx: +g.vx.toFixed(2), vy: +g.vy.toFixed(2) });
+    LS(segAvain(g.kerrosId), JSON.stringify(segs.slice(-40)));
   }
 
   function onMotion(e) {
@@ -308,10 +337,10 @@
   }
   function kayta(st) {
     SN.askeleet++; SN.viimeAskel = st.t;
+    if (SN.seg) { SN.seg.n++; if (st.c != null) { SN.seg.vx += st.L * Math.cos(st.c); SN.seg.vy += st.L * Math.sin(st.c); SN.seg.nc++; } }
     const dps = SN.pu == null ? 0 : st.pu - SN.pu; SN.pu = st.pu;
     if (!(malli && PF.active)) return;
     PF.step(st.L, st.pu, dps, st.meas);
-    if (PF.est) opiPohjoinen(st.pu + PF.est.th);
     kirjaa({ l: "a", L: +st.L.toFixed(3), psi: +st.pu.toFixed(3), c: st.c == null ? null : +st.c.toFixed(3), m: st.meas == null ? null : 1, tk: pocket ? 1 : 0,
       e: PF.est && PF.est.room >= 0 ? malli.rooms[PF.est.room].id : null, p: PF.est ? +PF.est.p.toFixed(2) : 0 });
   }
@@ -414,27 +443,44 @@
     // Askelpituuden oppiminen: seuranta oli oikeassa tilassa varmana → partikkelien askelkerroin talteen
     const e0 = PF.est, oikein = e0 && malli && e0.room >= 0 && malli.rooms[e0.room].id === tilaId;
     if (oikein && e0.p > 0.6 && SN.askeleet - (SN.askelKiinn || 0) >= 15) { SN.K = Math.min(0.75, Math.max(0.3, SN.K * (0.7 + 0.3 * e0.K))); LS("ks_askelK", String(SN.K)); }
-    vahvistaPohjoinen(!!oikein);
     SN.viimeTila = tilaId;
     kirjaa({ l: "k", tila: tilaId, eh: eh.map((x) => [x.tila.id, +x.p.toFixed(2)]), e: e0 && malli && e0.room >= 0 ? malli.rooms[e0.room].id : null });
     SN.askelKiinn = SN.askeleet;
-    if (!malli || malli.kerrosId !== ker.id) { rakennaMalli(ker); PF.clear(); }
+    if (!malli || malli.kerrosId !== ker.id) { rakennaMalli(ker); PF.clear(); SN.seg = null; }
     const ri = malli.rooms.findIndex((r) => r.id === tilaId);
     if (ri < 0) return;
+    // Pohjoinen tilavalinnoista (jos lähtötiedoissa ei ole)
+    tallennaSegmentti(tilaId);
+    const Nennen = pohjoinen();
+    if (typeof ker.pohjoinen !== "number") { const o = sovitaPohjoinen(ker); if (o) ker.pohjoinenOpittu = o; }
+    const uusiPohjoinen = Nennen == null && pohjoinen() != null;
+    SN.seg = { a: tilaId, kerrosId: ker.id, vx: 0, vy: 0, n: 0, nc: 0, t0: Date.now() };
     const oliAktiivinen = PF.active;
     PF.confirmRoom(ri);
     // Suunta kompassista, jos pohjakuvan pohjoinen tiedetään (muuten suunta selviää seinistä kävellessä)
     const m = kompassiPohjaan();
-    if (m != null && (!oliAktiivinen || PF.est.thConf < 0.5)) PF.setHeading(m - SN.psi, 30 * DEG);
-    if (ker.pohjoinenOpittu) Model.saveKohde();
+    if (m != null && (!oliAktiivinen || uusiPohjoinen || PF.est.thConf < 0.5)) PF.setHeading(m - SN.psi, 30 * DEG);
+    if (ker.pohjoinenOpittu && uusiPohjoinen) Model.saveKohde();
   }
   /* 2–3 todennäköisintä tilaa: [{ tila, p }] */
   /* Ehdotukset: seurannan todennäköisimmät tilat. Jos seuranta on epävarma, loput paikat täytetään
      viimeksi valitulla tilalla ja sen naapuritiloilla (ovien kautta): tutkija liikkuu yleensä viereiseen tilaan. */
+  /* Tilojen todennäköisyydet "pehmeästi": partikkeli lasketaan myös viereisille tiloille, jos se on alle ~1 m
+     päässä niistä (pohjan tila-alueiden väliin jää seinien levyisiä rakoja, ja tutkija seisoo usein oviaukossa).
+     Pilottilokin uudelleenajossa 3 joukossa -osuma parani noin 53 % → 61 %. */
+  function pehmeat() {
+    const R = malli.rooms, q = PF.pisteet(300).pts, out = new Array(R.length).fill(0), s2 = 2 * 0.6 * 0.6;
+    q.forEach((p) => {
+      let sum = 0; const w = R.map((r) => { if (p[0] < r.minx - 2 || p[0] > r.maxx + 2 || p[1] < r.miny - 2 || p[1] > r.maxy + 2) return 0; const d = etaisyysTilaan(r, p[0], p[1]); const v = Math.exp(-d * d / s2); sum += v; return v; });
+      if (sum > 0.01) w.forEach((v, i) => { out[i] += v / sum; });
+    });
+    const tot = q.length || 1;
+    return out.map((v) => v / tot);
+  }
   function ehdotukset(n) {
     n = n || 3;
     if (!SN.on || !malli || !PF.active || !PF.est) return [];
-    const out = PF.probs.map((p, i) => ({ tila: Model.tila(malli.rooms[i].id), p })).filter((x) => x.tila && x.p >= 0.1).sort((a, b) => b.p - a.p).slice(0, n);
+    const out = pehmeat().map((p, i) => ({ tila: Model.tila(malli.rooms[i].id), p })).filter((x) => x.tila && x.p >= 0.03).sort((a, b) => b.p - a.p).slice(0, n);
     const lisaa = (id, p) => { const t = Model.tila(id); if (t && out.length < n && !out.some((x) => x.tila.id === id)) out.push({ tila: t, p, naapuri: true }); };
     if (!out.length || out[0].p < 0.6) {
       const kesk = out[0] ? out[0].tila.id : null, viim = SN.viimeTila;
@@ -462,7 +508,7 @@
   function diagnostiikka() {
     const k = S.kohde, ker = (malli && Model.kerros(malli.kerrosId)) || (k && k.kerrokset.find((e) => kaytettava(e)));
     const alueet = ker ? k.tilat.filter((t) => t.kerrosId === ker.id && Array.isArray(t.alue) && t.alue.length > 2).length : 0;
-    const N = (() => { if (!ker) return null; if (typeof ker.pohjoinen === "number") return "lähtötiedoista"; const o = ker.pohjoinenOpittu; return o && o.n >= 20 && o.r > 0.8 ? "opittu" : null; })();
+    const N = (() => { if (!ker) return null; if (typeof ker.pohjoinen === "number") return "lähtötiedoista"; const o = ker.pohjoinenOpittu; return o && o.tapa === "tilavalinnat" ? "opittu" : null; })();
     return { data: SN.viimeData ? Date.now() - SN.viimeData < 3000 : false, askeleet: SN.askeleet, suunta: SN.src === "o" ? "orientaatio" : SN.src === "g" ? "gyro" : null,
       kompassi: !!(SN.comp && Date.now() - SN.comp.t < 3000), alueet, ovet: ker ? (ker.ovet || []).length : 0, pohjoinen: N, rivit: loki.length };
   }

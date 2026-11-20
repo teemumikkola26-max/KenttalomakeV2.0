@@ -422,7 +422,7 @@
             (k.paikannus && t.on ? (() => {
               const d = Paikannus.diagnostiikka();
               const txt = [d.data ? "anturit lähettävät" : "ei anturidataa", d.askeleet + " askelta", d.suunta ? "suunta: " + d.suunta : "", d.ovet ? d.ovet + " ovea pohjassa" : "ovet puuttuvat pohjasta",
-                d.pohjoinen ? "pohjoinen " + d.pohjoinen : d.kompassi ? "pohjoinen opitaan" : ""].filter(Boolean).join(" · ");
+                d.pohjoinen ? "pohjoinen " + d.pohjoinen : d.kompassi ? "pohjoinen opitaan tilavalinnoista" : "ei kompassia"].filter(Boolean).join(" · ");
               return '<div class="row pk-diag">' + icon("info") + '<div class="grow"><div class="s">' + esc(txt) + "</div></div></div>";
             })() : "") +
             (Paikannus.lokiPituus() ? '<button class="row" data-act="paikannusLoki" style="width:100%;text-align:left;background:none;border:0">' + icon("download") +

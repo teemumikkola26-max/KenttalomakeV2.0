@@ -311,6 +311,13 @@ Märkätilakartoituksen Asunto-kenttä jää pois, kun kohteessa ei ole asuntoja
 
 Kameranäkymässä on kaksi välilehteä: **Havainto** ja **Yleiskuva**. Yleiskuva-tilassa jokainen laukaisu tallentuu heti kohteen yleiskuviin valitun tilan kanssa, ilman sanelua ja havaintoa. Kohteen sivulla *Yleiskuvat* näyttää kuvat tiloittain; kuvalle voi lisätä kuvatekstin tai vaihtaa tilan. ZIP-paketissa kuvat ovat kansiossa `yleiskuvat/` (YK01_OH1.jpg …), ja luettelo on `havainnot.md`:ssä ja `havainnot.json`:ssa. Yleiskuvat synkronoituvat pilveen kuten muutkin kohteen tiedot.
 
+## Versio 45
+
+- **Tilaseuranta, pilottilokin (20.11.) analyysi:** askeleet tunnistuivat hyvin (0,6–0,8 m) ja puhelimen kompassi oli luotettava: pelkillä askelilla ja kompassilla edellisestä tilasta laskettu kävely osui 10/14 siirtymässä 1 m:n päähän oikeasta tilasta. Kompassia ei kuitenkaan käytetty, koska pohjakuvan pohjoista ei tiedetty (ei paketissa, ja vanha oppiminen vaati 20 varmaa askelta). Lokin uudelleenajo vahvisti: ilman pohjoista 20 % / 34 % (kenttä: 3/17 ja 7/17), pohjoisen kanssa noin 40 % / 55–60 %.
+  - *Pohjoinen opitaan tilavalinnoista:* kahden tilavalinnan välinen kävely tallennetaan kompassin mukaisena siirtymänä, ja pohjoinen sovitetaan niin, että siirtymät vievät edellisestä tilasta valittuun. Riittää yleensä 3–4 siirtymää. Ei riipu siitä, oliko seuranta oikeassa. PBM:n testikohteessa tulos 30° (lokista).
+  - *Ehdotukset pehmeästi:* tila-alueiden väliin jää seinän levyisiä rakoja ja tutkija seisoo usein oviaukossa, joten alle ~1 m:n päässä oleva tila lasketaan mukaan.
+  - Lokin uudelleenajo (`replay.js`) on nyt työkaluna: jokaisen uuden lokin voi ajaa algoritmin muutosten jälkeen.
+
 ## Versio 44
 
 - **Pikavalinta:** napautus laatikon ulkopuolelle (kameranäkymään) = *Valitse myöhemmin*. Haussa laatikko nousee näytön yläreunaan ja muut osiot piiloutuvat, jotta näppäimistö ei peitä tuloksia.
