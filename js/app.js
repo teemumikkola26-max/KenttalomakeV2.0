@@ -419,7 +419,14 @@
               (o.n ? " · osumat " + (o.top1 || 0) + "/" + o.n + " ensimmäisenä, " + (o.top3 || 0) + "/" + o.n + " kolmen joukossa" : "")
               : "Askelpaikannus ehdottaa kirjauksessa 2–3 todennäköisintä tilaa. Näyttö pysyy päällä; taskussa näyttö pimenee.") + "</div></div>" +
             '<span class="chip" aria-pressed="' + !!k.paikannus + '" style="pointer-events:none">' + (k.paikannus ? "Päällä" : "Pois") + "</span></button>" +
-            (Paikannus.lokiPituus() ? '<button class="link" data-act="paikannusLoki" style="margin:0 0 8px 40px">Vie seurannan loki (tiedosto säätöä varten)</button>' : "");
+            (k.paikannus && t.on ? (() => {
+              const d = Paikannus.diagnostiikka();
+              const txt = [d.data ? "anturit lähettävät" : "ei anturidataa", d.askeleet + " askelta", d.suunta ? "suunta: " + d.suunta : "", d.ovet ? d.ovet + " ovea pohjassa" : "ovet puuttuvat pohjasta",
+                d.pohjoinen ? "pohjoinen " + d.pohjoinen : d.kompassi ? "pohjoinen opitaan" : ""].filter(Boolean).join(" · ");
+              return '<div class="row pk-diag">' + icon("info") + '<div class="grow"><div class="s">' + esc(txt) + "</div></div></div>";
+            })() : "") +
+            (Paikannus.lokiPituus() ? '<button class="row" data-act="paikannusLoki" style="width:100%;text-align:left;background:none;border:0">' + icon("download") +
+              '<div class="grow"><div class="t">Vie seurannan loki</div><div class="s">Tiedosto seurannan säätöä varten · ' + Paikannus.lokiPituus() + " riviä · ei kuvia, sanelua eikä nimiä</div></div></button>" : "");
         })() : "") +
         lisaRivi("#/k/" + k.id + "/yleiskuvat", "image", "Yleiskuvat", ykN ? ykN + " kuvaa" : "Julkisivut ja tilat ilman havaintoa") +
         (seurPlan ? "" : lisaRivi("#/k/" + k.id + "/seuranta", "pin", "Olosuhdeseuranta", seurN ? seurN + " mittalaitetta" : "Mittalaitteiden sijainnit")) +
@@ -633,14 +640,34 @@
       toast(k.paikannus ? (ok ? "Tilaseuranta päällä. Valitse tila ensimmäisessä kirjauksessa, niin seuranta alkaa siitä." : "Anturit eivät käynnisty: " + Paikannus.tilanne().virhe) : "Tilaseuranta pois", 4000);
       render();
     },
+    /* Seurannan loki: jako (puhelin), lataus tai leikepöytä. Jakona .txt, koska Android ei jaa .json-tiedostoja. */
     paikannusLoki() {
-      const k = S.kohde, data = Paikannus.vieLoki();
-      const name = "tilaseuranta_" + (k.nimi || "kohde").replace(/[^A-Za-z0-9ÅÄÖåäö_-]+/g, "_").slice(0, 40) + "_" + new Date().toISOString().slice(0, 10) + ".json";
-      const blob = new Blob([JSON.stringify(data)], { type: "application/json" }), file = new File([blob], name, { type: "application/json" });
-      if (navigator.canShare && navigator.canShare({ files: [file] }) && /Android|iPhone|iPad/i.test(navigator.userAgent)) { navigator.share({ files: [file], title: name }).catch(() => {}); return; }
-      const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(a.href), 30000);
-      toast("Loki ladattu: " + name, 3500);
+      const k = S.kohde, data = JSON.stringify(Paikannus.vieLoki());
+      const base = "tilaseuranta_" + (k.nimi || "kohde").replace(/[^A-Za-z0-9ÅÄÖåäö_-]+/g, "_").slice(0, 40) + "_" + new Date().toISOString().slice(0, 10);
+      const file = new File([data], base + ".txt", { type: "text/plain" });
+      const voiJakaa = !!(navigator.canShare && navigator.share && navigator.canShare({ files: [file] }));
+      sheet('<h3 style="margin:0 0 6px">Vie seurannan loki</h3><p class="hint" style="margin:0 0 14px">Lokissa on askeleet, suunnat ja tilavalinnat (' + Paikannus.lokiPituus() +
+        " riviä). Ei kuvia, sanelua eikä nimiä. Lähetä tiedosto seurannan säätöä varten.</p>" +
+        (voiJakaa ? '<button class="btn btn-primary btn-block" data-x="jaa" style="margin-bottom:8px">' + icon("upload") + "Jaa tiedosto (sähköposti, Drive…)</button>" : "") +
+        '<button class="btn btn-block' + (voiJakaa ? "" : " btn-primary") + '" data-x="lataa" style="margin-bottom:8px">' + icon("download") + "Tallenna laitteelle</button>" +
+        '<button class="btn btn-block" data-x="kopioi" style="margin-bottom:8px">' + icon("copy") + "Kopioi leikepöydälle</button>" +
+        '<button class="btn btn-block" data-close>Peruuta</button>', (el, close) => {
+        el.addEventListener("click", async (e) => {
+          const b = e.target.closest("[data-x]"); if (!b) return;
+          const x = b.dataset.x;
+          try {
+            if (x === "jaa") { await navigator.share({ files: [file], title: file.name }); close(); toast("Loki jaettu", 2500); return; }
+            if (x === "kopioi") { await navigator.clipboard.writeText(data); close(); toast("Loki kopioitu leikepöydälle. Liitä se sähköpostiin tai viestiin.", 4000); return; }
+            const url = URL.createObjectURL(new Blob([data], { type: "application/json" }));
+            const a = document.createElement("a"); a.href = url; a.download = base + ".json"; document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 60000);
+            close(); toast("Loki tallennettu: " + base + ".json", 4000);
+          } catch (err) {
+            if (err && err.name === "AbortError") return;      // jako peruttiin
+            toast("Ei onnistunut (" + (err && err.message || err) + "). Kokeile toista tapaa.", 4500);
+          }
+        });
+      });
     },
     galleria() { Gallery.importPhotos(() => render()); },
     addKohta() { menetelmaValinta(); },

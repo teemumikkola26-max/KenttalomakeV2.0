@@ -162,7 +162,14 @@
     }
     /* Suunta tiedetään (kompassi + pohjakuvan pohjoinen): partikkelien suuntapoikkeama sen mukaan */
     function setHeading(t, sd) { for (let i = 0; i < N; i++) th[i] = t + gauss() * sd; estimate(); }
-    return { init, clear, step, confirmRoom, spreadHeading, diffuse, setHeading, get active() { return active; }, get est() { return est; }, get probs() { return probs; } };
+    /* Näkymää varten: harvennettu otos partikkeleista (metreinä) ja painotettu keskipiste */
+    function pisteet(m) {
+      const st = Math.max(1, Math.floor(N / (m || 300))), pts = [];
+      let mx = 0, my = 0; for (let i = 0; i < N; i++) { mx += w[i] * x[i]; my += w[i] * y[i]; }
+      for (let i = 0; i < N; i += st) pts.push([x[i], y[i]]);
+      return { pts, mx, my };
+    }
+    return { init, clear, step, confirmRoom, spreadHeading, diffuse, setHeading, pisteet, get active() { return active; }, get est() { return est; }, get probs() { return probs; } };
   })();
 
   /* ---------- Liikeanturit ---------- */
@@ -217,13 +224,21 @@
   }
   // Kompassisuunta pohjakuvan kulmaksi (rad, +x = oikealle, myötäpäivään positiivinen)
   function kompassiPohjaan() { const c = kompassi(), N = pohjoinen(); return c == null || N == null ? null : (-90 + N) * DEG + c; }
+  /* Pohjoisen oppiminen: näytteet kerätään kävellessä puskuriin ja otetaan käyttöön vasta, kun tutkijan
+     seuraava tilavalinta vahvistaa, että seuranta oli oikeassa tilassa. Väärin varma seuranta ei opeta väärää pohjoista. */
   function opiPohjoinen(kavely) {
     const c = kompassi(), ker = malli && Model.kerros(malli.kerrosId), e = PF.est;
     if (c == null || !ker || typeof ker.pohjoinen === "number" || !e || e.p < 0.8 || e.thConf < 0.85) return;
-    const a = (kavely - c) / DEG + 90;   // pohjoisen kulma sivulla
+    (malli.pohjBuf = malli.pohjBuf || []).push((kavely - c) / DEG + 90);   // pohjoisen kulma sivulla
+    if (malli.pohjBuf.length > 400) malli.pohjBuf.shift();
+  }
+  function vahvistaPohjoinen(oikein) {
+    const ker = malli && Model.kerros(malli.kerrosId), buf = (malli && malli.pohjBuf) || [];
+    if (malli) malli.pohjBuf = [];
+    if (!oikein || !ker || buf.length < 5) return;
     const L = malli.pohj = malli.pohj || { s: 0, c: 0, n: 0 };
-    L.s += Math.sin(a * DEG); L.c += Math.cos(a * DEG); L.n++;
-    if (L.n % 10 === 0) ker.pohjoinenOpittu = { deg: Math.round(Math.atan2(L.s, L.c) / DEG), n: L.n, r: Math.hypot(L.s, L.c) / L.n };
+    buf.forEach((a) => { L.s += Math.sin(a * DEG); L.c += Math.cos(a * DEG); L.n++; });
+    ker.pohjoinenOpittu = { deg: Math.round(Math.atan2(L.s, L.c) / DEG), n: L.n, r: Math.hypot(L.s, L.c) / L.n };
   }
 
   function onMotion(e) {
@@ -399,6 +414,7 @@
     // Askelpituuden oppiminen: seuranta oli oikeassa tilassa varmana → partikkelien askelkerroin talteen
     const e0 = PF.est, oikein = e0 && malli && e0.room >= 0 && malli.rooms[e0.room].id === tilaId;
     if (oikein && e0.p > 0.6 && SN.askeleet - (SN.askelKiinn || 0) >= 15) { SN.K = Math.min(0.75, Math.max(0.3, SN.K * (0.7 + 0.3 * e0.K))); LS("ks_askelK", String(SN.K)); }
+    vahvistaPohjoinen(!!oikein);
     SN.viimeTila = tilaId;
     kirjaa({ l: "k", tila: tilaId, eh: eh.map((x) => [x.tila.id, +x.p.toFixed(2)]), e: e0 && malli && e0.room >= 0 ? malli.rooms[e0.room].id : null });
     SN.askelKiinn = SN.askeleet;
@@ -434,9 +450,25 @@
     const e = PF.est, t = e && malli && e.room >= 0 ? Model.tila(malli.rooms[e.room].id) : null;
     return { on: SN.on, data: Date.now() - SN.viimeData < 3000, askeleet: SN.askeleet, alussa: !PF.active, arvio: t, p: e ? e.p : 0, tasku: pocket, virhe: tila.virhe };
   }
+  /* Reaaliaikainen näkymä sijainnin valintaan: partikkelit ja arvio pohjakuvan suhteellisina koordinaatteina (0–1) */
+  function nakyma(m) {
+    if (!SN.on || !malli || !PF.active) return null;
+    const ker = Model.kerros(malli.kerrosId); if (!ker || !ker.w) return null;
+    const sx = ker.leveysM, sy = ker.leveysM * ker.h / ker.w, r = PF.pisteet(m), e = PF.est;
+    return { kerrosId: malli.kerrosId, pts: r.pts.map((p) => [p[0] / sx, p[1] / sy]), est: { x: r.mx / sx, y: r.my / sy },
+      tila: e && e.room >= 0 ? Model.tila(malli.rooms[e.room].id) : null, p: e ? e.p : 0, askeleet: SN.askeleet, data: Date.now() - SN.viimeData < 3000 };
+  }
+  /* Vianetsintä kohteen Lisää-osiossa: tuleeko anturidataa, rekisteröityykö askelia, onko pohjassa ovia ja pohjoinen */
+  function diagnostiikka() {
+    const k = S.kohde, ker = (malli && Model.kerros(malli.kerrosId)) || (k && k.kerrokset.find((e) => kaytettava(e)));
+    const alueet = ker ? k.tilat.filter((t) => t.kerrosId === ker.id && Array.isArray(t.alue) && t.alue.length > 2).length : 0;
+    const N = (() => { if (!ker) return null; if (typeof ker.pohjoinen === "number") return "lähtötiedoista"; const o = ker.pohjoinenOpittu; return o && o.n >= 20 && o.r > 0.8 ? "opittu" : null; })();
+    return { data: SN.viimeData ? Date.now() - SN.viimeData < 3000 : false, askeleet: SN.askeleet, suunta: SN.src === "o" ? "orientaatio" : SN.src === "g" ? "gyro" : null,
+      kompassi: !!(SN.comp && Date.now() - SN.comp.t < 3000), alueet, ovet: ker ? (ker.ovet || []).length : 0, pohjoinen: N, rivit: loki.length };
+  }
   /* Testaus pöytäkoneella: askel nykyiseen suuntaan / käännös */
   const testi = { askel(m) { onStep(Math.pow((m || 0.7) / SN.K, 4)); }, psi(v) { SN.psi = v; }, kompassi(c) { SN.comp = c == null ? null : { c, t: Date.now() }; },
     tauko(s) { if (malli && PF.active) PF.diffuse(s * 0.6); }, get SN() { return SN; }, get PF() { return PF; }, kaanna(deg) { SN.psi += deg * DEG; SN.off += deg * DEG; }, tasku: setPocket, get malli() { return malli; } };
 
-  window.Paikannus = { vieLoki, lokiPituus, saatavilla, kaynnista, pysayta, kohdeAuki, asetaPaalle, kiinnita, ehdotukset, osumat, tilanne, testi };
+  window.Paikannus = { nakyma, diagnostiikka, vieLoki, lokiPituus, saatavilla, kaynnista, pysayta, kohdeAuki, asetaPaalle, kiinnita, ehdotukset, osumat, tilanne, testi };
 })();

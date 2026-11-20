@@ -63,6 +63,7 @@
       const emo = q.emo && Model.havainto(q.emo);
       if (emo) { h.emo = emo.id; h.sijainti = JSON.parse(JSON.stringify(emo.sijainti)); if (!h.suunnitelmaId && emo.kaOsa) h.kaOsa = emo.kaOsa; }
     }
+    if (!saved) ehdotaTila();
 
     document.getElementById("app").innerHTML =
       '<div class="cam">' +
@@ -101,7 +102,22 @@
     const ta = $("[data-text]");
 
     /* ---------- Piirto ---------- */
-    const SRC = { sanelu: "sanelusta", kuva: "kuvasta", opittu: "opittu" };
+    const SRC = { sanelu: "sanelusta", kuva: "kuvasta", opittu: "opittu", seuranta: "ehdotus" };
+    /* Tilaseurannan todennäköisin tila valmiiksi, kun tilaa ei ole valittu. Merkitään ehdotukseksi
+       (auto.tila = "seuranta"): se päivittyy liikkuessa, kunnes tutkija valitsee tilan tai ottaa kuvan.
+       Ehdotus ei kiinnitä seurantaa; vain tutkijan oma valinta kiinnittää. */
+    function ehdotaTila() {
+      if (!window.Paikannus) return false;
+      const a = h.auto && h.auto.tila;
+      if (h.sijainti.tilaId && a !== "seuranta") return false;
+      if (a === "seuranta" && mode === "hav" && h.kuvat.length) return false;
+      const e = Paikannus.ehdotukset(1)[0];
+      if (!e || e.tila.id === h.sijainti.tilaId) return false;
+      h.sijainti.tilaId = e.tila.id; h.sijainti.kerrosId = e.tila.kerrosId; h.sijainti.piste = null;
+      h.auto = h.auto || {}; h.auto.tila = "seuranta";
+      Auto.autoKohta(h);
+      return true;
+    }
     function paintLoc() {
       const t = h.sijainti.tilaId && Model.tila(h.sijainti.tilaId);
       const ker = Model.kerros(h.sijainti.kerrosId);
@@ -117,7 +133,7 @@
     function paintEhd() {
       const box = $("[data-ehd]"); if (!box) return;
       const oma = h.sijainti.tilaId && (!h.auto || !h.auto.tila);
-      const eh = window.Paikannus && !oma && mode === "hav" ? Paikannus.ehdotukset(3) : [];
+      const eh = window.Paikannus && !oma ? Paikannus.ehdotukset(3) : [];
       box.hidden = !eh.length;
       box.innerHTML = eh.map((x, i) => '<button class="cam-ehd-c' + (x.tila.id === h.sijainti.tilaId ? " on" : "") + '" data-ehdt="' + x.tila.id + '">' + esc(Model.tilaNimi(x.tila)) + (i === 0 ? "" : "") + "</button>").join("");
     }
@@ -220,6 +236,7 @@
       if (m === mode) return;
       if (m === "yk") { await flush(); if (saved) { prevId = h.id; h = newObservation({ menetelma: h.menetelma, kaOsa: h.kaOsa, akkOsa: h.akkOsa, kaCarry: true, tilaId: h.sijainti.tilaId, kerrosId: h.sijainti.kerrosId }); saved = false; syncUrl(); } }
       mode = m;
+      ehdotaTila();
       try { history.replaceState(null, "", "#/k/" + k.id + "/kuvaus" + (saved ? "/" + h.id : "") + (mode === "yk" ? "?yk=1" : "")); } catch (e) { /* ei historiaa */ }
       paintAll();
     }
@@ -461,7 +478,7 @@
           if (window.FieldFill) FieldFill.apply(h);          // esim. märkätilan tyyppi ja asunto tilasta
           paintLoc(); paintStatus();
           if (saved) await Model.saveHavainto(h);
-        });
+        }, { ehdotus: !!(h.auto && h.auto.tila === "seuranta") });
       }
     });
 
@@ -476,7 +493,7 @@
        Molemmissa on hakukenttä: kirjoitus rajaa listaa, ja jos osumaa ei ole, sama kenttä lisää uuden. */
     function pikavalinta(alku, pakota) {
       const pvT = Asetukset.get("pv.tila");
-      const kysyM = !Auto.paalla("menetelma") || !!pakota, kysyT = !Auto.paalla("tila") && pvT !== "ei" && (pvT === "aina" || !h.sijainti.tilaId);
+      const kysyM = !Auto.paalla("menetelma") || !!pakota, kysyT = !Auto.paalla("tila") && pvT !== "ei" && (pvT === "aina" || !h.sijainti.tilaId || (h.auto && h.auto.tila === "seuranta"));
       if (!kysyM && !kysyT) return;
       const vanha = root.querySelector(".qp"); if (vanha) vanha.remove();
       const g = document.createElement("div");
@@ -499,10 +516,10 @@
       g.innerHTML = '<div class="qp-box">' +
         (alku && !pakota ? '<div class="qp-tyyppi"><button class="on" data-qhav>' + icon("cam") + '<span>Havainto<small>kuva ja sanelu</small></span></button>' +
           '<button data-qyk>' + icon("image") + '<span>Yleiskuva<small>pelkkä kuva, ei sanelua</small></span></button></div>' : "") +
-        (kysyT ? '<div class="qp-h">Missä olet?</div><div class="qp-find" data-qtf hidden><input type="search" data-qts placeholder="Tilan nimi tai numero, esim. 102 tai varasto" autocomplete="off" enterkeyhint="done"></div>' +
-          '<div class="qp-chips" data-qtl></div>' : "") +
-        (kysyM ? '<div class="qp-h">' + (pakota ? "Vaihda menetelmä" : "Mitä kirjaat?") + '</div><div class="qp-find" data-qmf hidden><input type="search" data-qms placeholder="Menetelmän nimi, esim. RH tai näyte" autocomplete="off" enterkeyhint="done"></div>' +
-          '<div data-qml></div>' : '<button class="btn btn-primary" data-qok style="width:100%;margin-top:12px">Valmis</button>') +
+        (kysyT ? '<div data-sec="t"><div class="qp-h">Missä olet?</div><div class="qp-find" data-qtf hidden><input type="search" data-qts placeholder="Tilan nimi tai numero, esim. 102 tai varasto" autocomplete="off" enterkeyhint="done"></div>' +
+          '<div class="qp-chips" data-qtl></div></div>' : "") +
+        (kysyM ? '<div data-sec="m"><div class="qp-h">' + (pakota ? "Vaihda menetelmä" : "Mitä kirjaat?") + '</div><div class="qp-find" data-qmf hidden><input type="search" data-qms placeholder="Menetelmän nimi, esim. RH tai näyte" autocomplete="off" enterkeyhint="done"></div>' +
+          '<div data-qml></div></div>' : '<button class="btn btn-primary" data-qok style="width:100%;margin-top:12px">Valmis</button>') +
         '<button class="qp-skip" data-qskip>' + (kysyM ? "Valitse myöhemmin" : "Ohita") + "</button></div>";
       const tIn = g.querySelector("[data-qts]"), mIn = g.querySelector("[data-qms]");
 
@@ -515,7 +532,7 @@
           l = kaikki.sort((a, b) => (a.kerrosId === h.sijainti.kerrosId ? 0 : 1) - (b.kerrosId === h.sijainti.kerrosId ? 0 : 1)).slice(0, 8);
           if (!kaikki.some((t) => norm(Model.tilaNimi(t)) === q || norm(t.tunnus) === q)) lisaa = '<button class="qp-chip qp-add" data-qtnew>+ Uusi tila ”' + esc(tIn.value.trim()) + "”</button>";
         } else l = viimeisetTilat().slice(0, 4);
-        const merkki = (t) => ehd.some((x) => x.tila.id === t.id && !x.naapuri) ? (ehd[0].tila.id === t.id && ehd[0].p >= 0.6 ? "todennäköisin" : "seuranta") : t.id === edell ? "edellinen" : "";
+        const merkki = (t) => t.id === h.sijainti.tilaId && h.auto && h.auto.tila === "seuranta" ? "ehdotus" : ehd.some((x) => x.tila.id === t.id && !x.naapuri) ? (ehd[0].tila.id === t.id && ehd[0].p >= 0.6 ? "todennäköisin" : "seuranta") : t.id === edell ? "edellinen" : "";
         g.querySelector("[data-qtl]").innerHTML =
           l.map((t) => '<button class="qp-chip" data-qt="' + t.id + '" aria-pressed="' + (t.id === h.sijainti.tilaId) + '">' + esc(Model.tilaNimi(t)) +
             (!q && merkki(t) ? " <small>" + merkki(t) + "</small>" : "") + "</button>").join("") + lisaa +
@@ -545,13 +562,22 @@
       }
       paintT(); paintM();
       root.appendChild(g);
-      const sulje = () => { g.remove(); paintAll(); };
+      /* Haku: laatikko nousee ylös ja muut osiot piiloon, jotta näppäimistö ei peitä tuloksia */
+      const vv = window.visualViewport;
+      const sovita = () => { if (vv) g.style.setProperty("--qp-vh", Math.max(200, vv.height - 12) + "px"); };
+      function hakuTila(osio) {
+        g.classList.add("qp-typing"); g.dataset.haku = osio; sovita();
+        if (vv) vv.addEventListener("resize", sovita);
+      }
+      function hakuPois() { g.classList.remove("qp-typing"); delete g.dataset.haku; if (vv) vv.removeEventListener("resize", sovita); }
+      const sulje = () => { hakuPois(); g.remove(); paintAll(); };
       function asetaTila(t) {
         if (window.Paikannus) Paikannus.kiinnita(t.id);
         h.sijainti.tilaId = t.id; h.sijainti.kerrosId = t.kerrosId; h.sijainti.piste = null;
         Auto.manual(h, "tila"); Auto.autoKohta(h); if (window.FieldFill) FieldFill.apply(h);
         paintLoc(); paintStatus();
         if (tIn) { tIn.value = ""; tIn.blur(); }
+        hakuPois(); tHaku = false; const tf = g.querySelector("[data-qtf]"); if (tf) tf.hidden = true;
         if (!kysyM) { sulje(); return; }
         paintT();
       }
@@ -564,6 +590,7 @@
         if (m) { toast("Menetelmä lisätty. Kenttiä voi lisätä Menetelmät-sivulla.", 3000); selectMethod(m.id, true); sulje(); }
       }
       if (tIn) {
+        tIn.addEventListener("focus", () => hakuTila("t"));
         tIn.addEventListener("input", paintT);
         tIn.addEventListener("keydown", (e) => {
           if (e.key !== "Enter") return;
@@ -573,6 +600,7 @@
         });
       }
       if (mIn) {
+        mIn.addEventListener("focus", () => hakuTila("m"));
         mIn.addEventListener("input", paintM);
         mIn.addEventListener("keydown", (e) => {
           if (e.key !== "Enter") return;
@@ -582,6 +610,8 @@
         });
       }
       g.addEventListener("click", (e) => {
+        // Napautus laatikon ulkopuolelle (kameranäkymään) = Valitse myöhemmin
+        if (e.target === g) { sulje(); return; }
         if (e.target.closest("[data-qtnew]")) { uusiTila(); return; }
         if (e.target.closest("[data-qmnew]")) { uusiMenetelma(); return; }
         if (e.target.closest("[data-qyk]")) { g.remove(); setMode("yk"); return; }
@@ -591,7 +621,8 @@
         const tb = e.target.closest("[data-qt]");
         if (tb) {
           if (tb.dataset.qt === "__muu") {
-            Plan.locationSheet(h.sijainti, (sij) => { h.sijainti = sij; Auto.manual(h, "tila"); Auto.autoKohta(h); paintLoc(); paintStatus(); paintT(); if (!kysyM && h.sijainti.tilaId) sulje(); });
+            Plan.locationSheet(h.sijainti, (sij) => { h.sijainti = sij; Auto.manual(h, "tila"); Auto.autoKohta(h); paintLoc(); paintStatus(); paintT(); if (!kysyM && h.sijainti.tilaId) sulje(); },
+              { ehdotus: !!(h.auto && h.auto.tila === "seuranta") });
             return;
           }
           const t = Model.tila(tb.dataset.qt);
@@ -631,7 +662,10 @@
       $("[data-vfmsg]").innerHTML = "<div>Selaimen kameraa ei saatu käyttöön.<br>Laukaisin avaa puhelimen kamerasovelluksen.</div>";
     }
 
-    const ehdAjastin = setInterval(() => { if (alive && document.visibilityState === "visible") paintEhd(); }, 2000);
+    const ehdAjastin = setInterval(() => {
+      if (!alive || document.visibilityState !== "visible") return;
+      if (ehdotaTila()) { paintLoc(); paintStatus(); } else paintEhd();
+    }, 2000);
     S.cleanup = () => { clearInterval(ehdAjastin); alive = false; if (window.Sync) Sync.kesken = null; release(); dict.stop(); Camera.stop(); h.sanelu = ta.value; persist.flush(); };
   }
 

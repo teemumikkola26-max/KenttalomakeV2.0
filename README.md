@@ -311,6 +311,15 @@ Märkätilakartoituksen Asunto-kenttä jää pois, kun kohteessa ei ole asuntoja
 
 Kameranäkymässä on kaksi välilehteä: **Havainto** ja **Yleiskuva**. Yleiskuva-tilassa jokainen laukaisu tallentuu heti kohteen yleiskuviin valitun tilan kanssa, ilman sanelua ja havaintoa. Kohteen sivulla *Yleiskuvat* näyttää kuvat tiloittain; kuvalle voi lisätä kuvatekstin tai vaihtaa tilan. ZIP-paketissa kuvat ovat kansiossa `yleiskuvat/` (YK01_OH1.jpg …), ja luettelo on `havainnot.md`:ssä ja `havainnot.json`:ssa. Yleiskuvat synkronoituvat pilveen kuten muutkin kohteen tiedot.
 
+## Versio 44
+
+- **Pikavalinta:** napautus laatikon ulkopuolelle (kameranäkymään) = *Valitse myöhemmin*. Haussa laatikko nousee näytön yläreunaan ja muut osiot piiloutuvat, jotta näppäimistö ei peitä tuloksia.
+- **Tila valmiina seurannasta:** kun tilaa ei ole valittu, seurannan todennäköisin tila täyttyy ehdotukseksi (merkki *ehdotus*) sekä havainnossa että yleiskuvassa. Ehdotus päivittyy liikkuessa, kunnes tutkija valitsee tilan tai ottaa kuvan. Ehdotus ei kiinnitä seurantaa; vain tutkijan oma valinta kiinnittää (väärä ehdotus ei vahvistu).
+- **Seuranta pohjakuvalla:** sijainnin valinnassa näkyy reaaliajassa seurannan arvio (sininen piste) ja epävarmuus (pistepilvi) sekä todennäköisin tila ja askelmäärä. Päivittyy kerran sekunnissa.
+- **Vie seurannan loki** omana rivinään (ennen pieni linkki kytkimen alla). Valinnat: *Jaa tiedosto* (.txt, koska Android ei jaa .json-tiedostoja), *Tallenna laitteelle*, *Kopioi leikepöydälle*.
+- **Seurannan vianetsintä** kohteen Lisää-osiossa: tuleeko anturidataa, askelmäärä, suuntalähde, onko pohjassa ovia, pohjoisen lähde.
+- **Pohjoisen oppiminen varmemmaksi:** kävelyistä kerätyt suunnat otetaan käyttöön vasta, kun tutkijan seuraava tilavalinta vahvistaa seurannan olleen oikeassa tilassa.
+
 ## Versio 43
 
 - **Tilaseurannan tarkennus** (pilotin palaute: ehdotukset lähes aina väärin):

@@ -768,3 +768,13 @@ input.calc{background:#f4f2ec;color:var(--ink,#222)}
 .mv-r small{font-weight:400}
 .valinn{margin:10px 0 4px;padding-top:10px;border-top:1px dashed var(--line-strong)}
 .valinn .label{margin-bottom:6px}
+/* v44: pikavalinnan haku näppäimistön yläpuolelle */
+.qp.qp-typing{align-items:flex-start}
+.qp.qp-typing .qp-box{border-radius:0 0 20px 20px;max-height:var(--qp-vh,55vh);padding-top:calc(12px + env(safe-area-inset-top))}
+.qp-typing .qp-tyyppi,.qp-typing[data-haku="t"] [data-sec="m"],.qp-typing[data-haku="m"] [data-sec="t"]{display:none}
+/* v44: tilaseuranta sijainnin valinnassa */
+.pf-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:2}
+.pf-info{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted,#666);margin:0 0 6px}
+.pf-info .dot{width:10px;height:10px;border-radius:50%;background:#1a73e8;box-shadow:0 0 0 3px rgba(26,115,232,.25);flex:none}
+.pf-info.off .dot{background:#aaa;box-shadow:none}
+.pk-diag .s{font-size:12.5px}

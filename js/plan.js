@@ -666,6 +666,7 @@
       const ehd = window.Paikannus && opts.paikannus !== false ? Paikannus.ehdotukset(3) : [];
       const recent = recentRooms(6).filter((t) => (!cur || t.id !== cur.id) && !ehd.some((x) => x.tila.id === t.id));
       const many = rooms.length > 15;
+      const seurOn = !!(window.Paikannus && opts.paikannus !== false && Paikannus.nakyma());
       el.querySelector("[data-body]").innerHTML =
         '<div class="loc-head"><h3 style="margin:0">' + esc(opts.title || "Sijainti") + '</h3><span class="loc-cur' + (cur ? "" : " missing") + '">' + icon("pin") +
           esc(cur ? Model.tilaNimi(cur) : "Tila valitsematta") + "</span></div>" +
@@ -678,7 +679,8 @@
           k.kerrokset.map((e) => '<button class="chip" data-k="' + e.id + '" aria-pressed="' + (e.id === s.kerrosId) + '">' + esc(e.nimi) + "</button>").join("") +
           '<button class="chip" data-a="addFloor">+ Kerros</button></div></div>' : "") +
         (kerros && kerros.planId
-          ? '<div class="sect"><span class="label">' + esc(opts.hint || "Napauta tilaa tai kohtaa pohjapiirroksessa") + '</span><div class="plan-wrap placing" data-plan><img src="' + Model.url(kerros.planId) + '" alt="" draggable="false">' +
+          ? '<div class="sect"><span class="label">' + esc(opts.hint || "Napauta tilaa tai kohtaa pohjapiirroksessa") + '</span>' + (seurOn ? '<div class="pf-info" data-pfinfo></div>' : "") +
+              '<div class="plan-wrap placing" data-plan><img src="' + Model.url(kerros.planId) + '" alt="" draggable="false">' + (seurOn ? '<canvas class="pf-layer" data-pf></canvas>' : "") +
               pinsHtml(kerros.id, { dim: true, except: "__none__", sel: s.tilaId, mirExcept: opts.mirExcept }) +
               (s.piste && s.piste.x != null ? '<span class="pin newpin" style="left:' + (s.piste.x * 100) + "%;top:" + (s.piste.y * 100) + '%"></span>' : "") + "</div>" +
               (s.piste ? '<button class="link" data-a="clearPt">Poista kohta</button>' : "") + "</div>"
@@ -698,7 +700,31 @@
       zoomApi = kerros && kerros.planId ? Zoom.attach(el.querySelector("[data-plan]"), "loc:" + kerros.id) : null;
       if (zoomApi && focusNext && cur && cur.pos && cur.kerrosId === s.kerrosId) zoomApi.focus(cur.pos.x, cur.pos.y, 3);
       focusNext = false;
+      piirraSeuranta();
     }
+
+    /* Tilaseuranta reaaliajassa: partikkelipilvi (sininen) ja arvioitu sijainti pohjakuvalla, päivitys kerran sekunnissa */
+    function piirraSeuranta() {
+      const cv = el.querySelector("[data-pf]"), info = el.querySelector("[data-pfinfo]");
+      if (!cv || !window.Paikannus) return;
+      const n = Paikannus.nakyma(400), img = el.querySelector("[data-plan] img");
+      if (info) {
+        const tx = !n ? "Tilaseuranta ei ole käynnissä" :
+          "Seuranta" + (n.tila ? ": " + Model.tilaNimi(n.tila) + " (" + Math.round(n.p * 100) + " %)" : "") + " · " + n.askeleet + " askelta" + (n.data ? "" : " · ei anturidataa");
+        info.innerHTML = '<span class="dot"></span>' + esc(tx); info.classList.toggle("off", !n || !n.data);
+      }
+      const w = img.clientWidth, hh = img.clientHeight, dpr = window.devicePixelRatio || 1;
+      if (!w || !hh) return;
+      if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(hh * dpr); }
+      const c = cv.getContext("2d"); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, hh);
+      if (!n || n.kerrosId !== s.kerrosId) return;
+      c.fillStyle = "rgba(26,115,232,.35)";
+      n.pts.forEach((p) => { c.beginPath(); c.arc(p[0] * w, p[1] * hh, 1.6, 0, 6.2832); c.fill(); });
+      const ex = n.est.x * w, ey = n.est.y * hh;
+      c.beginPath(); c.arc(ex, ey, 11, 0, 6.2832); c.fillStyle = "rgba(26,115,232,.18)"; c.fill();
+      c.beginPath(); c.arc(ex, ey, 6, 0, 6.2832); c.fillStyle = "#1a73e8"; c.fill(); c.lineWidth = 2; c.strokeStyle = "#fff"; c.stroke();
+    }
+    const pfAjastin = setInterval(() => { if (!el.isConnected) { clearInterval(pfAjastin); return; } piirraSeuranta(); }, 1000);
 
     el.addEventListener("click", async (e) => {
       if (e.target.closest(".zctl")) return;
@@ -753,7 +779,7 @@
       else if (b.dataset.a === "cancel") { ref.close(); return; }
       else if (b.dataset.a === "ok") {
         // Tutkijan valitsema tila kiinnittää tilaseurannan (ei vanhojen havaintojen muokkauksessa)
-        if (s.tilaId && s.tilaId !== (sij || {}).tilaId && window.Paikannus && opts.paikannus !== false) Paikannus.kiinnita(s.tilaId);
+        if (s.tilaId && (s.tilaId !== (sij || {}).tilaId || opts.ehdotus) && window.Paikannus && opts.paikannus !== false) Paikannus.kiinnita(s.tilaId);
         ref.close(); onDone(s); return;
       }
       paint();
