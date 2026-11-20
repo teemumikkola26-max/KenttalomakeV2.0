@@ -30,7 +30,7 @@
     LAJIT.forEach(([l]) => d[l].forEach((x) => { all++; if (x.tehty) done++; }));
     return { all, done };
   }
-  const tilaNimi = (t) => [t.tunnus, t.nimi].filter(Boolean).join(" ");
+  const tilaNimi = (t) => App.Model.tilaNimi(t);
   function havaintojaTiloissa(ids) { const s = new Set(ids || []); return S.havainnot.filter((h) => s.has(h.sijainti && h.sijainti.tilaId)).length; }
 
   /* Aiemmat tulokset tilalle (tai kaikki, jos tilaId puuttuu) */

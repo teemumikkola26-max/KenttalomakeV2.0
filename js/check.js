@@ -143,9 +143,9 @@
     });
 
     const root = document.getElementById("app");
-    root.innerHTML = App.topbar({ title: "Lopeta kohde", sub: "Tarkista ennen kuin lähdet", back: "#/k/" + k.id }) +
+    root.innerHTML = App.topbar({ title: "Viimeistele kohde", sub: "Tarkista ennen kuin lähdet", back: "#/k/" + k.id }) +
       '<main class="view">' +
-      '<div class="ct-tiles">' + tile(S.havainnot.length, "havaintoa", "ok") + tile(list.length, "kesken", list.length ? "warn" : "ok") + tile(rajattu, "rajattu", "skip") + "</div>" +
+      '<div class="ct-tiles">' + tile(S.havainnot.length, "havaintoa", "ok") + tile(list.length, "täydennettävää", list.length ? "warn" : "ok") + tile(rajattu, "rajattu", "skip") + "</div>" +
       (!k.suunnitelma.length ? '<div class="alert info">' + icon("alert") + "<div>Tutkimussuunnitelmaa ei ole kirjattu, joten tarkistus kattaa vain tilat ja havainnot.</div></div>" : "") +
       (list.length ? body : '<div class="done-ok">' + icon("ok") + "Ei puutteita. Aineisto on valmis vietäväksi.</div>") +
       '<div style="margin-top:18px"><button class="btn btn-primary btn-block" data-a="' + (list.length ? "exportAnyway" : "export") + '">' + icon("download") + "Vie aineisto raportointiin</button>" +

@@ -38,7 +38,7 @@
     { k: "kamera.valve", t: "bool", d: true, nimi: "Näyttö pysyy päällä kuvatessa" },
 
     { ryhma: "Tarkistus ja pohjakuva" },
-    { k: "tark.tulos", t: "bool", d: true, nimi: "Tulos on pakollinen", ohje: "Pois: puuttuva tulos ei näy Lopeta kohde -tarkistuksessa puutteena." },
+    { k: "tark.tulos", t: "bool", d: true, nimi: "Tulos on pakollinen", ohje: "Pois: puuttuva tulos ei näy Viimeistele kohde -tarkistuksessa puutteena." },
     { k: "pohja.tilat", t: "valinta", d: "varmat", nimi: "Pohjakuvasta tunnistetut tilat", o: [["varmat", "Varmat lisätään suoraan, epävarmat tarkistetaan"], ["kaikki", "Kaikki tarkistetaan ennen lisäystä"]] }
   ];
   const DEF = {};

@@ -154,7 +154,7 @@
       return '<section class="card ali"><div class="card-b">' +
         (emo ? '<p class="hint" style="margin:0 0 8px">Osa havaintoa ' + '<button class="link" data-a="avaahav" data-id="' + emo.id + '">' + esc(nro(emo) + " " + M.menetelma(emo.menetelma).nimi + (emo.kentat.tunnus ? " " + emo.kentat.tunnus : "")) + "</button></p>" : "") +
         (ls.length ? '<span class="label">Tässä tehty</span>' + ls.map(rivi).join("") : "") +
-        (val.length ? '<span class="label" style="margin-top:6px">Lisää tähän' + (h.kentat.tunnus ? " (" + esc(h.kentat.tunnus) + ")" : "") + '</span><div class="chips">' +
+        (val.length ? '<span class="label" style="margin-top:6px">Tee samassa kohdassa myös' + (h.kentat.tunnus ? " (" + esc(h.kentat.tunnus) + ")" : "") + '</span><div class="chips">' +
           val.map((id) => '<button class="chip" data-a="ali" data-m="' + id + '">' + icon("cam") + " " + esc(M.menetelma(id).nimi) + "</button>").join("") + "</div>" +
           // Minkä tahansa kohtatason menetelmän voi lisätä (taulukko: Taso)
           '<select data-a="alimuu" style="margin-top:8px"><option value="">Muu menetelmä…</option>' + M.havaintoMenetelmat().filter((x) => x.id !== h.menetelma && !val.includes(x.id) && M.taso(x) !== "kohde")
@@ -205,10 +205,10 @@
           "</div>"
         : "";
 
-      root.innerHTML = App.topbar({ title: nro(h) + " · " + M.menetelma(h.menetelma).lyhyt, sub: Model.sijaintiTeksti(h.sijainti) || "Sijainti puuttuu", back: "#/k/" + k.id }) +
+      root.innerHTML = App.topbar({ title: nro(h) + " · " + M.menetelma(h.menetelma).nimi, sub: Model.sijaintiTeksti(h.sijainti) || "Sijainti puuttuu", back: "#/k/" + k.id }) +
         '<main class="view no-nav">' +
         '<div class="thumbs" style="margin-bottom:12px">' + thumbs +
-        '<a class="thumb-add" href="#/k/' + k.id + "/kuvaus/" + h.id + '" aria-label="Lisää kuvia ja sanelua">' + icon("cam") + "</a></div>" +
+        '<a class="thumb-add" href="#/k/' + k.id + "/kuvaus/" + h.id + '" aria-label="Lisää kuvia ja sanelua">' + icon("cam") + "<span>" + (h.kuvat.length ? "Lisää kuvia" : "Lisää kuva") + "</span></a></div>" +
 
         '<div data-missing>' + missingHtml() + "</div>" +
         (h.ristiriita ? '<div class="alert">' + icon("alert") + "<div><b>Toinen tutkija muokkasi tätä havaintoa samaan aikaan.</b> Pilvessä ollut versio on alla. Korvautunut versio (" + esc([h.ristiriita.tekija, UI.pvm(h.ristiriita.aika)].filter(Boolean).join(", ")) + "): <i>" + esc(h.ristiriita.sanelu || "–") + "</i>" +

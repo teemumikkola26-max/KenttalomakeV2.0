@@ -531,7 +531,7 @@
         (rooms.some((t) => t.tunnistus && !t.tunnistus.vahvistettu) ? '<div class="card-b hint" style="padding-top:8px;margin:0">Katkoviivalla merkityt tilat on tunnistettu pohjakuvasta. Ne vahvistuvat, kun valitset tilan havainnon sijainniksi, muokkaat sitä tai kuittaat nimen. Vahvistamattomia: ' + rooms.filter((t) => t.tunnistus && !t.tunnistus.vahvistettu).length + ".</div>" : "") +
         (rooms.map((t) => '<button class="row" data-a="room" data-id="' + t.id + '"><div class="grow"><div class="t">' + esc(Model.tilaNimi(t)) + (t.tunnistus && !t.tunnistus.vahvistettu ? ' <span class="mp-tag">tunnistettu</span>' : "") + "</div>" +
           (t.merkinta && t.merkinta.syy ? '<div class="s">' + esc(t.merkinta.syy) + "</div>" : "") + "</div>" + statusChip(Model.tilaStatus(t)) + "</button>").join("") ||
-          '<div class="empty">Ei tiloja. Lisää tilat, niin kattavuus näkyy ja Lopeta kohde -tarkistus muistuttaa tutkimatta jääneistä.</div>') +
+          '<div class="empty">Ei tiloja. Lisää tilat, niin kattavuus näkyy ja Viimeistele kohde -tarkistus muistuttaa tutkimatta jääneistä.</div>') +
         '<div class="card-b" style="padding-top:10px"><button class="btn btn-block" data-a="addRoom">' + icon("plus") + "Lisää tila</button></div></section>" +
         '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
         (kerros.planId ? '<button class="btn btn-sm" data-a="detect">' + icon("list") + "Tunnista tilat pohjakuvasta</button>" : "") +
@@ -663,34 +663,31 @@
       if (kerros && kerros.planId) await Model.ensureUrls([kerros.planId]);
       const rooms = k.tilat.filter((t) => t.kerrosId === s.kerrosId);
       const cur = s.tilaId && Model.tila(s.tilaId);
-      const ehd = window.Paikannus && opts.paikannus !== false ? Paikannus.ehdotukset(3) : [];
-      const recent = recentRooms(6).filter((t) => (!cur || t.id !== cur.id) && !ehd.some((x) => x.tila.id === t.id));
-      const many = rooms.length > 15;
+      const recent = recentRooms(6).filter((t) => !cur || t.id !== cur.id).slice(0, 4);
       const seurOn = !!(window.Paikannus && opts.paikannus !== false && Paikannus.nakyma());
+      const ehdotus = cur && opts.ehdotus && cur.id === (sij || {}).tilaId;
+      /* Järjestys (v46): haku, pohjakuva ja seurannan piste, viimeksi käytetyt, kerros. Koko tilalista vasta pyynnöstä. */
       el.querySelector("[data-body]").innerHTML =
         '<div class="loc-head"><h3 style="margin:0">' + esc(opts.title || "Sijainti") + '</h3><span class="loc-cur' + (cur ? "" : " missing") + '">' + icon("pin") +
-          esc(cur ? Model.tilaNimi(cur) : "Tila valitsematta") + "</span></div>" +
+          esc(cur ? Model.tilaNimi(cur) : "Tila valitsematta") + (ehdotus ? ' <small class="loc-ehd">ehdotus</small>' : "") + "</span></div>" +
         '<label class="mp-search" style="margin:10px 0 0">' + icon("list") +
           '<input type="search" data-q value="' + esc(query) + '" placeholder="Hae tila: A101, wc, keittiö…" aria-label="Hae tila" autocomplete="off"></label>' +
         '<div data-res></div>' +
-        (ehd.length ? '<div class="sect"><span class="label">Todennäköisimmät (tilaseuranta)</span><div class="chips">' + ehd.map((x) => roomChip(x.tila)).join("") + "</div></div>" : "") +
+        (kerros && kerros.planId
+          ? '<div class="sect"><span class="label">' + esc(opts.hint || "Napauta tilaa pohjakuvassa") + '</span>' + (seurOn ? '<div class="pf-info" data-pfinfo></div>' : "") +
+              '<div class="plan-wrap placing" data-plan><img src="' + Model.url(kerros.planId) + '" alt="" draggable="false">' + (seurOn ? '<canvas class="pf-layer" data-pf></canvas>' : "") +
+              pinsHtml(kerros.id, { dim: true, except: "__none__", sel: s.tilaId, mirExcept: opts.mirExcept }) +
+              (s.piste && s.piste.x != null ? '<span class="pin newpin" style="left:' + (s.piste.x * 100) + "%;top:" + (s.piste.y * 100) + '%"></span>' : "") + "</div>" +
+              (s.piste ? '<button class="link" data-a="clearPt">Poista merkitty kohta</button>' : "") + "</div>"
+          : "") +
         (recent.length ? '<div class="sect"><span class="label">Viimeksi käytetyt</span><div class="chips">' + recent.map(roomChip).join("") + "</div></div>" : "") +
         (k.kerrokset.length > 1 || !k.kerrokset.length ? '<div class="sect"><span class="label">Kerros</span><div class="chips">' +
           k.kerrokset.map((e) => '<button class="chip" data-k="' + e.id + '" aria-pressed="' + (e.id === s.kerrosId) + '">' + esc(e.nimi) + "</button>").join("") +
           '<button class="chip" data-a="addFloor">+ Kerros</button></div></div>' : "") +
-        (kerros && kerros.planId
-          ? '<div class="sect"><span class="label">' + esc(opts.hint || "Napauta tilaa tai kohtaa pohjapiirroksessa") + '</span>' + (seurOn ? '<div class="pf-info" data-pfinfo></div>' : "") +
-              '<div class="plan-wrap placing" data-plan><img src="' + Model.url(kerros.planId) + '" alt="" draggable="false">' + (seurOn ? '<canvas class="pf-layer" data-pf></canvas>' : "") +
-              pinsHtml(kerros.id, { dim: true, except: "__none__", sel: s.tilaId, mirExcept: opts.mirExcept }) +
-              (s.piste && s.piste.x != null ? '<span class="pin newpin" style="left:' + (s.piste.x * 100) + "%;top:" + (s.piste.y * 100) + '%"></span>' : "") + "</div>" +
-              (s.piste ? '<button class="link" data-a="clearPt">Poista kohta</button>' : "") + "</div>"
-          : "") +
-        (kerros && (!many || showAll || !kerros.planId)
-          ? '<div class="sect"><span class="label">Tilat · ' + esc(kerros.nimi) + "</span><div class=\"chips\">" +
-            (many && !showAll ? "" : rooms.map(roomChip).join("")) +
-            (many && !showAll ? '<button class="chip" data-a="all">Näytä kaikki ' + rooms.length + " tilaa</button>" : "") +
-            '<button class="chip" data-a="addRoom">+ Uusi tila</button></div></div>'
-          : kerros ? '<button class="link" data-a="all" style="margin-top:6px">Näytä kaikki ' + rooms.length + " tilaa listana</button>" : "") +
+        (kerros && (showAll || !kerros.planId)
+          ? '<div class="sect"><span class="label">Kaikki tilat' + (k.kerrokset.length > 1 ? " · " + esc(kerros.nimi) : "") + "</span><div class=\"chips\">" +
+            rooms.map(roomChip).join("") + '<button class="chip" data-a="addRoom">+ Uusi tila</button></div></div>'
+          : kerros ? '<button class="link" data-a="all" style="margin-top:10px">Näytä kaikki ' + rooms.length + " tilaa listana</button>" : "") +
         (opts.noPart ? "" : '<div class="sect"><span class="label">Rakenneosa (valinnainen)</span><div class="chips">' +
           M.RAKENNEOSAT.map((r) => '<button class="chip" data-r="' + esc(r) + '" aria-pressed="' + (r === s.rakenneosa) + '">' + esc(r) + "</button>").join("") + "</div></div>") +
         '<div class="row-btns"><button class="btn" data-a="cancel">Peruuta</button><button class="btn btn-primary" data-a="ok">Valmis</button></div>';
@@ -709,7 +706,7 @@
       if (!cv || !window.Paikannus) return;
       const n = Paikannus.nakyma(400), img = el.querySelector("[data-plan] img");
       if (info) {
-        const tx = !n ? "Tilaseuranta ei ole käynnissä" :
+        const tx = !n ? "Seuranta ei ole käynnissä" :
           "Seuranta" + (n.tila ? ": " + Model.tilaNimi(n.tila) + " (" + Math.round(n.p * 100) + " %)" : "") + " · " + n.askeleet + " askelta" + (n.data ? "" : " · ei anturidataa");
         info.innerHTML = '<span class="dot"></span>' + esc(tx); info.classList.toggle("off", !n || !n.data);
       }

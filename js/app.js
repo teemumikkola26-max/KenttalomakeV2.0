@@ -113,12 +113,19 @@
     kohta(id) { return S.kohde.suunnitelma.find((p) => p.id === id) || null; },
     havainto(id) { return S.havainnot.find((h) => h.id === id) || null; },
 
-    tilaNimi(t) { return t ? [t.tunnus, t.nimi].filter(Boolean).join(" ") : ""; },
+    /* Tilan nimi: tunnus ja nimi. Lähtötietojen paikkanimi "Tila 118" jätetään pois (toistaisi numeron). */
+    tilaNimi(t) {
+      if (!t) return "";
+      const n = String(t.nimi || "").trim(), tu = String(t.tunnus || "").trim();
+      const turha = !n || n.toLowerCase() === tu.toLowerCase() || n.toLowerCase() === ("tila " + tu).toLowerCase();
+      return [tu, turha ? "" : n].filter(Boolean).join(" ") || n;
+    },
 
     sijaintiTeksti(s) {
       if (!s) return "";
       const k = Model.kerros(s.kerrosId), t = Model.tila(s.tilaId);
-      return [k && k.nimi, Model.tilaNimi(t), s.rakenneosa].filter(Boolean).join(" · ");
+      const useita = S.kohde && S.kohde.kerrokset.length > 1;      // yksi kerros: kerrosta ei toisteta
+      return [useita && k && k.nimi, Model.tilaNimi(t), s.rakenneosa].filter(Boolean).join(" · ");
     },
 
     tilaStatus(t) {
@@ -214,7 +221,7 @@
     const n = window.Check ? Check.puutteet().length : 0;
     const a = (key, href, ic, label, badge) =>
       '<a href="' + href + '"' + (active === key ? ' aria-current="page"' : "") + ">" + icon(ic) + label +
-      (badge ? '<span class="badge">' + badge + "</span>" : "") + "</a>";
+      (badge ? (String(badge).startsWith("dot:") ? '<span class="badge dot" aria-label="' + badge.slice(4) + ' täydennettävää"></span>' : '<span class="badge">' + badge + "</span>") : "") + "</a>";
     // Kamera alapalkin keskellä: aina samassa paikassa, ei peitä sisältöä
     const kam = S.kamera || "#/k/" + k + "/kuvaus";
     return '<nav class="bottomnav">' +
@@ -222,7 +229,7 @@
       a("pohja", "#/k/" + k + "/pohja", "plan", "Pohjakuva") +
       '<a class="bn-cam" href="' + kam + '" aria-label="Kuva + sanelu">' + icon("cam") + "</a>" +
       a("havainnot", "#/k/" + k + "/havainnot", "list", "Havainnot") +
-      a("lahto", "#/k/" + k + "/lahto", "check", "Lopeta", n || "") +
+      a("lahto", "#/k/" + k + "/lahto", "check", "Viimeistele", n ? "dot:" + n : "") +
       "</nav>";
   }
 
@@ -294,7 +301,7 @@
           "<li><b>Uusi kohde ja lähtötiedot.</b> Tuo Clauden lähtötietopaketti, tarjous, pohjakuvat tai asiakirjat. Voit myös aloittaa ilman.</li>" +
           "<li><b>Pohjakuva.</b> Tilat tunnistetaan pohjakuvasta, ja havainnot voi merkitä siihen.</li>" +
           "<li><b>Kuva + sanelu.</b> Ota kuva, pidä mikrofonia pohjassa ja kerro havainto. <i>Seuraava</i> tallentaa ja aloittaa uuden.</li>" +
-          "<li><b>Lopeta kohde.</b> Ennen lähtöä sovellus näyttää, mitä puuttuu, ja vie aineiston ZIP-pakettina raportointiin.</li></ol></div></section>") +
+          "<li><b>Viimeistele kohde.</b> Ennen lähtöä sovellus näyttää, mitä puuttuu, ja vie aineiston ZIP-pakettina raportointiin.</li></ol></div></section>") +
       '<details class="card vocab"><summary class="card-h"><h2>Asetukset ja työkalut</h2></summary><div class="card-b">' +
       '<a class="btn btn-block" href="#/asetukset">' + icon("edit") + "Asetukset</a>" +
       '<div style="height:10px"></div><a class="btn btn-block" href="#/menetelmat">' + icon("list") + "Menetelmät</a>" +
@@ -360,7 +367,7 @@
     } else if (k.suunnitelma.length) {
       seur = '<section class="next-card ok"><div class="nc-k">Suunnitelma tehty</div><div class="nc-t">Kaikki kohdat tehty</div>' +
         '<div class="nc-s">Tarkista puutteet ja vie aineisto raportointiin.</div>' +
-        '<a class="btn nc-btn" href="#/k/' + k.id + '/lahto">' + icon("check") + "Lopeta kohde</a></section>";
+        '<a class="btn nc-btn" href="#/k/' + k.id + '/lahto">' + icon("check") + "Viimeistele kohde</a></section>";
     } else seur = "";
 
     // Suunnitelma tilanteineen: tehdyt himmeinä, seuraava korostettuna
@@ -370,9 +377,11 @@
       const tila = p.pois ? "pois" : valmis ? "valmis" : nx && p.id === nx.id ? "nyt" : "kesken";
       const merkki = tila === "valmis" ? '<span class="pl-m ok">' + icon("check") + "</span>" : tila === "pois" ? '<span class="pl-m pois">–</span>' : '<span class="pl-m ' + tila + '"></span>';
       const maaraTxt = m.kuntoarvio && window.Kuntoarvio && Kuntoarvio.aktiivinen() ? (() => { const e = Kuntoarvio.edistyminen(); return e.n + "/" + e.all + " osaa"; })()
-        : m.akk && window.AKK && !p.pois ? (() => { const e = AKK.edistyminen(); return e.n + "/" + e.all + " osiota"; })() : p.pois ? "pois" : Model.kohtaMaaraTeksti(p);
+        : m.akk && window.AKK && !p.pois ? (() => { const e = AKK.edistyminen(); return e.n + "/" + e.all + " osiota"; })() : p.pois ? "pois" : p.naytteet ? Model.kohtaTehty(p) + "/" + (p.maara || 1) : Model.kohtaMaaraTeksti(p);
+      // Näytteet omalla rivillään nimen alla (ei rivity oikeaan reunaan)
+      const nayt = p.naytteet && !p.pois ? "Näytteet " + Model.kohtaNaytteet(p) + "/" + p.naytteet : "";
       plan += '<button class="row pl-row ' + tila + '" data-act="kohtaMenu" data-id="' + p.id + '">' + merkki + '<div class="grow"><div class="t">' + esc(m.nimi) + "</div>" +
-        (p.kuvaus || p.pois ? '<div class="s">' + esc(p.pois ? "Jätetään pois: " + p.pois.syy : p.kuvaus) + "</div>" : "") + "</div>" +
+        (p.kuvaus || p.pois || nayt ? '<div class="s">' + esc(p.pois ? "Jätetään pois: " + p.pois.syy : [p.kuvaus, nayt].filter(Boolean).join(" · ")) + "</div>" : "") + "</div>" +
         '<span class="count">' + esc(maaraTxt) + "</span></button>";
     }
 
@@ -380,10 +389,9 @@
     for (const h of recent) {
       const u = Model.url(h.kuvat[0]);
       rec += '<button class="item" data-act="openH" data-id="' + h.id + '"><span class="thumb">' +
-        (u ? '<img src="' + u + '" alt="">' : "") + '<span class="dot" style="background:var(--pin-' + (h.tulos === "poikkeama" ? "note" : h.tulos === "ok" ? "ok" : "neutral") + ')"></span>' +
-        '<span class="no">' + nro(h) + "</span>" +
-        (Check.havaintoPuutteet(h).length ? '<span class="warn" title="Tietoja puuttuu">!</span>' : "") + "</span>" +
-        esc(Model.sijaintiTeksti(h.sijainti) || "Sijainti puuttuu") + "</button>";
+        (u ? '<img src="' + u + '" alt="">' : "") + '<span class="no">' + nro(h) + "</span></span>" +
+        esc(Model.sijaintiTeksti(h.sijainti) || "Sijainti puuttuu") +
+        (Check.havaintoPuutteet(h).length ? '<span class="rec-puute">tietoja puuttuu</span>' : "") + "</button>";
     }
 
     const hu = k.huomiot || [];
@@ -414,10 +422,10 @@
         (S.havainnot.length && k.suunnitelma.length ? lisaRivi("#/k/" + k.id + "/kalusto", "check", "Kalusto mukaan", (() => { const e = Kalusto.laske(); return e.n + " / " + e.all + " pakattu"; })()) : "") +
         (window.Paikannus && Paikannus.saatavilla(k) ? (() => {
           const t = Paikannus.tilanne(), o = Paikannus.osumat();
-          return '<button class="row" data-act="paikannus" style="width:100%;text-align:left;background:none;border:0">' + icon("pin") + '<div class="grow"><div class="t">Tilaseuranta: ' + (k.paikannus ? "päällä" : "pois") + '</div><div class="s">' +
+          return '<button class="row" data-act="paikannus" style="width:100%;text-align:left;background:none;border:0">' + icon("pin") + '<div class="grow"><div class="t">Seuranta: ' + (k.paikannus ? "päällä" : "pois") + '</div><div class="s">' +
             esc(k.paikannus ? (t.virhe ? t.virhe : !t.on ? "Napauta käynnistääksesi anturit" : t.alussa ? "Alkaa ensimmäisestä tilavalinnasta" : "Ehdottaa tiloja kirjauksessa") +
               (o.n ? " · osumat " + (o.top1 || 0) + "/" + o.n + " ensimmäisenä, " + (o.top3 || 0) + "/" + o.n + " kolmen joukossa" : "")
-              : "Askelpaikannus ehdottaa kirjauksessa 2–3 todennäköisintä tilaa. Näyttö pysyy päällä; taskussa näyttö pimenee.") + "</div></div>" +
+              : "Ehdottaa kirjauksessa todennäköisimmän tilan askelten ja kompassin perusteella. Näyttö pysyy päällä; taskussa näyttö pimenee.") + "</div></div>" +
             '<span class="chip" aria-pressed="' + !!k.paikannus + '" style="pointer-events:none">' + (k.paikannus ? "Päällä" : "Pois") + "</span></button>" +
             (k.paikannus && t.on ? (() => {
               const d = Paikannus.diagnostiikka();
@@ -635,9 +643,9 @@
     async paikannus() {
       const k = S.kohde, t = Paikannus.tilanne();
       // Päällä mutta anturit eivät käy (esim. iPhone vaatii napautuksen): käynnistetään, ei sammuteta
-      if (k.paikannus && !t.on) { const ok = await Paikannus.kaynnista(); toast(ok ? "Tilaseuranta käynnissä" : "Anturit eivät käynnisty: " + Paikannus.tilanne().virhe, 3500); render(); return; }
+      if (k.paikannus && !t.on) { const ok = await Paikannus.kaynnista(); toast(ok ? "Seuranta käynnissä" : "Anturit eivät käynnisty: " + Paikannus.tilanne().virhe, 3500); render(); return; }
       const ok = await Paikannus.asetaPaalle(!k.paikannus);
-      toast(k.paikannus ? (ok ? "Tilaseuranta päällä. Valitse tila ensimmäisessä kirjauksessa, niin seuranta alkaa siitä." : "Anturit eivät käynnisty: " + Paikannus.tilanne().virhe) : "Tilaseuranta pois", 4000);
+      toast(k.paikannus ? (ok ? "Seuranta päällä. Valitse tila ensimmäisessä kirjauksessa, niin seuranta alkaa siitä." : "Anturit eivät käynnisty: " + Paikannus.tilanne().virhe) : "Seuranta pois", 4000);
       render();
     },
     /* Seurannan loki: jako (puhelin), lataus tai leikepöytä. Jakona .txt, koska Android ei jaa .json-tiedostoja. */

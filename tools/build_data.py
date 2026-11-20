@@ -137,6 +137,20 @@ def slug(t):
     t = unicodedata.normalize("NFKD", t.lower().replace("ä", "a").replace("ö", "o").replace("å", "a"))
     return re.sub(r"[^a-z0-9]+", "_", t).strip("_")[:28]
 AKK_TYYPIT = {"Teksti": "text", "Pitkä teksti": "textarea", "Numero": "num", "Päivämäärä": "date", "Valinta": "select", "Monivalinta": "multi"}
+
+def numeroi(osiot):
+    """Luvun 5 osiot juoksevaan numerojärjestykseen (Teemu 20.11.: Sisätilat ja Muut tilat olivat molemmat 5.12).
+    Alaluvut (5.14.1 …) säilyvät ryhmänä."""
+    n, edel, edel_luku = 0, None, None
+    for o in osiot:
+        osat = o["luku"].split(".")
+        ryhma = osat[1] if len(osat) > 1 else o["luku"]
+        if ryhma != edel or (len(osat) == 2 and o["luku"] == edel_luku):
+            n += 1
+        edel, edel_luku = ryhma, o["luku"]
+        o["luku"] = ".".join([osat[0], str(n)] + osat[2:])
+    return osiot
+
 akk = None
 if "Kuntotarkastus" in wb.sheetnames:
     akk = {"yleiset": [], "osiot": [], "sarake": [], "kunto": [], "toimenpide": []}
@@ -169,7 +183,7 @@ if "Kuntotarkastus" in wb.sheetnames:
         if f["t"] in ("select", "multi"): f["o"] = [x for x in split(opt) if not x.startswith("Muu (")] + (["Muu"] if "Muu (" in opt else [])
         elif opt: f["ohje"] = opt
         akk["yleiset"].append(f)
-    akk["osiot"] = list(osiot.values())
+    akk["osiot"] = numeroi(list(osiot.values()))
 
 data = {"akk": akk, "lahde": "Menetelmät ja kalusto -taulukko (hyväksytty 19.11.2026)", "menetelmat": out_m,
         "naytetyypit": ntyy, "naytekentat": {"yhteiset": yhteiset, "tyyppikohtaiset": nkentat}, "kalusto": kal}

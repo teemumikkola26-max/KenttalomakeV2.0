@@ -311,6 +311,18 @@ Märkätilakartoituksen Asunto-kenttä jää pois, kun kohteessa ei ole asuntoja
 
 Kameranäkymässä on kaksi välilehteä: **Havainto** ja **Yleiskuva**. Yleiskuva-tilassa jokainen laukaisu tallentuu heti kohteen yleiskuviin valitun tilan kanssa, ilman sanelua ja havaintoa. Kohteen sivulla *Yleiskuvat* näyttää kuvat tiloittain; kuvalle voi lisätä kuvatekstin tai vaihtaa tilan. ZIP-paketissa kuvat ovat kansiossa `yleiskuvat/` (YK01_OH1.jpg …), ja luettelo on `havainnot.md`:ssä ja `havainnot.json`:ssa. Yleiskuvat synkronoituvat pilveen kuten muutkin kohteen tiedot.
 
+## Versio 46 (selkeys, Teemun päätökset 20.11.)
+
+- **Tilan valinta:** yksi ehdotus ja *Vaihda*. Kamerassa tila näkyy vain yläreunassa ("119 ehdotus · Vaihda"); ehdotusrivi poistettu. Pikavalinnassa "Tila: 119 ehdotus [Vaihda]". *Vaihda* avaa sijainnin valinnan: haku, pohjakuva ja seurannan piste, viimeksi käytetyt (4), kerros vain jos useita; koko tilalista "Näytä kaikki" -linkistä. Rakenneosa valitaan vain havaintokortissa.
+- **Kuva hyväksyy ehdotuksen:** jos tilaa ei vaihdeta, ensimmäinen kuva hyväksyy ehdotetun tilan ja seuranta kiinnittyy siihen. Sanelussa sanottu tila voi vielä korjata sen. Yleiskuvissa tila seuraa edelleen liikkumista.
+- **Tilan nimi:** "118 Tila 118" → "118" (paikkanimi jätetään pois). Kerrosta ei näytetä, kun kohteessa on yksi kerros.
+- **Kamera:** kuvan päällä ollut nuoli poistettu; *Poikkeama* ja *Ei huomautettavaa* poistettu (tulos sanelusta tai havaintokortista); jäljellä *Täydennä tiedot*. Havainto/Yleiskuva-valinnassa samat kuvakkeet kuin pikavalinnassa. Menetelmä koko nimellä.
+- **Kohteen etusivu:** alapalkin *Lopeta* → *Viimeistele* ja luvun tilalla piste; luku näkyy Viimeistele kohde -näkymässä ("täydennettävää"). Havaintojen pikkukuvista merkit pois, tilalla teksti "tietoja puuttuu". Rakenneavauksen näytteet omalla rivillään.
+- **Havaintokortti:** otsikossa menetelmän koko nimi; "Lisää kuva"; "Lisää tähän" → "Tee samassa kohdassa myös".
+- **Havaintolista:** "!" → "2 tietoa puuttuu"; kamerapainikkeessa teksti "Lisää kuvia".
+- **Kuntotarkastus:** osiot juoksevaan numerojärjestykseen: Sisätilat 5.12, Muut tilat 5.13, Märkätilat 5.14, järjestelmät 5.15.1–5.15.4 (myös `tools/build_data.py`).
+- **Termit:** *Seuranta* (ei tilaseuranta/askelpaikannus), *Ei huomautettavaa*, *Viimeistele kohde*.
+
 ## Versio 45
 
 - **Tilaseuranta, pilottilokin (20.11.) analyysi:** askeleet tunnistuivat hyvin (0,6–0,8 m) ja puhelimen kompassi oli luotettava: pelkillä askelilla ja kompassilla edellisestä tilasta laskettu kävely osui 10/14 siirtymässä 1 m:n päähän oikeasta tilasta. Kompassia ei kuitenkaan käytetty, koska pohjakuvan pohjoista ei tiedetty (ei paketissa, ja vanha oppiminen vaati 20 varmaa askelta). Lokin uudelleenajo vahvisti: ilman pohjoista 20 % / 34 % (kenttä: 3/17 ja 7/17), pohjoisen kanssa noin 40 % / 55–60 %.

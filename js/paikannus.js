@@ -355,7 +355,7 @@
     if (on) {
       overlay = document.createElement("div");
       overlay.className = "taskutila";
-      overlay.innerHTML = '<div>Taskutila · tilaseuranta jatkuu<br><small>Ota puhelin esiin ja pidä hetki kädessä</small></div>';
+      overlay.innerHTML = '<div>Taskutila · seuranta jatkuu<br><small>Ota puhelin esiin ja pidä hetki kädessä</small></div>';
       ["pointerdown", "pointerup", "click", "touchstart", "touchend", "touchmove", "contextmenu"].forEach((ev) => overlay.addEventListener(ev, (e) => { e.preventDefault(); e.stopPropagation(); }, { passive: false }));
       document.body.appendChild(overlay);
     } else if (overlay) { overlay.remove(); overlay = null; }
